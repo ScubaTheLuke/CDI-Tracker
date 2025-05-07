@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CDI Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    
+</head>
+<body>
+    <h1>CDI Card Tracker</h1>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    <ul class="flashes">
+        {% for category, message in messages %}
+        <li class="{{ category }}">{{ message }}</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    {% endwith %}
+
+    <div class="tab-nav">
+        <button id="addCardTabNav" class="tab-button" onclick="openTab(event, 'addCardTab')">Add New Card</button>
+        <button id="enterSaleTabNav" class="tab-button" onclick="openTab(event, 'enterSaleTab')">Enter Sale</button>
+        <button id="inventoryTabNav" class="tab-button" onclick="openTab(event, 'inventoryTab')">View Inventory</button>
+        <button id="salesHistoryTabNav" class="tab-button" onclick="openTab(event, 'salesHistoryTab')">View Sales History</button>
+    </div>
+
+    <div id="addCardTab" class="tab-content">
+        <h2>Add New Card to Inventory</h2>
+        <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
+            <div class="form-grid">
+                <div>
+                    <label for="set_code">Set Code (e.g., AFR):</label>
+                    <input type="text" id="set_code" name="set_code" required>
+                </div>
+                <div>
+                    <label for="collector_number">Collector Number (e.g., 112):</label>
+                    <input type="text" id="collector_number" name="collector_number" required>
+                </div>
+                <div>
+                    <label for="quantity">Quantity:</label>
+                    <input type="number" id="quantity" name="quantity" min="1" required>
+                </div>
+                <div>
+                    <label for="buy_price">Buy Price (each, $):</label>
+                    <input type="number" id="buy_price" name="buy_price" step="0.01" min="0" required>
+                </div>
+                <div>
+                    <label for="asking_price">Asking Price (each, $, optional):</label>
+                    <input type="number" id="asking_price" name="asking_price" step="0.01" min="0">
+                </div>
+                <div>
+                    <label for="location">Location (e.g., Binder 1, Deck Box A):</label>
+                    <input type="text" id="location" name="location" required>
+                </div>
+            </div>
+            <div>
+                <input type="checkbox" id="is_foil" name="is_foil" value="true" style="margin-top:10px;">
+                <label for="is_foil">Foil</label>
+            </div>
+            <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
+        </form>
+    </div>
+
+    <div id="enterSaleTab" class="tab-content">
+        <h2>Record a New Sale</h2>
+        <form action="{{ url_for('record_sale_route') }}" method="post" class="card-form">
+            <div>
+                <label for="inventory_card_id">Card from Inventory:</label>
+                <select id="inventory_card_id" name="inventory_card_id" required>
+                    <option value="">-- Select Card --</option>
+                    {% for card in inventory_cards %}
+                    <option value="{{ card.id }}">
+                        {{ card.name }} ({{ card.set_code.upper() }}-{{ card.collector_number }}) {% if card.is_foil_bool %}(Foil){% endif %} - Qty: {{ card.quantity }} - Loc: {{ card.location }} - Buy: ${{ "%.2f"|format(card.buy_price) }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-grid" style="margin-top:10px;">
+                <div>
+                    <label for="quantity_sold">Quantity Sold:</label>
+                    <input type="number" id="quantity_sold" name="quantity_sold" min="1" required>
+                </div>
+                <div>
+                    <label for="sell_price_per_item">Sell Price (per item, $):</label>
+                    <input type="number" id="sell_price_per_item" name="sell_price_per_item" step="0.01" min="0" required>
+                </div>
+                <div>
+                    <label for="sale_date">Sale Date:</label>
+                    <input type="date" id="sale_date" name="sale_date" value="{{ current_date }}" required>
+                </div>
+            </div>
+            <button type="submit" style="margin-top:10px;">Record Sale</button>
+        </form>
+    </div>
+
+    <div id="inventoryTab" class="tab-content">
+        <h2>Current Inventory</h2>
+        <p>
+            <strong>Total Inventory Buy Cost:</strong> ${{ "%.2f"|format(total_buy_cost_of_inventory) }}<br>
+            <strong>Total Inventory Market Value:</strong> ${{ "%.2f"|format(total_inventory_market_value) }}<br>
+            <strong>Overall Realized P/L (from Sales):</strong>
+            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">${{ "%.2f"|format(overall_realized_pl) }}</span>
+        </p>
+        <div class="card-grid">
+            {% if inventory_cards %}
+            {% for card in inventory_cards %}
+            <div class="card-entry">
+                {% if card.image_uri %}
+                <img src="{{ card.image_uri }}" alt="{{ card.name }}" class="card-image">
+                {% else %}
+                <div class="card-image-placeholder">No Image</div>
+                {% endif %}
+                <h3>{{ card.name }}</h3>
+                <p>
+                    <strong>Set:</strong> {{ card.set_code.upper() }}-{{ card.collector_number }} {% if card.is_foil_bool %}(Foil){% endif %}<br>
+                    <strong>Location:</strong> {{ card.location if card.location else 'N/A' }}<br>
+                    <strong>Quantity:</strong> {{ card.quantity }}<br>
+                    <strong>Buy Price (ea):</strong> ${{ "%.2f"|format(card.buy_price) }}<br>
+                    <strong>Total Buy Cost:</strong> ${{ "%.2f"|format(card.total_buy_cost) }}<br>
+                    <strong>Market Price (ea):</strong>
+                    {% if card.current_market_price_display is not none %}
+                    ${{ "%.2f"|format(card.current_market_price_display) }}
+                    {% else %} N/A {% endif %}<br>
+                    <strong>Market vs. Buy:</strong>
+                    {% if card.market_vs_buy_percentage_display == "N/A" or card.market_vs_buy_percentage_display == "Infinite" %}
+                    {{ card.market_vs_buy_percentage_display }}
+                    {% else %}
+                    <span class="{{ 'profit' if card.market_vs_buy_percentage_display >= 0 else 'loss' }}">{{ "%.2f"|format(card.market_vs_buy_percentage_display) }}%</span>
+                    {% endif %}<br>
+                    <strong>Asking Price (ea):</strong>
+                    {% if card.sell_price is not none %}
+                    ${{ "%.2f"|format(card.sell_price) }}
+                    {% else %} Not Set {% endif %}<br>
+                    <strong>Potential P/L (at Asking Price):</strong>
+                    {% if card.potential_pl_at_asking_price_display is number %}
+                    <span class="{{ 'profit' if card.potential_pl_at_asking_price_display >= 0 else 'loss' }}">${{ "%.2f"|format(card.potential_pl_at_asking_price_display) }}</span>
+                    {% else %} {{ card.potential_pl_at_asking_price_display }} {% endif %}
+                </p>
+                <div class="actions">
+                    <form action="{{ url_for('delete_card_route', card_id=card.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this inventory entry? This action cannot be undone.');">Delete</button>
+                    </form>
+                    <form action="{{ url_for('refresh_card_route', card_id=card.id) }}" method="post" style="display:inline;">
+                        <button type="submit" class="refresh-button">Refresh Market Data</button>
+                    </form>
+                </div>
+                <details class="update-details">
+                    <summary>Update Inventory Details</summary>
+                    <form action="{{ url_for('update_card_route', card_id=card.id) }}" method="post" class="update-form">
+                        <div>
+                            <label for="update_quantity_{{card.id}}">New Qty:</label>
+                            <input type="number" id="update_quantity_{{card.id}}" name="quantity" value="{{ card.quantity }}" min="1" required>
+                        </div>
+                        <div>
+                            <label for="update_buy_price_{{card.id}}">New Buy Price ($):</label>
+                            <input type="number" id="update_buy_price_{{card.id}}" name="buy_price" value="{{ '%.2f'|format(card.buy_price) }}" step="0.01" min="0" required>
+                        </div>
+                        <div>
+                            <label for="update_asking_price_{{card.id}}">New Asking Price ($ optional):</label>
+                            <input type="number" id="update_asking_price_{{card.id}}" name="asking_price" value="{{ '%.2f'|format(card.sell_price) if card.sell_price is not none else '' }}" placeholder="Leave blank to clear" step="0.01" min="0">
+                        </div>
+                        <div>
+                            <label for="update_location_{{card.id}}">New Location:</label>
+                            <input type="text" id="update_location_{{card.id}}" name="location" value="{{ card.location if card.location else '' }}" required>
+                        </div>
+                        <button type="submit">Save Updates</button>
+                    </form>
+                </details>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p>No cards in your active inventory yet. Add some using the 'Add New Card' tab!</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div id="salesHistoryTab" class="tab-content">
+        <h2>Sales History</h2>
+        {% if sales_history %}
+        <table border="1" style="width:100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th>Sale Date</th>
+                    <th>Card Name</th>
+                    <th>Set-CN</th>
+                    <th>Foil</th>
+                    <th>Qty Sold</th>
+                    <th>Buy Price (ea)</th>
+                    <th>Sell Price (ea)</th>
+                    <th>P/L for Sale</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for sale in sales_history %}
+                <tr>
+                    <td>{{ sale.sale_date.strftime('%Y-%m-%d') if sale.sale_date else 'N/A' }}</td>
+                    <td>{{ sale.card_name }}</td>
+                    <td>{{ sale.set_code.upper() }}-{{ sale.collector_number }}</td>
+                    <td>{{ 'Yes' if sale.is_foil else 'No' }}</td>
+                    <td>{{ sale.quantity_sold }}</td>
+                    <td>${{ "%.2f"|format(sale.buy_price_per_item) }}</td>
+                    <td>${{ "%.2f"|format(sale.sell_price_per_item) }}</td>
+                    <td>
+                        <span class="{{ 'profit' if sale.profit_loss >= 0 else 'loss' }}">
+                            ${{ "%.2f"|format(sale.profit_loss) }}
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <p>No sales recorded yet. Record sales using the 'Enter Sale' tab.</p>
+        {% endif %}
+    </div>
+
+    <script>
+        function openTab(evt, tabName) {
+            var i, tabcontent, tabbuttons;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            tabbuttons = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tabbuttons.length; i++) {
+                tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
+            }
+            document.getElementById(tabName).style.display = "block";
+            if (evt) {
+              evt.currentTarget.className += " active";
+            } else {
+              // For setting default tab without an event
+              var defaultButtonId = tabName + "Nav";
+              var defaultButton = document.getElementById(defaultButtonId);
+              if (defaultButton) {
+                defaultButton.className += " active";
+              }
+            }
+        }
+
+        // Get the tab to activate from Flask (passed via URL query param or default)
+        var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
+        document.addEventListener('DOMContentLoaded', function() {
+            openTab(null, activeTabFromFlask);
+            // If there's a specific element to focus or scroll to based on active_tab, add here
+        });
+    </script>
+
+</body>
+</html>

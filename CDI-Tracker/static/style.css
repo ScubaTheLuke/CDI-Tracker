@@ -1,0 +1,405 @@
+/* --- Base Dark Theme & MTG Colors --- */
+:root {
+    --bg-primary: #18171B; /* Deep, dark charcoal - almost black */
+    --bg-secondary: #24232A; /* Slightly lighter for elements, card backgrounds */
+    --bg-tertiary: #302F38; /* For hover states, borders, subtle distinctions */
+    --text-primary: #EAEAEA; /* Off-white for main text */
+    --text-secondary: #A0A0A0; /* Lighter gray for subtext, placeholders */
+    --border-color: #4A4857; /* Subtle border color */
+
+    --mtg-black-accent: #5C527F; /* Muted Purple, for primary actions/tabs */
+    --mtg-gold-accent: #B08D57; /* A muted gold for highlights or secondary actions */
+    --mtg-red: #D32F2F; /* For loss, errors, delete buttons */
+    --mtg-green: #388E3C; /* For profit, success */
+    --mtg-blue: #5E88C6; /* For links or info accents */
+
+    --font-family-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Clean sans-serif */
+}
+
+body {
+    font-family: var(--font-family-main);
+    margin: 20px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+}
+
+h1, h2, h3 {
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+    margin-top: 20px;
+    margin-bottom: 15px;
+}
+
+h1 {
+    font-size: 2.2em;
+}
+
+h2 {
+    font-size: 1.8em;
+}
+
+h3 {
+    font-size: 1.4em;
+    border-bottom: none;
+    color: var(--mtg-gold-accent);
+}
+/* Card titles */
+
+/* --- Forms --- */
+.card-form, .update-form {
+    background-color: var(--bg-secondary);
+    padding: 20px;
+    margin-bottom: 20px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 15px;
+}
+
+    .form-grid > div {
+        display: flex;
+        flex-direction: column;
+    }
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    color: var(--text-secondary);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 1em;
+    transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+    input[type="text"]:focus,
+    input[type="number"]:focus,
+    input[type="date"]:focus,
+    select:focus {
+        border-color: var(--mtg-black-accent);
+        box-shadow: 0 0 0 2px rgba(92, 82, 127, 0.5); /* Focus glow */
+        outline: none;
+    }
+
+input[type="checkbox"] {
+    margin-right: 8px;
+    vertical-align: middle;
+    width: 18px;
+    height: 18px;
+}
+
+    input[type="checkbox"] + label {
+        display: inline;
+        font-weight: normal;
+        color: var(--text-primary);
+    }
+
+
+/* --- Buttons --- */
+button, .button { /* Added .button for general use if needed */
+    background-color: var(--mtg-black-accent);
+    color: var(--text-primary);
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: bold;
+    transition: background-color 0.3s, transform 0.1s;
+}
+
+    button:hover {
+        background-color: #493D6A; /* Darker shade of accent */
+    }
+
+    button:active {
+        transform: translateY(1px);
+    }
+
+.delete-button {
+    background-color: var(--mtg-red);
+}
+
+    .delete-button:hover {
+        background-color: #B71C1C; /* Darker red */
+    }
+
+.refresh-button {
+    background-color: var(--mtg-blue);
+}
+
+    .refresh-button:hover {
+        background-color: #4A6DAA; /* Darker blue */
+    }
+
+/* --- Tab Navigation --- */
+.tab-nav {
+    overflow: hidden;
+    border-bottom: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+.tab-button {
+    background-color: var(--bg-secondary);
+    color: var(--text-secondary);
+    float: left;
+    border: 1px solid var(--border-color);
+    border-bottom: none;
+    outline: none;
+    cursor: pointer;
+    padding: 12px 18px;
+    transition: background-color 0.3s, color 0.3s;
+    font-size: 1em;
+    font-weight: bold;
+    border-radius: 6px 6px 0 0;
+    margin-right: 3px;
+}
+
+    .tab-button:hover {
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+    }
+
+    .tab-button.active {
+        background-color: var(--mtg-black-accent);
+        color: var(--text-primary);
+        border-color: var(--mtg-black-accent);
+    }
+
+.tab-content {
+    display: none;
+    padding: 15px;
+    border-top: none;
+    animation: fadeEffect 0.5s;
+    background-color: var(--bg-secondary); /* Give tab content a background */
+    border: 1px solid var(--border-color);
+    border-top: none; /* As tab-nav has bottom border */
+    border-radius: 0 0 8px 8px;
+    margin-bottom: 20px; /* Add some space below tab content */
+}
+
+@keyframes fadeEffect {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+
+/* --- Card Inventory Display --- */
+.card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* Slightly wider cards */
+    gap: 20px;
+}
+
+.card-entry {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.card-image {
+    max-width: 100%;
+    height: auto;
+    border-radius: 6px; /* Match card art corners */
+    margin-bottom: 10px;
+    align-self: center;
+    border: 1px solid var(--bg-tertiary);
+}
+
+.card-image-placeholder {
+    width: 100%;
+    min-height: 200px; /* Adjust as needed */
+    background-color: var(--bg-tertiary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text-secondary);
+    border-radius: 6px;
+    margin-bottom: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.card-entry p {
+    font-size: 0.9em;
+    line-height: 1.6;
+    flex-grow: 1;
+    color: var(--text-secondary);
+}
+
+    .card-entry p strong {
+        color: var(--text-primary);
+    }
+
+.card-entry .actions {
+    margin-top: auto;
+    padding-top: 10px;
+    border-top: 1px solid var(--border-color);
+    display: flex; /* For better button alignment */
+    gap: 8px; /* Space between buttons */
+}
+
+    .card-entry .actions form {
+        display: inline-block; /* Allow forms to sit next to each other if needed */
+    }
+
+.update-details {
+    margin-top: 15px;
+    border-top: 1px solid var(--border-color);
+    padding-top: 10px;
+}
+
+    .update-details summary {
+        cursor: pointer;
+        color: var(--mtg-gold-accent);
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+        .update-details summary:hover {
+            color: #cab391; /* Lighter gold */
+        }
+
+/* --- Flash Messages --- */
+.flashes {
+    list-style-type: none;
+    padding: 0;
+    margin-bottom: 15px;
+}
+
+    .flashes li {
+        padding: 12px 15px;
+        margin-bottom: 10px;
+        border-radius: 4px;
+        font-weight: bold;
+        color: var(--text-primary);
+        border-width: 1px;
+        border-style: solid;
+    }
+
+        .flashes li.success {
+            background-color: #2E7D32; /* Darker green background */
+            border-color: var(--mtg-green);
+            color: #E8F5E9;
+        }
+
+        .flashes li.error {
+            background-color: #C62828; /* Darker red background */
+            border-color: var(--mtg-red);
+            color: #FFEBEE;
+        }
+
+        .flashes li.warning {
+            background-color: #FF8F00; /* Darker orange background */
+            border-color: #FFB300;
+            color: #FFF8E1;
+        }
+
+/* --- Profit/Loss Text --- */
+.profit {
+    color: var(--profit-color);
+    font-weight: bold;
+}
+
+.loss {
+    color: var(--loss-color);
+    font-weight: bold;
+}
+
+/* --- Sales History Table --- */
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+    font-size: 0.9em;
+}
+
+    table th, table td {
+        border: 1px solid var(--border-color);
+        padding: 10px 12px;
+        text-align: left;
+    }
+
+    table th {
+        background-color: var(--bg-tertiary);
+        color: var(--text-primary);
+        font-weight: bold;
+    }
+
+    table tr:nth-child(even) {
+        background-color: var(--bg-secondary);
+    }
+
+    table tr:hover {
+        background-color: #383740; /* Slightly different hover for rows */
+    }
+
+/* --- Links --- */
+a {
+    color: var(--mtg-blue);
+    text-decoration: none;
+}
+
+    a:hover {
+        text-decoration: underline;
+        color: #7AA7D9; /* Lighter blue */
+    }
+
+/* Summary Paragraphs (Overall totals etc.) */
+h2 + p { /* Paragraphs directly after H2 */
+    background-color: var(--bg-secondary);
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 20px;
+}
+
+    h2 + p strong {
+        color: var(--mtg-gold-accent);
+    }
+
+/* Responsive adjustments if needed */
+@media (max-width: 600px) {
+    .form-grid {
+        grid-template-columns: 1fr; /* Stack form elements on small screens */
+    }
+
+    .card-grid {
+        grid-template-columns: 1fr; /* Stack cards on small screens */
+    }
+
+    .tab-button {
+        font-size: 0.9em;
+        padding: 10px 12px;
+    }
+
+    body {
+        margin: 10px;
+    }
+}

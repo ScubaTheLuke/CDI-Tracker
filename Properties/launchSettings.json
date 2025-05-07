@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "CDI-Tracker": {
+      "commandName": "Project"
+    },
+    "Container (Dockerfile)": {
+      "commandName": "Docker"
+    }
+  }
+}
