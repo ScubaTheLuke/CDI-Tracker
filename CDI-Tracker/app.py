@@ -3,7 +3,24 @@ import database
 import scryfall
 import datetime
 
+
+# Custom Jinja2 filter for currency formatting
+def format_currency_with_commas(value):
+    if value is None:
+        return "$0.00"  # Or 'N/A' or how you prefer to display None
+    try:
+        num_value = float(value)
+        # Format with commas and two decimal places, handling negative sign correctly
+        if num_value < 0:
+            return "-${:,.2f}".format(abs(num_value))
+        return "${:,.2f}".format(num_value)
+    except (ValueError, TypeError):
+        # If it's not a number that can be formatted, return it as a string
+        return str(value)
+
 app = Flask(__name__)
+app.secret_key = 'your_very_secret_key_here'
+app.jinja_env.filters['currency_commas'] = format_currency_with_commas # Register the filter
 app.secret_key = 'your_very_secret_key_here' 
 
 @app.before_request
@@ -11,29 +28,34 @@ def initialize_database():
     database.init_db()
 
 @app.route('/')
+# Near the top of app.py, make sure datetime is imported:
+# import datetime # This should already be there
+
+@app.route('/')
 def index():
-    active_tab = request.args.get('tab', 'inventoryTab') # Default to inventory tab
+    active_tab = request.args.get('tab', 'inventoryTab') 
 
-    inventory_cards_data = database.get_all_cards() # Where quantity > 0
-    raw_sales_history_data = database.get_all_sales() # Fetch raw data
-    sales_history_data = [] # Prepare a new list for processed data
-
+    inventory_cards_data = database.get_all_cards() 
+    raw_sales_history_data = database.get_all_sales()
+    
+    sales_history_data = []
     for raw_sale_row in raw_sales_history_data:
-        sale = dict(raw_sale_row) # Convert SQLite Row to a mutable dictionary
-        if isinstance(sale.get('sale_date'), str):
+        sale = dict(raw_sale_row) 
+        current_sale_date_value = sale.get('sale_date')
+
+        if isinstance(current_sale_date_value, str):
             try:
-                # Attempt to parse the string into a date object
-                sale['sale_date'] = datetime.datetime.strptime(sale['sale_date'], '%Y-%m-%d').date()
+                sale['sale_date'] = datetime.datetime.strptime(current_sale_date_value, '%Y-%m-%d').date()
             except ValueError:
-                # If parsing fails (e.g., unexpected format or None), leave it as is or handle
-                # For template robustness, ensure it can handle None or original string if strftime is conditional
-                print(f"Warning: Could not parse sale_date string: {sale.get('sale_date')}")
-                # If you want it to be None if unparseable:
-                # sale['sale_date'] = None 
+                print(f"Warning: Could not parse sale_date string: '{current_sale_date_value}'")
+                sale['sale_date'] = None # Explicitly set to None if parsing fails
+        elif not isinstance(current_sale_date_value, datetime.date):
+            # If it's already None or some other unexpected type that's not a date object
+            if current_sale_date_value is not None: # Log if it was an unexpected type
+                 print(f"Warning: sale_date was not a string or date object, but: {current_sale_date_value} (type: {type(current_sale_date_value)})")
+            sale['sale_date'] = None # Ensure it's None for the template if not a valid date object
+
         sales_history_data.append(sale)
-    
-    overall_realized_pl = sum(s['profit_loss'] for s in sales_history_data if s.get('profit_loss') is not None)
-    
 
     processed_inventory_cards = []
     total_inventory_market_value = 0
@@ -71,14 +93,14 @@ def index():
                  card['market_vs_buy_percentage_display'] = 0.0
 
         card['potential_pl_at_asking_price_display'] = "N/A (No asking price)"
-        if card['sell_price'] is not None: # sell_price is now "Asking Price"
+        if card['sell_price'] is not None: 
             asking_value = card['quantity'] * card['sell_price']
             potential_pl = asking_value - card_buy_cost
             card['potential_pl_at_asking_price_display'] = potential_pl
         
         processed_inventory_cards.append(card)
 
-    overall_realized_pl = sum(sale['profit_loss'] for sale in sales_history_data)
+    overall_realized_pl = sum(s['profit_loss'] for s in sales_history_data if s.get('profit_loss') is not None)
         
     return render_template('index.html', 
                            inventory_cards=processed_inventory_cards,
@@ -92,45 +114,66 @@ def index():
 
 @app.route('/add_card', methods=['POST'])
 def add_card_route():
-    set_code = request.form.get('set_code')
-    collector_number = request.form.get('collector_number')
-    quantity = request.form.get('quantity', type=int)
-    buy_price = request.form.get('buy_price', type=float)
+    set_code = request.form.get('set_code', '').strip()
+    collector_number_input = request.form.get('collector_number', '').strip()
+    card_name_input = request.form.get('card_name', '').strip()
+    
+    quantity_str = request.form.get('quantity')
+    buy_price_str = request.form.get('buy_price')
     is_foil = 'is_foil' in request.form
     location = request.form.get('location', '').strip()
-    
     asking_price_str = request.form.get('asking_price')
+
+    quantity = None
+    if quantity_str:
+        try: quantity = int(quantity_str)
+        except ValueError: flash('Invalid quantity format.', 'error'); return redirect(url_for('index', tab='addCardTab'))
+    
+    buy_price = None
+    if buy_price_str:
+        try: buy_price = float(buy_price_str)
+        except ValueError: flash('Invalid buy price format.', 'error'); return redirect(url_for('index', tab='addCardTab'))
+
     asking_price = None
     if asking_price_str:
         try:
             asking_price = float(asking_price_str)
             if asking_price < 0: asking_price = None
         except ValueError:
-            asking_price = None
+            asking_price = None # Or flash error
 
-    if not all([set_code, collector_number, quantity, buy_price is not None, location is not None]): # Location is now required
-        flash('Missing form data for required fields. Set, Number, Qty, Buy Price, and Location are required.', 'error')
+    collector_number_to_use = collector_number_input if collector_number_input else None
+    card_name_to_use = card_name_input if card_name_input else None
+
+    if not set_code or not (card_name_to_use or collector_number_to_use):
+        flash('Please provide Set Code and either Card Name or Collector Number.', 'error')
         return redirect(url_for('index', tab='addCardTab'))
 
+    if quantity is None or buy_price is None or not location:
+        flash('Quantity, Buy Price, and Location are required fields.', 'error')
+        return redirect(url_for('index', tab='addCardTab'))
+    
     if quantity <= 0 or buy_price < 0:
         flash('Quantity must be positive and buy price cannot be negative.', 'error')
         return redirect(url_for('index', tab='addCardTab'))
 
-    card_details = scryfall.get_card_details(set_code, collector_number)
+    card_details = scryfall.get_card_details(set_code, collector_number_to_use, card_name_to_use)
 
-    if card_details:
+    if card_details and card_details.get('name') and card_details.get('collector_number'):
         added = database.add_card(
-            set_code.upper(), collector_number, card_details['name'],
+            set_code.upper(), 
+            card_details['collector_number'], 
+            card_details['name'],
             quantity, buy_price, is_foil,
             card_details['market_price_usd'], card_details['foil_market_price_usd'],
             card_details['image_uri'], asking_price, location
         )
         if added:
-            flash(f"Card {card_details['name']} added to inventory at '{location}'!", 'success')
+            flash(f"Card '{card_details['name']}' added to inventory at '{location}'!", 'success')
         else:
-            flash(f"Failed to add card. It might already exist at that location or another error occurred.", 'error')
+            flash(f"Failed to add card. It might already exist at that location with active stock, or another database error occurred.", 'error')
     else:
-        flash(f"Could not fetch card details for {set_code.upper()}-{collector_number} from Scryfall.", 'error')
+        flash(f"Could not fetch valid card details from Scryfall. Ensure Set Code and (Card Name or Collector Number) are correct.", 'error')
         
     return redirect(url_for('index', tab='addCardTab'))
 
@@ -138,11 +181,21 @@ def add_card_route():
 @app.route('/record_sale', methods=['POST'])
 def record_sale_route():
     inventory_card_id = request.form.get('inventory_card_id', type=int)
-    quantity_sold = request.form.get('quantity_sold', type=int)
-    sell_price_per_item = request.form.get('sell_price_per_item', type=float)
+    quantity_sold_str = request.form.get('quantity_sold')
+    sell_price_per_item_str = request.form.get('sell_price_per_item')
     sale_date_str = request.form.get('sale_date')
 
-    if not all([inventory_card_id, quantity_sold, sell_price_per_item is not None, sale_date_str]):
+    quantity_sold = None
+    if quantity_sold_str:
+        try: quantity_sold = int(quantity_sold_str)
+        except ValueError: flash('Invalid quantity sold format.', 'error'); return redirect(url_for('index', tab='enterSaleTab'))
+
+    sell_price_per_item = None
+    if sell_price_per_item_str:
+        try: sell_price_per_item = float(sell_price_per_item_str)
+        except ValueError: flash('Invalid sell price format.', 'error'); return redirect(url_for('index', tab='enterSaleTab'))
+
+    if not all([inventory_card_id, quantity_sold is not None, sell_price_per_item is not None, sale_date_str]):
         flash('Missing data for recording sale. Please fill all fields.', 'error')
         return redirect(url_for('index', tab='enterSaleTab'))
 
@@ -155,7 +208,6 @@ def record_sale_route():
     except ValueError:
         flash('Invalid sale date format. Please use YYYY-MM-DD.', 'error')
         return redirect(url_for('index', tab='enterSaleTab'))
-
 
     inventory_card = database.get_card_by_id(inventory_card_id)
 
@@ -190,8 +242,6 @@ def record_sale_route():
 
 @app.route('/delete_card/<int:card_id>', methods=['POST'])
 def delete_card_route(card_id):
-    # Consider if there are sales linked to this card_id.
-    # The DB constraint is ON DELETE SET NULL for sales.inventory_card_id
     database.delete_card(card_id)
     flash('Inventory card entry deleted successfully!', 'success')
     return redirect(url_for('index', tab='inventoryTab'))
@@ -205,9 +255,8 @@ def update_card_route(card_id):
 
     new_quantity_str = request.form.get('quantity')
     new_buy_price_str = request.form.get('buy_price')
-    new_asking_price_str = request.form.get('asking_price') # Renamed from sell_price for clarity
+    new_asking_price_str = request.form.get('asking_price') 
     new_location = request.form.get('location', '').strip()
-
 
     try:
         new_quantity = int(new_quantity_str) if new_quantity_str else original_card['quantity']
@@ -216,21 +265,17 @@ def update_card_route(card_id):
         new_buy_price = float(new_buy_price_str) if new_buy_price_str else original_card['buy_price']
         if new_buy_price < 0: flash('Buy price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab'))
 
+        new_asking_price = original_card['sell_price'] 
         if new_asking_price_str:
             if new_asking_price_str.strip() == "":
                 new_asking_price = None
             else:
                 new_asking_price = float(new_asking_price_str)
                 if new_asking_price < 0: flash('Asking price cannot be negative if set.'); return redirect(url_for('index', tab='inventoryTab'))
-        else: # If field not present or empty string was not intended to clear
-            new_asking_price = original_card['sell_price'] # Keep original asking price
+        
+        if not new_location: # Location is required for inventory items
+             flash('Location cannot be empty.'); return redirect(url_for('index', tab='inventoryTab'))
 
-        if not new_location and new_location != original_card['location']: # if new_location is empty string but original was not
-             flash('Location cannot be empty if it was previously set. Provide a new location or keep original by not submitting field for it implicitly if form allows that behavior (current form will submit empty).'); 
-             # This logic might need adjustment based on how empty location updates are handled
-             # For now, we assume an empty string is a valid (though perhaps undesirable) location.
-             # If location is mandatory, check "if not new_location:"
-             pass # allow empty location string for now
 
     except ValueError:
         flash('Invalid number format for quantity, buy price, or asking price.', 'error')
@@ -240,7 +285,7 @@ def update_card_route(card_id):
     if updated:
         flash('Card details updated successfully!', 'success')
     else:
-        flash('Failed to update card. An identical card might already exist at the new location.', 'error')
+        flash('Failed to update card. An identical card might already exist at the new location, or another error occurred.', 'error')
     return redirect(url_for('index', tab='inventoryTab'))
 
 @app.route('/refresh_card/<int:card_id>', methods=['POST'])
@@ -250,7 +295,7 @@ def refresh_card_route(card_id):
         flash('Card not found for refreshing.', 'error')
         return redirect(url_for('index', tab='inventoryTab'))
 
-    card_details = scryfall.get_card_details(card['set_code'], card['collector_number'])
+    card_details = scryfall.get_card_details(card['set_code'], card['collector_number']) # Assumes collector_number is reliable for refresh
     if card_details:
         database.update_card_market_data(
             card_id,

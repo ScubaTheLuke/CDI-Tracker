@@ -67,3 +67,9 @@ CDI-Tracker/
 * The Scryfall API has a rate limit (around 10 requests per second). This application includes a small delay (100ms) per request to be polite to the API.
 * Ensure `app.py` has a unique `app.secret_key` if deploying in a more public context.
 * Error handling for API calls and database interactions is included.
+
+
+
+add shipping cost dropdown in make sale secion with values of .80  4.39   .25
+add input for sealed product (booster pack, booster box, dual decks, pre con-checkmark to tell if there is a collector version of each sealed product) track finance, name, location, quantity, market average on tcg? 
+add filter to the invintory view

@@ -323,12 +323,12 @@ button, .button { /* Added .button for general use if needed */
 
 /* --- Profit/Loss Text --- */
 .profit {
-    color: var(--profit-color);
+    color: #28A745;
     font-weight: bold;
 }
 
 .loss {
-    color: var(--loss-color);
+    color: #D32F2F;
     font-weight: bold;
 }
 
@@ -402,4 +402,82 @@ h2 + p { /* Paragraphs directly after H2 */
     body {
         margin: 10px;
     }
+}
+
+/* --- Styles for Responsive Card Search in "Enter Sale" Tab --- */
+.search-input-container {
+    position: relative; /* Needed for absolute positioning of the results dropdown */
+    margin-bottom: 10px; /* Space below the search input container */
+}
+
+#cardSearchInput {
+    /* Uses existing input styling, but ensure width is managed if needed */
+    margin-bottom: 0; /* Remove default margin if results appear directly below */
+}
+
+.search-results-dropdown {
+    border: 1px solid var(--border-color);
+    border-top: none; /* Assuming input has bottom border */
+    max-height: 250px;
+    overflow-y: auto;
+    background-color: var(--bg-secondary);
+    position: absolute;
+    width: 100%; /* Make it as wide as its container (search-input-container) */
+    box-sizing: border-box; /* Include padding and border in the element's total width and height */
+    z-index: 1000;
+    display: none; /* Initially hidden */
+    border-radius: 0 0 6px 6px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+}
+
+.search-result-item {
+    padding: 10px 15px;
+    cursor: pointer;
+    color: var(--text-primary);
+    border-bottom: 1px solid var(--border-color);
+    font-size: 0.9em;
+}
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--mtg-gold-accent);
+}
+
+
+/* --- Increased Specificity for P/L Colors --- */
+
+/* Target spans inside card paragraphs */
+.card-entry p span.profit {
+    color: #28A745;
+}
+.card-entry p span.loss {
+    color: #D32F2F;
+}
+
+/* Target spans inside the summary paragraph */
+h2 + p span.profit {
+    color: #28A745;
+}
+ h2 + p span.loss {
+    color: #D32F2F;
+}
+
+/* Target spans inside table cells (Sales History) */
+table td span.profit {
+     color: #28A745;
+}
+ table td span.loss {
+     color: #D32F2F;
+}
+
+/* You can keep the original simpler rules too, or remove them */
+/* Original simpler rules (might be okay to keep as fallback): */
+/* .profit { color: var(--profit-color); font-weight: bold; } */
+/* .loss { color: var(--loss-color); font-weight: bold; } */
+/* Ensure font-weight is still applied if needed - adding it here too */
+.profit, .loss {
+    font-weight: bold;
 }

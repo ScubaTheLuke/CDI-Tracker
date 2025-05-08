@@ -5,19 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    
 </head>
 <body>
     <h1>CDI Card Tracker</h1>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    <ul class="flashes">
-        {% for category, message in messages %}
-        <li class="{{ category }}">{{ message }}</li>
-        {% endfor %}
-    </ul>
-    {% endif %}
+        {% if messages %}
+            <ul class="flashes">
+            {% for category, message in messages %}
+                <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+            </ul>
+        {% endif %}
     {% endwith %}
 
     <div class="tab-nav">
@@ -32,51 +31,54 @@
         <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
             <div class="form-grid">
                 <div>
-                    <label for="set_code">Set Code (e.g., AFR):</label>
-                    <input type="text" id="set_code" name="set_code" required>
+                    <label for="set_code_add">Set Code (e.g., LEA, MH2, AFR):</label>
+                    <input type="text" id="set_code_add" name="set_code">
                 </div>
                 <div>
-                    <label for="collector_number">Collector Number (e.g., 112):</label>
-                    <input type="text" id="collector_number" name="collector_number" required>
+                    <label for="card_name_add">Card Name:</label>
+                    <input type="text" id="card_name_add" name="card_name">
                 </div>
                 <div>
-                    <label for="quantity">Quantity:</label>
-                    <input type="number" id="quantity" name="quantity" min="1" required>
+                    <label for="collector_number_add">Collector Number:</label>
+                    <input type="text" id="collector_number_add" name="collector_number">
                 </div>
                 <div>
-                    <label for="buy_price">Buy Price (each, $):</label>
-                    <input type="number" id="buy_price" name="buy_price" step="0.01" min="0" required>
+                    <label for="quantity_add">Quantity:</label>
+                    <input type="number" id="quantity_add" name="quantity" min="1" required>
                 </div>
                 <div>
-                    <label for="asking_price">Asking Price (each, $, optional):</label>
-                    <input type="number" id="asking_price" name="asking_price" step="0.01" min="0">
+                    <label for="buy_price_add">Buy Price (each):</label>
+                    <input type="number" id="buy_price_add" name="buy_price" step="0.01" min="0" required placeholder="$0.00">
                 </div>
                 <div>
-                    <label for="location">Location (e.g., Binder 1, Deck Box A):</label>
-                    <input type="text" id="location" name="location" required>
+                    <label for="asking_price_add">Asking Price (each, optional):</label>
+                    <input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="location_add">Location (e.g., Binder 1, Deck Box A):</label>
+                    <input type="text" id="location_add" name="location" required>
                 </div>
             </div>
             <div>
-                <input type="checkbox" id="is_foil" name="is_foil" value="true" style="margin-top:10px;">
-                <label for="is_foil">Foil</label>
+                <input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;">
+                <label for="is_foil_add">Foil</label>
             </div>
             <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
         </form>
+        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;">
+            <em>For Scryfall lookup, please provide: (Set Code & Collector Number), or (Set Code & Card Name), or (Card Name only - Scryfall will pick a printing). Quantity, Buy Price, and Location are always required.</em>
+        </p>
     </div>
 
     <div id="enterSaleTab" class="tab-content">
         <h2>Record a New Sale</h2>
         <form action="{{ url_for('record_sale_route') }}" method="post" class="card-form">
-            <div>
-                <label for="inventory_card_id">Card from Inventory:</label>
-                <select id="inventory_card_id" name="inventory_card_id" required>
-                    <option value="">-- Select Card --</option>
-                    {% for card in inventory_cards %}
-                    <option value="{{ card.id }}">
-                        {{ card.name }} ({{ card.set_code.upper() }}-{{ card.collector_number }}) {% if card.is_foil_bool %}(Foil){% endif %} - Qty: {{ card.quantity }} - Loc: {{ card.location }} - Buy: ${{ "%.2f"|format(card.buy_price) }}
-                    </option>
-                    {% endfor %}
-                </select>
+            <div class="search-input-container">
+                <label for="cardSearchInput">Search Card from Inventory:</label>
+                <input type="text" id="cardSearchInput" placeholder="Type card name, set, or location..." autocomplete="off">
+                <input type="hidden" name="inventory_card_id" id="selectedInventoryCardId" required>
+                <div id="cardSearchResults" class="search-results-dropdown">
+                    </div>
             </div>
             <div class="form-grid" style="margin-top:10px;">
                 <div>
@@ -84,8 +86,8 @@
                     <input type="number" id="quantity_sold" name="quantity_sold" min="1" required>
                 </div>
                 <div>
-                    <label for="sell_price_per_item">Sell Price (per item, $):</label>
-                    <input type="number" id="sell_price_per_item" name="sell_price_per_item" step="0.01" min="0" required>
+                    <label for="sell_price_per_item">Sell Price (per item):</label>
+                    <input type="number" id="sell_price_per_item" name="sell_price_per_item" step="0.01" min="0" required placeholder="$0.00">
                 </div>
                 <div>
                     <label for="sale_date">Sale Date:</label>
@@ -99,80 +101,80 @@
     <div id="inventoryTab" class="tab-content">
         <h2>Current Inventory</h2>
         <p>
-            <strong>Total Inventory Buy Cost:</strong> ${{ "%.2f"|format(total_buy_cost_of_inventory) }}<br>
-            <strong>Total Inventory Market Value:</strong> ${{ "%.2f"|format(total_inventory_market_value) }}<br>
-            <strong>Overall Realized P/L (from Sales):</strong>
-            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">${{ "%.2f"|format(overall_realized_pl) }}</span>
+            <strong>Total Inventory Buy Cost:</strong> {{ total_buy_cost_of_inventory | currency_commas }}<br>
+            <strong>Total Inventory Market Value:</strong> {{ total_inventory_market_value | currency_commas }}<br>
+            <strong>Overall Realized P/L (from Sales):</strong> 
+            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span>
         </p>
         <div class="card-grid">
             {% if inventory_cards %}
-            {% for card in inventory_cards %}
-            <div class="card-entry">
-                {% if card.image_uri %}
-                <img src="{{ card.image_uri }}" alt="{{ card.name }}" class="card-image">
-                {% else %}
-                <div class="card-image-placeholder">No Image</div>
-                {% endif %}
-                <h3>{{ card.name }}</h3>
-                <p>
-                    <strong>Set:</strong> {{ card.set_code.upper() }}-{{ card.collector_number }} {% if card.is_foil_bool %}(Foil){% endif %}<br>
-                    <strong>Location:</strong> {{ card.location if card.location else 'N/A' }}<br>
-                    <strong>Quantity:</strong> {{ card.quantity }}<br>
-                    <strong>Buy Price (ea):</strong> ${{ "%.2f"|format(card.buy_price) }}<br>
-                    <strong>Total Buy Cost:</strong> ${{ "%.2f"|format(card.total_buy_cost) }}<br>
-                    <strong>Market Price (ea):</strong>
-                    {% if card.current_market_price_display is not none %}
-                    ${{ "%.2f"|format(card.current_market_price_display) }}
-                    {% else %} N/A {% endif %}<br>
-                    <strong>Market vs. Buy:</strong>
-                    {% if card.market_vs_buy_percentage_display == "N/A" or card.market_vs_buy_percentage_display == "Infinite" %}
-                    {{ card.market_vs_buy_percentage_display }}
+                {% for card in inventory_cards %}
+                <div class="card-entry">
+                    {% if card.image_uri %}
+                        <img src="{{ card.image_uri }}" alt="{{ card.name }}" class="card-image">
                     {% else %}
-                    <span class="{{ 'profit' if card.market_vs_buy_percentage_display >= 0 else 'loss' }}">{{ "%.2f"|format(card.market_vs_buy_percentage_display) }}%</span>
-                    {% endif %}<br>
-                    <strong>Asking Price (ea):</strong>
-                    {% if card.sell_price is not none %}
-                    ${{ "%.2f"|format(card.sell_price) }}
-                    {% else %} Not Set {% endif %}<br>
-                    <strong>Potential P/L (at Asking Price):</strong>
-                    {% if card.potential_pl_at_asking_price_display is number %}
-                    <span class="{{ 'profit' if card.potential_pl_at_asking_price_display >= 0 else 'loss' }}">${{ "%.2f"|format(card.potential_pl_at_asking_price_display) }}</span>
-                    {% else %} {{ card.potential_pl_at_asking_price_display }} {% endif %}
-                </p>
-                <div class="actions">
-                    <form action="{{ url_for('delete_card_route', card_id=card.id) }}" method="post" style="display:inline;">
-                        <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this inventory entry? This action cannot be undone.');">Delete</button>
-                    </form>
-                    <form action="{{ url_for('refresh_card_route', card_id=card.id) }}" method="post" style="display:inline;">
-                        <button type="submit" class="refresh-button">Refresh Market Data</button>
-                    </form>
+                        <div class="card-image-placeholder">No Image</div>
+                    {% endif %}
+                    <h3>{{ card.name }}</h3>
+                    <p>
+                        <strong>Set:</strong> {{ card.set_code.upper() }}-{{ card.collector_number }} {% if card.is_foil_bool %}(Foil){% endif %}<br>
+                        <strong>Location:</strong> {{ card.location if card.location else 'N/A' }}<br>
+                        <strong>Quantity:</strong> {{ card.quantity }}<br>
+                        <strong>Buy Price (ea):</strong> {{ card.buy_price | currency_commas }}<br>
+                        <strong>Total Buy Cost:</strong> {{ card.total_buy_cost | currency_commas }}<br>
+                        <strong>Market Price (ea):</strong> 
+                        {% if card.current_market_price_display is not none %}
+                            {{ card.current_market_price_display | currency_commas }}
+                        {% else %} N/A {% endif %}<br>
+                        <strong>Market vs. Buy:</strong> 
+                        {% if card.market_vs_buy_percentage_display == "N/A" or card.market_vs_buy_percentage_display == "Infinite" %}
+                            {{ card.market_vs_buy_percentage_display }}
+                        {% else %}
+                            <span class="{{ 'profit' if card.market_vs_buy_percentage_display >= 0 else 'loss' }}">{{ "%.2f"|format(card.market_vs_buy_percentage_display) }}%</span>
+                        {% endif %}<br>
+                        <strong>Asking Price (ea):</strong> 
+                        {% if card.sell_price is not none %}
+                            {{ card.sell_price | currency_commas }}
+                        {% else %} Not Set {% endif %}<br>
+                        <strong>Potential P/L (at Asking Price):</strong> 
+                        {% if card.potential_pl_at_asking_price_display is number %}
+                            <span class="{{ 'profit' if card.potential_pl_at_asking_price_display >= 0 else 'loss' }}">{{ card.potential_pl_at_asking_price_display | currency_commas }}</span>
+                        {% else %} {{ card.potential_pl_at_asking_price_display }} {% endif %}
+                    </p>
+                    <div class="actions">
+                        <form action="{{ url_for('delete_card_route', card_id=card.id) }}" method="post" style="display:inline;">
+                            <button type="submit" class="delete-button" onclick="return confirm('Are you sure you want to delete this inventory entry? This action cannot be undone.');">Delete</button>
+                        </form>
+                        <form action="{{ url_for('refresh_card_route', card_id=card.id) }}" method="post" style="display:inline;">
+                            <button type="submit" class="refresh-button">Refresh Market Data</button>
+                        </form>
+                    </div>
+                     <details class="update-details">
+                        <summary>Update Inventory Details</summary>
+                        <form action="{{ url_for('update_card_route', card_id=card.id) }}" method="post" class="update-form">
+                            <div>
+                                <label for="update_quantity_{{card.id}}">New Qty:</label>
+                                <input type="number" id="update_quantity_{{card.id}}" name="quantity" value="{{ card.quantity }}" min="1" >
+                            </div>
+                            <div>
+                                <label for="update_buy_price_{{card.id}}">New Buy Price:</label>
+                                <input type="number" id="update_buy_price_{{card.id}}" name="buy_price" value="{{ '%.2f'|format(card.buy_price) }}" step="0.01" min="0" placeholder="$0.00">
+                            </div>
+                            <div>
+                                <label for="update_asking_price_{{card.id}}">New Asking Price (optional):</label>
+                                <input type="number" id="update_asking_price_{{card.id}}" name="asking_price" value="{{ '%.2f'|format(card.sell_price) if card.sell_price is not none else '' }}" placeholder="$0.00 or blank to clear" step="0.01" min="0">
+                            </div>
+                            <div>
+                                <label for="update_location_{{card.id}}">New Location:</label>
+                                <input type="text" id="update_location_{{card.id}}" name="location" value="{{ card.location if card.location else '' }}" required>
+                            </div>
+                            <button type="submit">Save Updates</button>
+                        </form>
+                    </details>
                 </div>
-                <details class="update-details">
-                    <summary>Update Inventory Details</summary>
-                    <form action="{{ url_for('update_card_route', card_id=card.id) }}" method="post" class="update-form">
-                        <div>
-                            <label for="update_quantity_{{card.id}}">New Qty:</label>
-                            <input type="number" id="update_quantity_{{card.id}}" name="quantity" value="{{ card.quantity }}" min="1" required>
-                        </div>
-                        <div>
-                            <label for="update_buy_price_{{card.id}}">New Buy Price ($):</label>
-                            <input type="number" id="update_buy_price_{{card.id}}" name="buy_price" value="{{ '%.2f'|format(card.buy_price) }}" step="0.01" min="0" required>
-                        </div>
-                        <div>
-                            <label for="update_asking_price_{{card.id}}">New Asking Price ($ optional):</label>
-                            <input type="number" id="update_asking_price_{{card.id}}" name="asking_price" value="{{ '%.2f'|format(card.sell_price) if card.sell_price is not none else '' }}" placeholder="Leave blank to clear" step="0.01" min="0">
-                        </div>
-                        <div>
-                            <label for="update_location_{{card.id}}">New Location:</label>
-                            <input type="text" id="update_location_{{card.id}}" name="location" value="{{ card.location if card.location else '' }}" required>
-                        </div>
-                        <button type="submit">Save Updates</button>
-                    </form>
-                </details>
-            </div>
-            {% endfor %}
+                {% endfor %}
             {% else %}
-            <p>No cards in your active inventory yet. Add some using the 'Add New Card' tab!</p>
+                <p>No cards in your active inventory yet. Add some using the 'Add New Card' tab!</p>
             {% endif %}
         </div>
     </div>
@@ -180,44 +182,62 @@
     <div id="salesHistoryTab" class="tab-content">
         <h2>Sales History</h2>
         {% if sales_history %}
-        <table border="1" style="width:100%; border-collapse: collapse;">
-            <thead>
-                <tr>
-                    <th>Sale Date</th>
-                    <th>Card Name</th>
-                    <th>Set-CN</th>
-                    <th>Foil</th>
-                    <th>Qty Sold</th>
-                    <th>Buy Price (ea)</th>
-                    <th>Sell Price (ea)</th>
-                    <th>P/L for Sale</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for sale in sales_history %}
-                <tr>
-                    <td>{{ sale.sale_date.strftime('%Y-%m-%d') if sale.sale_date else 'N/A' }}</td>
-                    <td>{{ sale.card_name }}</td>
-                    <td>{{ sale.set_code.upper() }}-{{ sale.collector_number }}</td>
-                    <td>{{ 'Yes' if sale.is_foil else 'No' }}</td>
-                    <td>{{ sale.quantity_sold }}</td>
-                    <td>${{ "%.2f"|format(sale.buy_price_per_item) }}</td>
-                    <td>${{ "%.2f"|format(sale.sell_price_per_item) }}</td>
-                    <td>
-                        <span class="{{ 'profit' if sale.profit_loss >= 0 else 'loss' }}">
-                            ${{ "%.2f"|format(sale.profit_loss) }}
-                        </span>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+            <table style="width:100%; border-collapse: collapse;">
+                <thead>
+                    <tr>
+                        <th>Sale Date</th>
+                        <th>Card Name</th>
+                        <th>Set-CN</th>
+                        <th>Foil</th>
+                        <th>Qty Sold</th>
+                        <th>Buy Price (ea)</th>
+                        <th>Sell Price (ea)</th>
+                        <th>P/L for Sale</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for sale in sales_history %}
+                    <tr>
+                        <td>{{ sale.sale_date.strftime('%Y-%m-%d') if sale.sale_date else 'N/A' }}</td>
+                        <td>{{ sale.card_name }}</td>
+                        <td>{{ sale.set_code.upper() }}-{{ sale.collector_number }}</td>
+                        <td>{{ 'Yes' if sale.is_foil else 'No' }}</td>
+                        <td>{{ sale.quantity_sold }}</td>
+                        <td>{{ sale.buy_price_per_item | currency_commas }}</td>
+                        <td>{{ sale.sell_price_per_item | currency_commas }}</td>
+                        <td>
+                            <span class="{{ 'profit' if sale.profit_loss >= 0 else 'loss' }}">
+                                {{ sale.profit_loss | currency_commas }}
+                            </span>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         {% else %}
-        <p>No sales recorded yet. Record sales using the 'Enter Sale' tab.</p>
+            <p>No sales recorded yet. Record sales using the 'Enter Sale' tab.</p>
         {% endif %}
     </div>
 
     <script>
+        // Data for inventory search - generated by Flask
+        const inventoryCardsData = [
+            {% for card in inventory_cards %}
+            {
+                id: "{{ card.id }}",
+                name: "{{ card.name |replace('"', '\\"') |replace("'", "\\'") }}",
+                set_code: "{{ card.set_code.upper() |replace('"', '\\"') |replace("'", "\\'") }}",
+                collector_number: "{{ card.collector_number |replace('"', '\\"') |replace("'", "\\'") }}",
+                is_foil: {{ 'true' if card.is_foil_bool else 'false' }},
+                quantity: {{ card.quantity }},
+                location: "{{ card.location |replace('"', '\\"') |replace("'", "\\'") }}",
+                buy_price: {{ card.buy_price }},
+                displayText: "{{ card.name |replace('"', '\\"') |replace("'", "\\'") }} ({{ card.set_code.upper() |replace('"', '\\"') |replace("'", "\\'") }}-{{ card.collector_number |replace('"', '\\"') |replace("'", "\\'") }}) {% if card.is_foil_bool %}(Foil){% endif %} - Qty: {{ card.quantity }} - Loc: {{ card.location |replace('"', '\\"') |replace("'", "\\'") }} - Buy: ${{ "%.2f"|format(card.buy_price) }}" // Display text can keep simple $ format
+            },
+            {% endfor %}
+        ];
+
+        // Tab functionality
         function openTab(evt, tabName) {
             var i, tabcontent, tabbuttons;
             tabcontent = document.getElementsByClassName("tab-content");
@@ -228,24 +248,82 @@
             for (i = 0; i < tabbuttons.length; i++) {
                 tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
             }
-            document.getElementById(tabName).style.display = "block";
-            if (evt) {
+            var currentTab = document.getElementById(tabName);
+            if (currentTab) {
+                currentTab.style.display = "block";
+            }
+            
+            var activeBtnId = tabName + "Nav"; 
+            var activeBtn = document.getElementById(activeBtnId);
+            if (evt && evt.currentTarget) { 
               evt.currentTarget.className += " active";
-            } else {
-              // For setting default tab without an event
-              var defaultButtonId = tabName + "Nav";
-              var defaultButton = document.getElementById(defaultButtonId);
-              if (defaultButton) {
-                defaultButton.className += " active";
-              }
+            } else if (activeBtn) { 
+              activeBtn.className += " active";
             }
         }
 
-        // Get the tab to activate from Flask (passed via URL query param or default)
         var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
         document.addEventListener('DOMContentLoaded', function() {
             openTab(null, activeTabFromFlask);
-            // If there's a specific element to focus or scroll to based on active_tab, add here
+
+            const cardSearchInput = document.getElementById('cardSearchInput');
+            const cardSearchResultsDiv = document.getElementById('cardSearchResults');
+            const selectedInventoryCardIdInput = document.getElementById('selectedInventoryCardId');
+
+            if (cardSearchInput && cardSearchResultsDiv && selectedInventoryCardIdInput) {
+                cardSearchInput.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase().trim();
+                    cardSearchResultsDiv.innerHTML = ''; 
+                    selectedInventoryCardIdInput.value = ''; 
+
+                    if (searchTerm.length < 1) { 
+                        cardSearchResultsDiv.style.display = 'none';
+                        return;
+                    }
+
+                    const matchedCards = inventoryCardsData.filter(card => {
+                        const cardName = card.name.toLowerCase();
+                        const setCode = card.set_code.toLowerCase();
+                        const location = card.location.toLowerCase();
+                        const collectorNum = card.collector_number.toLowerCase();
+                        
+                        return cardName.includes(searchTerm) || 
+                               setCode.includes(searchTerm) || 
+                               location.includes(searchTerm) ||
+                               collectorNum.includes(searchTerm) || 
+                               card.displayText.toLowerCase().includes(searchTerm); 
+                    });
+
+                    if (matchedCards.length > 0) {
+                        cardSearchResultsDiv.style.display = 'block';
+                        matchedCards.slice(0, 10).forEach(card => { 
+                            const itemDiv = document.createElement('div');
+                            itemDiv.classList.add('search-result-item');
+                            itemDiv.textContent = card.displayText; 
+                            itemDiv.dataset.cardId = card.id;
+                            itemDiv.dataset.cardName = card.name; 
+
+                            itemDiv.addEventListener('click', function() {
+                                selectedInventoryCardIdInput.value = this.dataset.cardId;
+                                cardSearchInput.value = this.dataset.cardName; 
+                                cardSearchResultsDiv.innerHTML = '';
+                                cardSearchResultsDiv.style.display = 'none';
+                            });
+                            cardSearchResultsDiv.appendChild(itemDiv);
+                        });
+                    } else {
+                        cardSearchResultsDiv.style.display = 'none';
+                    }
+                });
+
+                document.addEventListener('click', function(event) {
+                    if (cardSearchInput && cardSearchResultsDiv){
+                        if (!cardSearchInput.contains(event.target) && !cardSearchResultsDiv.contains(event.target)) {
+                            cardSearchResultsDiv.style.display = 'none';
+                        }
+                    }
+                });
+            }
         });
     </script>
 
