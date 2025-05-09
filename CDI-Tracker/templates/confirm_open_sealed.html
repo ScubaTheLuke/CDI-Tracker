@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Confirm Product Opening - CDI Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container" style="max-width: 600px; margin: 40px auto; padding: 20px; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+        <h1>Confirm Product Opening</h1>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <ul class="flashes">
+                {% for category, message in messages %}
+                    <li class="{{ category }}">{{ message }}</li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+        {% endwith %}
+
+        <p style="color: var(--text-secondary);">You are about to process the opening of:</p>
+        <ul style="list-style-type: disc; margin-left: 20px; color: var(--text-primary);">
+            <li><strong>Product:</strong> {{ product_name }}</li>
+            <li><strong>Quantity Opened:</strong> {{ quantity_opened }}</li>
+            <li><strong>Total Cost of Opened Item(s):</strong> {{ total_cost_opened | currency_commas }}</li>
+        </ul>
+
+        <form action="{{ url_for('finalize_open_sealed_route') }}" method="post" class="card-form" style="border: none; box-shadow: none; padding:0; margin-top:20px;">
+            <input type="hidden" name="product_id" value="{{ product_id }}">
+            <input type="hidden" name="quantity_opened" value="{{ quantity_opened }}">
+            <input type="hidden" name="total_cost_opened" value="{{ total_cost_opened }}">
+            <input type="hidden" name="product_name" value="{{ product_name }}">
+
+            <div>
+                <label for="num_singles_to_add">How many individual cards (singles) from these opened items will you be adding to your inventory?</label>
+                <input type="number" id="num_singles_to_add" name="num_singles_to_add" min="1" required style="margin-top:5px; margin-bottom: 5px;">
+                <p style="font-size:0.9em; color: var(--text-secondary);">This will be used to calculate a suggested average buy price for each single.</p>
+            </div>
+
+            <div style="margin-top: 20px;">
+                <button type="submit">Calculate Average Cost & Proceed to Add Singles</button>
+                <a href="{{ url_for('index', tab='inventoryTab') }}" class="button delete-button" style="margin-left: 10px; text-decoration:none; display: inline-block; padding: 10px 18px;">Cancel</a>
+            </div>
+        </form>
+    </div>
+</body>
+</html>
