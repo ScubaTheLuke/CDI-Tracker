@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         /* Styles for filter area - can be moved to style.css */
         .filter-controls { background-color: var(--bg-secondary); padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
@@ -12,13 +13,40 @@
         .filter-controls label { margin-bottom: 4px; font-size: 0.85em; color: var(--text-secondary); }
         .filter-controls input[type="text"], .filter-controls select { padding: 8px 10px; width: auto; min-width: 150px; font-size: 0.9em; }
         .filter-controls button { padding: 8px 15px; font-size: 0.9em; margin-bottom: 0; align-self: flex-end; }
-        /* Ensure the search input container for sales doesn't inherit filter styles if conflicts arise */
         #enterSaleTab .search-input-container input[type="text"] { min-width: 250px; font-size: 1em; }
         #enterSaleTab .search-input-container label { margin-bottom: 6px; font-size: 1em; }
-        /* Info box for pack opening details */
         .info-box { background-color: var(--bg-tertiary); padding: 10px 15px; margin-bottom: 15px; border-radius: 4px; border: 1px solid var(--border-color); }
         .info-box p { margin:0; color: var(--text-secondary); line-height: 1.4; }
         .info-box strong { color: var(--text-primary); }
+
+        /* --- Styles for Set Symbol Finder Modal (Enhanced for Visual Scanning) --- */
+        .modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
+        .modal-content { background-color: var(--bg-secondary); margin: 5% auto; padding: 25px; border: 1px solid var(--border-color); border-radius: 8px; width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); color: var(--text-primary); position: relative; }
+        .modal-close-button { color: var(--text-secondary); float: right; font-size: 32px; font-weight: bold; line-height: 1; }
+        .modal-close-button:hover, .modal-close-button:focus { color: var(--text-primary); text-decoration: none; cursor: pointer; }
+        #setSymbolSearchInput { width: calc(100% - 24px); padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); background-color: var(--bg-tertiary); color: var(--text-primary); border-radius: 4px; }
+        .set-symbol-list { max-height: 450px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; padding-right: 10px; }
+        .set-symbol-item { display: flex; align-items: center; padding: 10px; border: 1px solid var(--bg-tertiary); border-radius: 6px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; }
+        .set-symbol-item:hover { background-color: var(--bg-tertiary); border-color: var(--mtg-gold-accent); }
+        .set-symbol-item img { width: 32px;  height: 32px; margin-right: 12px; filter: brightness(0) invert(1); object-fit: contain; }
+        .set-symbol-item .set-details { font-size: 0.95em; display: flex; flex-direction: column; }
+        .set-symbol-item .set-name { display: block; font-weight: bold; color: var(--text-primary); }
+        .set-symbol-item .set-code { font-size: 0.9em; color: var(--text-secondary); }
+
+        /* --- Styles for Camera Scan Modal --- */
+        #cameraScanModal .modal-content { max-width: 640px; /* Adjust for typical camera aspect ratios */ }
+        #cameraFeed {
+            width: 100%;
+            max-width: 600px;
+            height: auto;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-tertiary);
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+        #cameraScanModal button { margin-top: 10px; }
+        #ocrStatus { margin-top: 10px; color: var(--text-secondary); font-style: italic; min-height: 20px;}
+        #capturedImageCanvas { display: none; /* Hidden canvas for processing */ }
     </style>
 </head>
 <body>
@@ -41,16 +69,25 @@
 
         {% if from_pack_details and suggested_buy_price is not none %}
         <div class="info-box">
-            <p>
-                You just processed opening <strong>{{ from_pack_details.qty_opened }} x {{ from_pack_details.name }}</strong> (Total cost: {{ from_pack_details.cost | currency_commas }}).<br>
-                The suggested average buy price for each single you add from this opening is: <strong>{{ suggested_buy_price | currency_commas }}</strong>.
+            <p>Opened <strong>{{ from_pack_details.qty_opened }} x {{ from_pack_details.name }}</strong> (Cost: {{ from_pack_details.cost | currency_commas }}).<br>
+                Suggested avg. buy price for singles: <strong>{{ suggested_buy_price | currency_commas }}</strong>.
             </p>
         </div>
         {% endif %}
 
+        <div style="margin-bottom: 15px;">
+             <button type="button" id="scanCardWithCameraBtn" class="refresh-button" style="background-color: var(--mtg-blue);">Scan Card with Camera</button>
+        </div>
+
         <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
             <div class="form-grid">
-                <div><label for="set_code_add">Set Code (e.g., LEA, MH2, AFR):</label><input type="text" id="set_code_add" name="set_code"></div>
+                <div>
+                    <label for="set_code_add">Set Code (e.g., LEA, MH2):</label>
+                    <div style="display:flex; gap: 5px;">
+                        <input type="text" id="set_code_add" name="set_code" style="flex-grow:1;">
+                        <button type="button" id="findSetBySymbolBtn" class="refresh-button" style="padding: 8px 12px; font-size:0.9em;">Find Symbol</button>
+                    </div>
+                </div>
                 <div><label for="card_name_add">Card Name:</label><input type="text" id="card_name_add" name="card_name"></div>
                 <div><label for="collector_number_add">Collector Number:</label><input type="text" id="collector_number_add" name="collector_number"></div>
                 <div><label for="quantity_add">Quantity:</label><input type="number" id="quantity_add" name="quantity" min="1" value="1" required></div>
@@ -58,13 +95,13 @@
                     <label for="buy_price_add">Buy Price (each):</label>
                     <input type="number" id="buy_price_add" name="buy_price" value="{{ '%.2f'|format(suggested_buy_price) if suggested_buy_price is not none else '' }}" step="0.01" min="0" required placeholder="$0.00">
                 </div>
-                <div><label for="asking_price_add">Asking Price (each, optional):</label><input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
-                <div><label for="location_add">Location (e.g., Binder 1, Deck Box A):</label><input type="text" id="location_add" name="location" required></div>
+                <div><label for="asking_price_add">Asking Price (each, opt.):</label><input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
+                <div><label for="location_add">Location:</label><input type="text" id="location_add" name="location" required></div>
             </div>
             <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;"><label for="is_foil_add">Foil</label></div>
             <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
         </form>
-        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup requires: (Set & CN), or (Set & Name), or (Name only). Qty, Buy Price, Location required.</em></p>
+        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required.</em></p>
     </div>
 
     <div id="addSealedProductTab" class="tab-content">
@@ -77,10 +114,10 @@
                 <div><label for="language_sealed">Language:</label><input type="text" id="language_sealed" name="language" value="English"></div>
                 <div><label for="quantity_sealed">Quantity:</label><input type="number" id="quantity_sealed" name="quantity" min="1" required></div>
                 <div><label for="buy_price_sealed">Buy Price (ea):</label><input type="number" id="buy_price_sealed" name="buy_price" step="0.01" min="0" required placeholder="$0.00"></div>
-                <div><label for="manual_market_price_sealed">Market Price (ea, optional):</label><input type="number" id="manual_market_price_sealed" name="manual_market_price" step="0.01" min="0" placeholder="$0.00"></div>
-                <div><label for="asking_price_sealed">Asking Price (ea, optional):</label><input type="number" id="asking_price_sealed" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
+                <div><label for="manual_market_price_sealed">Market Price (ea, opt.):</label><input type="number" id="manual_market_price_sealed" name="manual_market_price" step="0.01" min="0" placeholder="$0.00"></div>
+                <div><label for="asking_price_sealed">Asking Price (ea, opt.):</label><input type="number" id="asking_price_sealed" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
                 <div><label for="location_sealed">Location:</label><input type="text" id="location_sealed" name="location" required></div>
-                <div><label for="image_uri_sealed">Image URL (optional):</label><input type="text" id="image_uri_sealed" name="image_uri" placeholder="http://..."></div>
+                <div><label for="image_uri_sealed">Image URL (opt.):</label><input type="text" id="image_uri_sealed" name="image_uri" placeholder="http://..."></div>
             </div>
             <div><input type="checkbox" id="is_collectors_item_sealed" name="is_collectors_item" value="true" style="margin-top:10px;"><label for="is_collectors_item_sealed">Collector's Version?</label></div>
             <button type="submit" style="margin-top:10px;">Add Sealed Product</button>
@@ -156,22 +193,11 @@
                         {% endif %}
                     </p>
                     {% if item.type == 'single_card' %}
-                    <div class="actions">
-                        <form action="{{ url_for('delete_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry?');">Delete</button></form>
-                        <form action="{{ url_for('refresh_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form>
-                    </div>
+                    <div class="actions"><form action="{{ url_for('delete_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry?');">Delete</button></form><form action="{{ url_for('refresh_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div>
                     <details class="update-details"><summary>Update Card Details</summary><form action="{{ url_for('update_card_route', card_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><button type="submit">Save Card</button></form></details>
                     {% elif item.type == 'sealed_product' %}
-                     <div class="actions">
-                        <form action="{{ url_for('delete_sealed_product_route', product_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry?');">Delete</button></form>
-                        <form action="{{ url_for('initiate_open_sealed_route', product_id=item.original_id) }}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;">
-                             <div style="display:flex; align-items:center; gap:5px;">
-                                <input type="number" name="quantity_to_open" value="1" min="1" max="{{ item.quantity }}" required style="width: 50px; padding: 7px;">
-                                <input type="hidden" name="original_product_name" value="{{ item.display_name }}">
-                                <input type="hidden" name="original_buy_price" value="{{ item.buy_price }}">
-                                <button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button>
-                            </div>
-                        </form>
+                     <div class="actions"><form action="{{ url_for('delete_sealed_product_route', product_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry?');">Delete</button></form>
+                        <form action="{{ url_for('initiate_open_sealed_route', product_id=item.original_id) }}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="{{ item.quantity }}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="{{ item.display_name }}"><input type="hidden" name="original_buy_price" value="{{ item.buy_price }}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form>
                     </div>
                      <details class="update-details"><summary>Update Sealed Details</summary><form action="{{ url_for('update_sealed_product_route', product_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="{{ '%.2f'|format(item.current_market_price) if item.current_market_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="{{ item.image_uri if item.image_uri else '' }}" placeholder="http://... Blank to clear"></div><div><input type="checkbox" id="update_is_collectors_item_sealed_{{item.original_id}}" name="is_collectors_item" value="true" {% if item.is_collectors_item %}checked{% endif %}><label for="update_is_collectors_item_sealed_{{item.original_id}}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>
                      {% endif %}
@@ -196,6 +222,28 @@
         {% endif %}
     </div>
 
+    <div id="setSymbolModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-button" onclick="closeSetSymbolModal()">&times;</span>
+            <h2>Find Set by Symbol</h2>
+            <input type="text" id="setSymbolSearchInput" placeholder="Search by set name or code...">
+            <div id="setSymbolListContainer" class="set-symbol-list">
+                <p>Loading set symbols...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="cameraScanModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close-button" onclick="closeCameraScanModal()">&times;</span>
+            <h2>Scan Card with Camera</h2>
+            <video id="cameraFeed" playsinline autoplay muted></video>
+            <button type="button" id="captureImageBtn" class="refresh-button">Capture & Process Image</button>
+            <button type="button" onclick="closeCameraScanModal()" style="margin-left:10px;">Cancel</button>
+            <p id="ocrStatus"></p>
+            <canvas id="capturedImageCanvas"></canvas> </div>
+    </div>
+
     <script>
         // Data for inventory items (combined list for filtering)
         const inventoryItemsData = [
@@ -205,18 +253,191 @@
             {% for option in sale_inventory_options %} { id: "{{ option.id |replace('"', '\\"') |replace("'", "\\'") }}", displayText: "{{ option.display |replace('"', '\\"') |replace("'", "\\'") }}" }, {% endfor %}
         ];
 
+        let allScryfallSets = []; // To store fetched set data for symbol finder
+        let cameraStream = null; // To store the camera stream
+
+        // Tab functionality
         function openTab(evt, tabName) { var i, tabcontent, tabbuttons; tabcontent = document.getElementsByClassName("tab-content"); for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; } tabbuttons = document.getElementsByClassName("tab-button"); for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); } var currentTab = document.getElementById(tabName); if (currentTab) { currentTab.style.display = "block"; } var activeBtnId = tabName + "Nav"; var activeBtn = document.getElementById(activeBtnId); if (evt && evt.currentTarget) { evt.currentTarget.className += " active"; } else if (activeBtn) { activeBtn.className += " active"; } }
         var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
 
+        // Inventory Filtering
         const inventoryFilterInput = document.getElementById('inventoryFilterInput'); const inventoryTypeFilter = document.getElementById('inventoryTypeFilter'); const inventoryLocationFilter = document.getElementById('inventoryLocationFilter'); const inventorySetFilter = document.getElementById('inventorySetFilter'); const inventoryFoilFilter = document.getElementById('inventoryFoilFilter'); const inventoryCollectorFilter = document.getElementById('inventoryCollectorFilter'); const inventoryGrid = document.getElementById('inventoryGrid'); const noInventoryResultsMsg = document.getElementById('noInventoryResults');
         function populateDropdown(selectElement, dataList, property) { if (!selectElement || !dataList) return; const uniqueValues = [...new Set(dataList.map(item => item[property]).filter(value => value && String(value).trim() !== ''))].sort((a, b) => String(a).toLowerCase().localeCompare(String(b).toLowerCase())); selectElement.innerHTML = '<option value="all" selected>All</option>'; uniqueValues.forEach(value => { const option = document.createElement('option'); option.value = value; option.textContent = value; selectElement.appendChild(option); }); selectElement.value = 'all'; }
         function filterInventory() { if (!inventoryGrid) return; const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : ''; const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all'; const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all'; const filterSet = inventorySetFilter ? inventorySetFilter.value : 'all'; const filterFoil = inventoryFoilFilter ? inventoryFoilFilter.value : 'all'; const filterCollector = inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all'; const items = inventoryGrid.getElementsByClassName('card-entry'); let visibleCount = 0; for (let i = 0; i < items.length; i++) { const item = items[i]; const itemType = item.dataset.type; const itemName = item.dataset.name.toLowerCase(); const itemSet = item.dataset.set.toLowerCase(); const itemLocation = item.dataset.location.toLowerCase(); const itemCn = item.dataset.cn.toLowerCase(); const itemProdType = item.dataset.prodtype.toLowerCase(); const itemIsFoil = item.dataset.foil; const itemIsCollector = item.dataset.collector; let show = true; if (filterType !== 'all' && itemType !== filterType) { show = false; } if (show && filterLocation !== 'all' && item.dataset.location !== filterLocation) { show = false; } if (show && filterSet !== 'all' && item.dataset.set !== filterSet) { show = false; } if (show && itemType === 'single_card' && filterFoil !== 'all' && itemIsFoil !== filterFoil) { show = false; } if (show && itemType === 'sealed_product' && filterCollector !== 'all' && itemIsCollector !== filterCollector) { show = false; } if (show && filterText !== '') { if (!(itemName.includes(filterText) || itemSet.includes(filterText) || itemLocation.includes(filterText) || (itemType === 'single_card' && itemCn.includes(filterText)) || (itemType === 'sealed_product' && itemProdType.includes(filterText)))) { show = false; } } item.style.display = show ? 'flex' : 'none'; if(show) visibleCount++; } if (noInventoryResultsMsg) { noInventoryResultsMsg.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none'; } }
         function clearInventoryFilters() { if (inventoryFilterInput) inventoryFilterInput.value = ''; if (inventoryTypeFilter) inventoryTypeFilter.value = 'all'; if (inventoryLocationFilter) inventoryLocationFilter.value = 'all'; if (inventorySetFilter) inventorySetFilter.value = 'all'; if (inventoryFoilFilter) inventoryFoilFilter.value = 'all'; if (inventoryCollectorFilter) inventoryCollectorFilter.value = 'all'; filterInventory(); }
 
+        // Sale Item Search
         const cardSearchInput = document.getElementById('cardSearchInput'); const cardSearchResultsDiv = document.getElementById('cardSearchResults'); const selectedInventoryCardIdInput = document.getElementById('selectedInventoryCardId');
         if (cardSearchInput && cardSearchResultsDiv && selectedInventoryCardIdInput) { cardSearchInput.addEventListener('input', function() { const searchTerm = this.value.toLowerCase().trim(); cardSearchResultsDiv.innerHTML = ''; selectedInventoryCardIdInput.value = ''; if (searchTerm.length < 1) { cardSearchResultsDiv.style.display = 'none'; return; } const matchedItems = saleInventoryOptionsData.filter(item => item.displayText.toLowerCase().includes(searchTerm)); if (matchedItems.length > 0) { cardSearchResultsDiv.style.display = 'block'; matchedItems.slice(0, 15).forEach(item => { const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = item.displayText; itemDiv.dataset.itemId = item.id; itemDiv.addEventListener('click', function() { selectedInventoryCardIdInput.value = this.dataset.itemId; cardSearchInput.value = this.textContent; cardSearchResultsDiv.innerHTML = ''; cardSearchResultsDiv.style.display = 'none'; }); cardSearchResultsDiv.appendChild(itemDiv); }); } else { cardSearchResultsDiv.style.display = 'none'; } }); document.addEventListener('click', function(event) { if (cardSearchInput && cardSearchResultsDiv){ if (!cardSearchInput.contains(event.target) && !cardSearchResultsDiv.contains(event.target)) { cardSearchResultsDiv.style.display = 'none'; } } }); }
 
-         document.addEventListener('DOMContentLoaded', function() { openTab(null, activeTabFromFlask); populateDropdown(inventoryLocationFilter, inventoryItemsData, 'location'); populateDropdown(inventorySetFilter, inventoryItemsData, 'set'); if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', filterInventory); if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', filterInventory); if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', filterInventory); if (inventorySetFilter) inventorySetFilter.addEventListener('change', filterInventory); if (inventoryFoilFilter) inventoryFoilFilter.addEventListener('change', filterInventory); if (inventoryCollectorFilter) inventoryCollectorFilter.addEventListener('change', filterInventory); filterInventory();  });
+        // Set Symbol Finder Modal JavaScript
+        const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
+        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } setSymbolListContainer.innerHTML = "<p>Loading set symbols...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } allScryfallSets = await response.json(); renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); setSymbolListContainer.innerHTML = "<p>Error loading set symbols. Please try again later.</p>"; } }
+        function renderSetSymbols(setsToRender) { setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found matching your search.</p>"; return; } setsToRender.forEach(set => { if (set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = set.name + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = set.name; const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${set.code.toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
+        function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = allScryfallSets.filter(set => { return set.name.toLowerCase().includes(filterText) || set.code.toLowerCase().includes(filterText); }); renderSetSymbols(filteredSets); }
+        function selectSetSymbol(setCode) { if (setCodeAddInput) { setCodeAddInput.value = setCode.toUpperCase(); } closeSetSymbolModal(); }
+        function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
+        function closeSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "none"; } }
+        if (findSetBySymbolBtn) { findSetBySymbolBtn.onclick = openSetSymbolModal; }
+        if (setSymbolSearchInput) { setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); } // Listener for search bar
+
+        // --- Camera Scan Modal JavaScript ---
+        const cameraScanModal = document.getElementById("cameraScanModal");
+        const scanCardWithCameraBtn = document.getElementById("scanCardWithCameraBtn");
+        const cameraFeed = document.getElementById("cameraFeed");
+        const captureImageBtn = document.getElementById("captureImageBtn");
+        const capturedImageCanvas = document.getElementById("capturedImageCanvas");
+        const ocrStatus = document.getElementById("ocrStatus");
+        const cardNameAddInput = document.getElementById("card_name_add");
+        const collectorNumberAddInput = document.getElementById("collector_number_add");
+        // const setCodeAddInput is already defined above for symbol finder
+
+        async function startCamera() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                try {
+                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+                    cameraFeed.srcObject = cameraStream;
+                    cameraFeed.style.display = 'block';
+                    if(ocrStatus) ocrStatus.textContent = "Position card in view and capture.";
+                } catch (err) {
+                    console.error("Error accessing camera:", err);
+                    if(ocrStatus) ocrStatus.textContent = "Error accessing camera. Check permissions.";
+                    alert("Could not access the camera. Please ensure permissions are granted.");
+                    closeCameraScanModal(); // Close modal if camera fails
+                }
+            } else {
+                alert("Your browser does not support camera access.");
+                if(ocrStatus) ocrStatus.textContent = "Camera access not supported by this browser.";
+                closeCameraScanModal();
+            }
+        }
+
+        function stopCamera() {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraFeed.srcObject = null;
+                cameraStream = null;
+                cameraFeed.style.display = 'none';
+            }
+        }
+
+        function openCameraScanModal() {
+            if (cameraScanModal) {
+                cameraScanModal.style.display = "block";
+                startCamera();
+            }
+        }
+
+        function closeCameraScanModal() {
+            if (cameraScanModal) {
+                cameraScanModal.style.display = "none";
+                stopCamera();
+                if(ocrStatus) ocrStatus.textContent = ""; // Clear status
+            }
+        }
+
+        if (scanCardWithCameraBtn) {
+            scanCardWithCameraBtn.onclick = openCameraScanModal;
+        }
+
+        if (captureImageBtn) {
+            captureImageBtn.onclick = async function() { // Make async for Tesseract
+                if (!cameraStream || !cameraFeed.srcObject) {
+                    if(ocrStatus) ocrStatus.textContent = "Camera not active.";
+                    return;
+                }
+                const context = capturedImageCanvas.getContext('2d');
+                capturedImageCanvas.width = cameraFeed.videoWidth;
+                capturedImageCanvas.height = cameraFeed.videoHeight;
+                context.drawImage(cameraFeed, 0, 0, cameraFeed.videoWidth, cameraFeed.videoHeight);
+
+                if(ocrStatus) ocrStatus.textContent = "Image captured. Processing with OCR...";
+                captureImageBtn.disabled = true; // Disable button during processing
+
+                try {
+                    const { data: { text } } = await Tesseract.recognize(
+                        capturedImageCanvas,
+                        'eng', // Language: English
+                        {
+                            logger: m => {
+                                console.log(m); // Log OCR progress
+                                if (m.status === 'recognizing text') {
+                                     if(ocrStatus) ocrStatus.textContent = `Recognizing text: ${Math.round(m.progress * 100)}%`;
+                                }
+                            }
+                        }
+                    );
+
+                    if(ocrStatus) ocrStatus.textContent = "OCR complete. Attempting to parse...";
+                    console.log("OCR Raw Text:", text);
+
+                    // --- Basic Parsing Logic (Can be significantly improved) ---
+                    let foundCardName = "";
+                    let foundCollectorNumber = "";
+
+                    const lines = text.split('\n');
+                    if (lines.length > 0) {
+                        // Assume card name is often one of the first few prominent lines
+                        // This is very naive and will need refinement
+                        foundCardName = lines[0].trim(); // Simplistic: take the first line as name
+                        if (lines.length > 1 && lines[1].trim().length > 3 && lines[1].trim().length < 20) { // Heuristic for second line as name part
+                            if (!/\d/.test(lines[1])) { // If it doesn't look like a collector number line
+                                foundCardName += " " + lines[1].trim();
+                            }
+                        }
+                    }
+
+                    // Look for collector number (e.g., "123/456", "123", "EN 123")
+                    const cnRegex = /(\d{1,3}(?:\s*[\/\-\.]\s*\d{1,3})?)(?:\s*★)?(?:\s*[A-Z]{2,3})?/i; // Matches "123/456", "123", "123EN", "123 ★"
+                    const cnMatch = text.match(cnRegex);
+                    if (cnMatch && cnMatch[1]) {
+                        foundCollectorNumber = cnMatch[1].replace(/\s*[\/\-\.]\s*\d{1,3}$/, '').trim(); // Keep only the first part if it's like "123/456"
+                    }
+                    // A more specific regex if collector numbers are usually at the bottom near set info
+                    const bottomCnRegex = /(\d{1,3})\s*[\/\-\.]\s*\d{1,3}\s*[A-Z]{2,4}/i; // e.g. 001/275 LCI EN
+                    const bottomMatch = text.match(bottomCnRegex);
+                    if(bottomMatch && bottomMatch[1] && !foundCollectorNumber) { // Prioritize this if found and no other CN
+                        foundCollectorNumber = bottomMatch[1];
+                    }
+
+
+                    // Pre-fill form fields
+                    if (cardNameAddInput) cardNameAddInput.value = foundCardName;
+                    if (collectorNumberAddInput) collectorNumberAddInput.value = foundCollectorNumber;
+
+                    if(ocrStatus) ocrStatus.textContent = `OCR Results: Name: "${foundCardName}", CN: "${foundCollectorNumber}". Please verify.`;
+                    flash(`OCR attempt: Name: ${foundCardName}, CN: ${foundCollectorNumber}. Please verify and enter Set Code.`, "info"); // Use Flask flash
+
+                    // Optionally close modal after a delay or keep it open for review
+                    setTimeout(closeCameraScanModal, 3000); // Close after 3 seconds
+
+                } catch (err) {
+                    console.error("OCR Error:", err);
+                    if(ocrStatus) ocrStatus.textContent = "OCR processing failed. Please try again.";
+                } finally {
+                     captureImageBtn.disabled = false; // Re-enable button
+                }
+            };
+        }
+
+         window.onclick = function(event) { // Combined window click for all modals
+            if (event.target == setSymbolModal) { closeSetSymbolModal(); }
+            if (event.target == cameraScanModal) { closeCameraScanModal(); }
+        }
+
+         // Initialize
+         document.addEventListener('DOMContentLoaded', function() {
+            openTab(null, activeTabFromFlask);
+            populateDropdown(inventoryLocationFilter, inventoryItemsData, 'location');
+            populateDropdown(inventorySetFilter, inventoryItemsData, 'set');
+            if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', filterInventory);
+            if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', filterInventory);
+            if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', filterInventory);
+            if (inventorySetFilter) inventorySetFilter.addEventListener('change', filterInventory);
+            if (inventoryFoilFilter) inventoryFoilFilter.addEventListener('change', filterInventory);
+            if (inventoryCollectorFilter) inventoryCollectorFilter.addEventListener('change', filterInventory);
+            filterInventory();
+         });
     </script>
 
 </body>

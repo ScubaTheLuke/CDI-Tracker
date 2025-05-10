@@ -1,8 +1,8 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, session
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify # Added jsonify
 import database
 import scryfall
 import datetime
-import sqlite3 # Not strictly needed here if all DB interaction is in database.py
+import sqlite3 # Not strictly needed if all DB interaction is in database.py
 
 app = Flask(__name__)
 app.secret_key = 'your_very_secret_key_here_CHANGE_ME_TO_SOMETHING_RANDOM'
@@ -25,6 +25,17 @@ app.jinja_env.filters['currency_commas'] = format_currency_with_commas
 def initialize_database():
     database.init_db()
 
+# --- API Route for Set Symbol Finder ---
+@app.route('/api/all_sets_info')
+def api_all_sets_info():
+    set_data = scryfall.fetch_all_set_data() # This function needs to be in scryfall.py
+    if set_data is not None: # Check if data was successfully fetched (could be empty list)
+        return jsonify(set_data)
+    else:
+        # Return an empty list or an error if fetching failed critically in scryfall.py
+        return jsonify({"error": "Failed to fetch set data from Scryfall"}), 500
+
+# --- Main Application Routes ---
 @app.route('/')
 def index():
     active_tab = request.args.get('tab', 'inventoryTab')
@@ -235,10 +246,14 @@ def finalize_open_sealed_route():
         total_cost_opened = float(total_cost_opened_str)
     except ValueError:
         flash("Invalid number for singles or cost.", "error")
-        return redirect(url_for('index', tab='inventoryTab')) # Or back to confirm page
+        session['open_sealed_data'] = { # Repopulate session for retry
+            'product_id': product_id, 'quantity_opened': quantity_opened,
+            'total_cost_opened': total_cost_opened_str, # Keep original string if parsing failed
+            'product_name': product_name
+        }
+        return redirect(url_for('confirm_open_sealed_page_route'))
     if num_singles_to_add <= 0:
         flash("Number of singles to add must be positive.", "error")
-        # Re-populate session to allow user to correct on confirm_open_sealed.html
         session['open_sealed_data'] = {
             'product_id': product_id, 'quantity_opened': quantity_opened,
             'total_cost_opened': total_cost_opened, 'product_name': product_name
@@ -280,9 +295,9 @@ def add_card_route():
         if buy_price_str: buy_price = float(buy_price_str)
         if asking_price_str and asking_price_str.strip() != '':
             asking_price = float(asking_price_str)
-            if asking_price < 0: asking_price = None # Set to None if negative
+            if asking_price < 0: asking_price = None
         else:
-             asking_price = None # Explicitly None if empty or missing
+             asking_price = None
     except ValueError:
         flash('Invalid number format for Quantity, Buy Price, or Asking Price.', 'error')
         return redirect(url_for('index', tab='addCardTab'))
@@ -293,10 +308,11 @@ def add_card_route():
 
     can_lookup_by_set_and_number = set_code_for_lookup and collector_number_for_lookup
     can_lookup_by_set_and_name = set_code_for_lookup and card_name_for_lookup
-    can_lookup_by_name_only = card_name_for_lookup and not set_code_for_lookup
+    can_lookup_by_name_and_number = card_name_for_lookup and collector_number_for_lookup and not set_code_for_lookup
+    can_lookup_by_name_only = card_name_for_lookup and not set_code_for_lookup and not collector_number_for_lookup
 
-    if not (can_lookup_by_set_and_number or can_lookup_by_set_and_name or can_lookup_by_name_only):
-        flash('Lookup requires: (Set & CN), or (Set & Name), or (Name only).', 'error')
+    if not (can_lookup_by_set_and_number or can_lookup_by_set_and_name or can_lookup_by_name_and_number or can_lookup_by_name_only):
+        flash('For Scryfall lookup, please provide one of the following combinations: (Set & CN), (Set & Name), (Name & CN), or (Name only - Scryfall will pick a printing).', 'error')
         return redirect(url_for('index', tab='addCardTab'))
     if quantity is None or buy_price is None or not location:
         flash('Quantity, Buy Price, and Location are required fields.', 'error')
@@ -313,20 +329,21 @@ def add_card_route():
 
     if card_details and card_details.get('name') and card_details.get('collector_number') and card_details.get('set_code'):
         final_set_code = card_details['set_code']
-        scryfall_uuid = card_details.get('id', card_details.get('oracle_id')) # Prefer card ID, fallback to oracle_id
+        final_collector_number = card_details['collector_number']
+        scryfall_uuid = card_details.get('id')
 
         card_id_or_none = database.add_card(
-            final_set_code.upper(), card_details['collector_number'], card_details['name'],
+            final_set_code.upper(), final_collector_number, card_details['name'],
             quantity, buy_price, is_foil,
             card_details['market_price_usd'], card_details['foil_market_price_usd'],
             card_details['image_uri'], asking_price, location, scryfall_uuid
         )
         if card_id_or_none:
-            flash(f"Card '{card_details['name']}' ({final_set_code.upper()}-{card_details['collector_number']}) handled in inventory at '{location}'!", 'success')
+            flash(f"Card '{card_details['name']}' ({final_set_code.upper()}-{final_collector_number}) handled in inventory at '{location}'!", 'success')
         else:
             flash(f"Failed to add/update card. It might already exist with active stock at that location, or another database error occurred.", 'error')
     else:
-        flash(f"Could not fetch valid card details from Scryfall. Ensure input is correct. If providing only card name, ensure it's exact.", 'error')
+        flash(f"Could not fetch valid card details from Scryfall. Ensure input is correct. If providing only card name, Scryfall picks the printing.", 'error')
     return redirect(url_for('index', tab='addCardTab'))
 
 @app.route('/add_sealed_product', methods=['POST'])
@@ -406,7 +423,7 @@ def record_sale_route():
         if shipping_cost_str is not None and shipping_cost_str.strip() != '':
             shipping_cost = float(shipping_cost_str)
         else:
-            shipping_cost = 0.0 # Default if not provided or empty from form
+            shipping_cost = 0.0
     except ValueError:
         flash('Invalid number format for Quantity, Sell Price, or Shipping Cost.', 'error')
         return redirect(url_for('index', tab='enterSaleTab'))
@@ -456,22 +473,28 @@ def record_sale_route():
 @app.route('/delete_card/<int:card_id>', methods=['POST'])
 def delete_card_route(card_id):
     deleted = database.delete_card(card_id)
-    if deleted: flash('Card entry deleted successfully!', 'success')
-    else: flash('Failed to delete card entry.', 'error')
+    if deleted:
+        flash('Card entry deleted successfully!', 'success')
+    else:
+        flash('Failed to delete card entry.', 'error')
     return redirect(url_for('index', tab='inventoryTab'))
 
 @app.route('/delete_sealed_product/<int:product_id>', methods=['POST'])
 def delete_sealed_product_route(product_id):
     deleted = database.delete_sealed_product(product_id)
-    if deleted: flash('Sealed product entry deleted successfully!', 'success')
-    else: flash('Failed to delete sealed product entry.', 'error')
+    if deleted:
+        flash('Sealed product entry deleted successfully!', 'success')
+    else:
+        flash('Failed to delete sealed product entry.', 'error')
     return redirect(url_for('index', tab='inventoryTab'))
 
 @app.route('/update_card/<int:card_id>', methods=['POST'])
 def update_card_route(card_id):
     data_to_update = {}
     original_card = database.get_card_by_id(card_id)
-    if not original_card: flash('Card not found for update.', 'error'); return redirect(url_for('index', tab='inventoryTab'))
+    if not original_card:
+        flash('Card not found for update.', 'error')
+        return redirect(url_for('index', tab='inventoryTab'))
     try:
         quantity_str = request.form.get('quantity')
         buy_price_str = request.form.get('buy_price')
@@ -513,7 +536,9 @@ def update_card_route(card_id):
 def update_sealed_product_route(product_id):
     data_to_update = {}
     original_product = database.get_sealed_product_by_id(product_id)
-    if not original_product: flash('Product not found for update.', 'error'); return redirect(url_for('index', tab='inventoryTab'))
+    if not original_product:
+        flash('Product not found for update.', 'error')
+        return redirect(url_for('index', tab='inventoryTab'))
     try:
         quantity_str = request.form.get('quantity')
         buy_price_str = request.form.get('buy_price')
@@ -543,7 +568,7 @@ def update_sealed_product_route(product_id):
             location = location_str.strip()
             if not location: flash('Location cannot be empty.'); return redirect(url_for('index', tab='inventoryTab'))
             if location != original_product['location']: data_to_update['location'] = location
-        if image_uri_str is not None: # Allow empty string to clear
+        if image_uri_str is not None:
              img_uri = image_uri_str.strip() if image_uri_str.strip() else None
              if img_uri != original_product['image_uri']: data_to_update['image_uri'] = img_uri
         if is_collectors_item_form != bool(original_product['is_collectors_item']):
