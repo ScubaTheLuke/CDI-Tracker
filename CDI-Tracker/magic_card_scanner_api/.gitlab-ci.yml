@@ -1,0 +1,50 @@
+services:
+  - docker:dind
+
+stages:
+  - gradle build
+  - gradle test
+  - docker build
+
+variables:
+  CONTAINER_REGISTRY_IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+
+gradle build:
+  image: gradle:7.0.2-jdk11
+  stage: gradle build
+  before_script:
+    - chmod +x gradlew
+    - export GRADLE_USER_HOME=`pwd`/.gradle
+  script:
+      - ./gradlew assemble
+  cache:
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
+  
+gradle test:
+  image: gradle:7.0.2-jdk11
+  stage: gradle test
+  before_script:
+    - chmod +x gradlew
+    - export GRADLE_USER_HOME=`pwd`/.gradle
+  script:
+      - ./gradlew check
+  cache:
+    paths:
+      - .gradle/wrapper
+      - .gradle/caches
+
+docker build:
+  services:
+    - docker:20-dind
+  image: docker:20
+  stage: docker build
+  script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+    - docker build -t $CONTAINER_REGISTRY_IMAGE .
+    - docker push $CONTAINER_REGISTRY_IMAGE
+  only:
+    refs:
+      - master
+      - develop
