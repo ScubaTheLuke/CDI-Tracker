@@ -99,6 +99,7 @@ def index():
         if card.get('quantity', 0) <= 0: continue
         item['display_name'] = card.get('name', 'N/A'); item['quantity'] = card.get('quantity', 0); item['location'] = card.get('location', 'N/A'); item['buy_price'] = card.get('buy_price'); item['sell_price'] = card.get('sell_price'); item['image_uri'] = card.get('image_uri')
         item['set_code'] = card.get('set_code'); item['collector_number'] = card.get('collector_number'); item['is_foil'] = bool(card.get('is_foil', 0))
+        item['rarity'] = card.get('rarity', 'N/A'); item['language'] = card.get('language', 'N/A') # Added
         item['total_buy_cost'] = item['quantity'] * item['buy_price']; total_buy_cost_of_inventory_cards += item['total_buy_cost']
         current_market_price = None
         if item['is_foil'] and card.get('foil_market_price_usd') is not None: current_market_price = card['foil_market_price_usd']
@@ -113,7 +114,7 @@ def index():
             elif item['buy_price'] == 0 and current_market_price > 0: item['market_vs_buy_percentage_display'] = "Infinite"
             elif item['buy_price'] == 0 and current_market_price == 0: item['market_vs_buy_percentage_display'] = 0.0
         item['potential_pl_at_asking_price_display'] = "N/A (No asking price)"
-        if item.get('sell_price') is not None: 
+        if item.get('sell_price') is not None:
             asking_value = item['quantity'] * item['sell_price']
             potential_pl = asking_value - item['total_buy_cost']
             item['potential_pl_at_asking_price_display'] = potential_pl
@@ -131,7 +132,7 @@ def index():
         item['total_market_value'] = item_market_value
         item['market_vs_buy_percentage_display'] = "N/A (Manual Price)"
         item['potential_pl_at_asking_price_display'] = "N/A (No asking price)"
-        if item.get('sell_price') is not None: 
+        if item.get('sell_price') is not None:
             asking_value = item['quantity'] * item['sell_price']
             potential_pl = asking_value - item['total_buy_cost']
             item['potential_pl_at_asking_price_display'] = potential_pl
@@ -144,8 +145,8 @@ def index():
     sale_inventory_options = []
     for item in combined_inventory_items:
         display_text = "";
-        if item['type'] == 'single_card': display_text = f"{item['display_name']} ({item.get('set_code','N/A').upper()}-{item.get('collector_number','N/A')}) {'(Foil)' if item.get('is_foil') else ''} - Qty: {item['quantity']} - Loc: {item.get('location', 'N/A')}"
-        elif item['type'] == 'sealed_product': display_text = f"{item['display_name']} ({item.get('set_name','N/A')} / {item.get('product_type','N/A')}){' (Collector)' if item.get('is_collectors_item') else ''} - Qty: {item['quantity']} - Loc: {item.get('location', 'N/A')}"
+        if item['type'] == 'single_card': display_text = f"{item['display_name']} ({item.get('set_code','N/A').upper()}-{item.get('collector_number','N/A')}) {'(Foil)' if item.get('is_foil') else ''} (R: {item.get('rarity','N/A')}, L: {item.get('language','N/A')}) - Qty: {item['quantity']} - Loc: {item.get('location', 'N/A')}" # Added Rarity/Lang
+        elif item['type'] == 'sealed_product': display_text = f"{item['display_name']} ({item.get('set_name','N/A')} / {item.get('product_type','N/A')}){' (Collector)' if item.get('is_collectors_item') else ''} (L: {item.get('language','N/A')}) - Qty: {item['quantity']} - Loc: {item.get('location', 'N/A')}" # Added Lang
         sale_inventory_options.append({"id": f"{item['type']}-{item['original_id']}", "display": display_text, "type": item['type']})
     return render_template('index.html',
                            inventory_items=combined_inventory_items,
@@ -194,6 +195,9 @@ def finalize_open_sealed_route():
 @app.route('/add_card', methods=['POST'])
 def add_card_route():
     set_code_input = request.form.get('set_code', '').strip(); collector_number_input = request.form.get('collector_number', '').strip(); card_name_input = request.form.get('card_name', '').strip(); quantity_str = request.form.get('quantity'); buy_price_str = request.form.get('buy_price'); is_foil = 'is_foil' in request.form; location = request.form.get('location', '').strip(); asking_price_str = request.form.get('asking_price')
+    rarity_input = request.form.get('rarity', '').strip() # Added
+    language_input = request.form.get('language', '').strip() # Added
+
     quantity, buy_price, asking_price = None, None, None
     try:
         if quantity_str: quantity = int(quantity_str)
@@ -201,17 +205,32 @@ def add_card_route():
         if asking_price_str and asking_price_str.strip() != '': asking_price = float(asking_price_str); asking_price = asking_price if asking_price >= 0 else None
         else: asking_price = None
     except ValueError: flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addCardTab'))
+
     set_code_for_lookup = set_code_input if set_code_input else None; collector_number_for_lookup = collector_number_input if collector_number_input else None; card_name_for_lookup = card_name_input if card_name_input else None
+    language_for_lookup = language_input if language_input else None # Scryfall uses 'lang' parameter
+
     can_lookup_by_set_and_number = set_code_for_lookup and collector_number_for_lookup; can_lookup_by_set_and_name = set_code_for_lookup and card_name_for_lookup; can_lookup_by_name_and_number = card_name_for_lookup and collector_number_for_lookup and not set_code_for_lookup; can_lookup_by_name_only = card_name_for_lookup and not set_code_for_lookup and not collector_number_for_lookup
     if not (can_lookup_by_set_and_number or can_lookup_by_set_and_name or can_lookup_by_name_and_number or can_lookup_by_name_only): flash('Lookup requires: (Set & CN), (Set & Name), (Name & CN), or (Name only).', 'error'); return redirect(url_for('index', tab='addCardTab'))
     if quantity is None or buy_price is None or not location: flash('Quantity, Buy Price, and Location required.', 'error'); return redirect(url_for('index', tab='addCardTab'))
     if quantity <= 0 or buy_price < 0: flash('Quantity must be positive; Buy Price non-negative.', 'error'); return redirect(url_for('index', tab='addCardTab'))
-    card_details = scryfall.get_card_details(card_name=card_name_for_lookup, set_code=set_code_for_lookup, collector_number=collector_number_for_lookup)
+
+    # Pass language_for_lookup to Scryfall
+    card_details = scryfall.get_card_details(card_name=card_name_for_lookup, set_code=set_code_for_lookup, collector_number=collector_number_for_lookup, lang=language_for_lookup)
+
     if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
         final_set_code = card_details['set_code']; final_collector_number = card_details['collector_number']; scryfall_uuid = card_details.get('id')
-        card_id_or_none = database.add_card(final_set_code.upper(), final_collector_number, card_details['name'], quantity, buy_price, is_foil, card_details['market_price_usd'], card_details['foil_market_price_usd'], card_details['image_uri'], asking_price, location, scryfall_uuid)
-        if card_id_or_none: flash(f"Card '{card_details['name']}' ({final_set_code.upper()}-{final_collector_number}) handled in inventory at '{location}'!", 'success')
-        else: flash(f"Failed to add/update card. Already exists?", 'error')
+        # Use rarity and language from Scryfall response primarily
+        final_rarity = card_details.get('rarity', rarity_input if rarity_input else 'unknown').lower()
+        final_language = card_details.get('language', language_input if language_input else 'en').lower()
+
+        card_id_or_none = database.add_card(
+            final_set_code.upper(), final_collector_number, card_details['name'], quantity, buy_price, is_foil,
+            card_details['market_price_usd'], card_details['foil_market_price_usd'],
+            card_details['image_uri'], asking_price, location, scryfall_uuid,
+            final_rarity, final_language # Added
+        )
+        if card_id_or_none: flash(f"Card '{card_details['name']}' ({final_set_code.upper()}-{final_collector_number}, R: {final_rarity}, L: {final_language}) handled in inventory at '{location}'!", 'success')
+        else: flash(f"Failed to add/update card. Already exists with these details (Set, CN, Foil, Loc, Rarity, Lang)?", 'error')
     else: flash(f"Could not fetch valid card details from Scryfall.", 'error')
     return redirect(url_for('index', tab='addCardTab'))
 
@@ -248,9 +267,9 @@ def record_sale_route():
     if item_id_with_prefix and item_id_with_prefix.strip() and '-' in item_id_with_prefix:
         parts = item_id_with_prefix.strip().split('-', 1)
         item_type_prefix = parts[0].strip()
-        
+
         print(f"DEBUG record_sale_route: item_type_prefix = {repr(item_type_prefix)}") # Using repr for clarity
-        
+
         try:
             inventory_item_id = int(parts[1])
             # Corrected comparison for item_type_prefix
@@ -320,11 +339,11 @@ def record_sale_route():
     original_item_name = "N/A"; original_item_details = "N/A"; buy_price_per_item = None
     if item_type == 'single_card':
         original_item_name = original_item['name']
-        original_item_details = f"{original_item['set_code']}-{original_item['collector_number']} {'(Foil)' if original_item['is_foil'] else ''}"
+        original_item_details = f"{original_item['set_code']}-{original_item['collector_number']} {'(Foil)' if original_item['is_foil'] else ''} (R: {original_item.get('rarity','N/A')}, L: {original_item.get('language','N/A')})" # Added R/L
         buy_price_per_item = original_item['buy_price']
     elif item_type == 'sealed_product':
         original_item_name = original_item['product_name']
-        original_item_details = f"{original_item['set_name']} - {original_item['product_type']} {'(Collector)' if original_item['is_collectors_item'] else ''}"
+        original_item_details = f"{original_item['set_name']} - {original_item['product_type']} {'(Collector)' if original_item['is_collectors_item'] else ''} (L: {original_item.get('language','N/A')})" # Added L
         buy_price_per_item = original_item['buy_price']
 
     if buy_price_per_item is None:
@@ -375,6 +394,8 @@ def update_card_route(card_id):
         buy_price_str = request.form.get('buy_price')
         asking_price_str = request.form.get('asking_price')
         location_str = request.form.get('location')
+        # Rarity and Language are generally fixed for a printing, so not making them updatable here by default
+        # If they need to be updatable, add form fields and logic similar to other fields.
 
         if quantity_str is not None and quantity_str.strip() != '':
             qty = int(quantity_str)
@@ -390,18 +411,18 @@ def update_card_route(card_id):
                 return redirect(url_for('index', tab='inventoryTab'))
             if price != original_card['buy_price']:
                 data_to_update['buy_price'] = price
-        if asking_price_str is not None: 
+        if asking_price_str is not None:
             ask_price = None
             if asking_price_str.strip() != '':
                 ask_price = float(asking_price_str)
                 if ask_price < 0:
                     flash('Asking price cannot be negative.')
                     return redirect(url_for('index', tab='inventoryTab'))
-            if ask_price != original_card['sell_price']: 
+            if ask_price != original_card['sell_price']:
                 data_to_update['sell_price'] = ask_price
         if location_str is not None:
             location = location_str.strip()
-            if not location: 
+            if not location:
                 flash('Location cannot be empty.')
                 return redirect(url_for('index', tab='inventoryTab'))
             if location != original_card['location']:
@@ -435,6 +456,7 @@ def update_sealed_product_route(product_id):
         asking_price_str = request.form.get('asking_price')
         location_str = request.form.get('location')
         image_uri_str = request.form.get('image_uri')
+        language_str = request.form.get('language') # Added for sealed products
         is_collectors_item_form = 'is_collectors_item' in request.form
 
         if quantity_str is not None and quantity_str.strip() != '':
@@ -457,9 +479,13 @@ def update_sealed_product_route(product_id):
             location = location_str.strip()
             if not location: flash('Location cannot be empty.'); return redirect(url_for('index', tab='inventoryTab'))
             if location != original_product['location']: data_to_update['location'] = location
-        if image_uri_str is not None: 
+        if image_uri_str is not None:
              img_uri = image_uri_str.strip() if image_uri_str.strip() else None
              if img_uri != original_product['image_uri']: data_to_update['image_uri'] = img_uri
+        if language_str is not None: # Added for sealed products language update
+            lang = language_str.strip()
+            if not lang: flash('Language cannot be empty for sealed products.'); return redirect(url_for('index', tab='inventoryTab'))
+            if lang != original_product['language']: data_to_update['language'] = lang
         if is_collectors_item_form != bool(original_product['is_collectors_item']):
              data_to_update['is_collectors_item'] = is_collectors_item_form
     except ValueError:
@@ -483,11 +509,13 @@ def refresh_card_route(card_id):
     if not card:
         flash('Card not found for refreshing.', 'error')
         return redirect(url_for('index', tab='inventoryTab'))
-    card_details = scryfall.get_card_details(set_code=card['set_code'], collector_number=card['collector_number'])
+    # Pass existing language of the card to ensure Scryfall fetches that specific version if needed
+    card_details = scryfall.get_card_details(set_code=card['set_code'], collector_number=card['collector_number'], lang=card.get('language'))
     if card_details:
         updated = database.update_card_prices_and_image(
             card_id, card_details['market_price_usd'],
             card_details['foil_market_price_usd'], card_details['image_uri']
+            # Rarity and language are not typically "refreshed" as they are static for a printing
         )
         if updated:
             flash(f"Market data for {card_details['name']} refreshed successfully!", 'success')
@@ -502,7 +530,7 @@ def import_csv_route():
     if 'csv_file' not in request.files:
         flash('No CSV file part in the request.', 'error')
         return redirect(url_for('index', tab='importCsvTab'))
-    
+
     file = request.files['csv_file']
     if file.filename == '':
         flash('No CSV file selected for uploading.', 'error')
@@ -512,6 +540,9 @@ def import_csv_route():
     default_location = request.form.get('default_location', 'Imported Batch')
     default_asking_price_str = request.form.get('default_asking_price')
     assume_non_foil = 'assume_non_foil' in request.form
+    # Default language if not specified in CSV, can be a form field too
+    default_language_csv = request.form.get('default_language_csv', 'en').strip().lower()
+
 
     try:
         default_buy_price = float(default_buy_price_str)
@@ -531,7 +562,7 @@ def import_csv_route():
         try:
             stream = io.StringIO(file.stream.read().decode("UTF8", errors='replace'), newline=None)
             csv_reader = csv.DictReader(stream)
-            
+
             imported_count = 0
             failed_count = 0
             skipped_count = 0
@@ -540,12 +571,14 @@ def import_csv_route():
             expected_headers = {
                 'quantity': 'Quantity',
                 'name': 'Name',
-                'set_name_csv': 'Set', 
+                'set_name_csv': 'Set',
                 'collector_number_csv': 'Card Number',
-                'set_code_csv': 'Set Code', 
-                'printing': 'Printing' 
+                'set_code_csv': 'Set Code',
+                'printing': 'Printing',
+                'rarity_csv': 'Rarity', # Added
+                'language_csv': 'Language' # Added
             }
-            
+
             if csv_reader.fieldnames:
                  csv_reader.fieldnames = [header.lower().strip() for header in csv_reader.fieldnames if header]
             else:
@@ -562,12 +595,14 @@ def import_csv_route():
                 quantity_str = row.get(expected_headers['quantity'].lower())
                 printing_csv = row.get(expected_headers['printing'].lower(), 'normal').lower()
                 set_name_from_csv = row.get(expected_headers['set_name_csv'].lower())
+                rarity_from_csv = row.get(expected_headers['rarity_csv'].lower()) # Added
+                language_from_csv = row.get(expected_headers['language_csv'].lower(), default_language_csv).lower() # Added, with default
 
                 if not all([card_name, (set_code_from_csv or set_name_from_csv), collector_number_from_csv, quantity_str]):
                     errors_list.append(f"Row {row_num}: Missing Name, Set, CN, or Qty. Skipping.")
                     skipped_count += 1
                     continue
-                
+
                 try:
                     quantity = int(quantity_str)
                     if quantity <= 0:
@@ -584,31 +619,35 @@ def import_csv_route():
                     is_foil = True
 
                 card_details = None
+                # Pass language from CSV to Scryfall lookup
                 if set_code_from_csv and set_code_from_csv.upper() == "LIST":
-                    print(f"CSV Import (Row {row_num}): Detected 'LIST' set for '{card_name}' CN '{collector_number_from_csv}'. Trying Name+CN lookup first.")
-                    card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv)
-                
-                if not card_details and set_code_from_csv : 
-                     card_details = scryfall.get_card_details(card_name=card_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv)
+                    print(f"CSV Import (Row {row_num}): Detected 'LIST' set for '{card_name}' CN '{collector_number_from_csv}'. Trying Name+CN lookup first (Lang: {language_from_csv}).")
+                    card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=language_from_csv)
 
-                if not card_details and set_name_from_csv: 
-                    print(f"CSV Import (Row {row_num}): Lookup with TCG Set Code '{set_code_from_csv}' failed for '{card_name}'. Trying with TCG Set Name '{set_name_from_csv}'.")
-                    card_details = scryfall.get_card_details(card_name=card_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv)
-                
-                if not card_details: 
-                    print(f"CSV Import (Row {row_num}): Lookup with Set info failed for '{card_name}' CN '{collector_number_from_csv}'. Trying Name+CN only.")
-                    card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv)
+                if not card_details and set_code_from_csv :
+                     card_details = scryfall.get_card_details(card_name=card_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=language_from_csv)
+
+                if not card_details and set_name_from_csv:
+                    print(f"CSV Import (Row {row_num}): Lookup with TCG Set Code '{set_code_from_csv}' failed for '{card_name}'. Trying with TCG Set Name '{set_name_from_csv}' (Lang: {language_from_csv}).")
+                    card_details = scryfall.get_card_details(card_name=card_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=language_from_csv)
+
+                if not card_details:
+                    print(f"CSV Import (Row {row_num}): Lookup with Set info failed for '{card_name}' CN '{collector_number_from_csv}'. Trying Name+CN only (Lang: {language_from_csv}).")
+                    card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=language_from_csv)
 
 
                 if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
                     final_set_code = card_details['set_code']
                     final_collector_number = card_details['collector_number']
                     scryfall_uuid = card_details.get('id')
-                    
+                    # Prioritize Scryfall's rarity and language, fallback to CSV if Scryfall's is missing (though unlikely for these fields)
+                    final_rarity = card_details.get('rarity', rarity_from_csv if rarity_from_csv else 'unknown').lower()
+                    final_language = card_details.get('language', language_from_csv if language_from_csv else default_language_csv).lower()
+
                     card_id = database.add_card(
                         set_code=final_set_code.upper(),
                         collector_number=final_collector_number,
-                        name=card_details['name'], 
+                        name=card_details['name'],
                         quantity=quantity,
                         buy_price=default_buy_price,
                         is_foil=is_foil,
@@ -617,21 +656,23 @@ def import_csv_route():
                         image_uri=card_details['image_uri'],
                         sell_price=default_asking_price,
                         location=default_location,
-                        scryfall_id=scryfall_uuid
+                        scryfall_id=scryfall_uuid,
+                        rarity=final_rarity, # Added
+                        language=final_language # Added
                     )
                     if card_id:
                         imported_count += 1
                     else:
-                        errors_list.append(f"Row {row_num}: Failed to add/update '{card_details['name']}' in DB.")
+                        errors_list.append(f"Row {row_num}: Failed to add/update '{card_details['name']}' (R: {final_rarity}, L: {final_language}) in DB.")
                         failed_count += 1
                 else:
-                    errors_list.append(f"Row {row_num}: Scryfall lookup failed for '{card_name}' (SetCSV: {set_code_from_csv or set_name_from_csv}, CN: {collector_number_from_csv}). Skipping.")
+                    errors_list.append(f"Row {row_num}: Scryfall lookup failed for '{card_name}' (SetCSV: {set_code_from_csv or set_name_from_csv}, CN: {collector_number_from_csv}, LangCSV: {language_from_csv}). Skipping.")
                     failed_count += 1
-            
+
             summary_message = f"CSV Import: {imported_count} processed."
             if failed_count > 0: summary_message += f" {failed_count} failed."
             if skipped_count > 0: summary_message += f" {skipped_count} skipped."
-            
+
             if errors_list:
                 flash(summary_message + " Some errors.", 'warning' if imported_count > 0 else 'error')
                 for err in errors_list[:10]: # Show first 10 errors

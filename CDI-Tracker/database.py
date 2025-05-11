@@ -30,10 +30,12 @@ def init_db():
             image_uri TEXT,
             sell_price REAL, -- Asking price
             location TEXT,
+            rarity TEXT,
+            language TEXT,
             date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             scryfall_id TEXT,
-            UNIQUE(set_code, collector_number, is_foil, location)
+            UNIQUE(set_code, collector_number, is_foil, location, rarity, language)
         )
     ''')
 
@@ -80,6 +82,8 @@ def init_db():
     # --- Add columns if they don't exist (Simple migration) ---
     _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
+    _check_and_add_column(cursor, 'cards', 'rarity', 'TEXT')
+    _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
     _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'sales', 'item_type', 'TEXT')
     _check_and_add_column(cursor, 'sales', 'inventory_item_id', 'INTEGER')
@@ -112,22 +116,26 @@ def get_item_by_id(item_type, item_id):
 # --- Card Functions ---
 # (add_card, get_all_cards, get_card_by_id, delete_card, update_card_prices_and_image, update_card_fields, update_card_quantity remain the same)
 def add_card(set_code, collector_number, name, quantity, buy_price, is_foil,
-             market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id):
+             market_price_usd, foil_market_price_usd, image_uri, sell_price, location,
+             scryfall_id, rarity, language):
     conn = get_db_connection()
     cursor = conn.cursor()
     timestamp = datetime.datetime.now()
     is_foil_int = 1 if is_foil else 0
     try:
-        cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = ? AND collector_number = ? AND is_foil = ? AND location = ?''', (set_code, collector_number, is_foil_int, location))
+        cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = ? AND collector_number = ? AND is_foil = ? AND location = ? AND rarity = ? AND language = ?''',
+                       (set_code, collector_number, is_foil_int, location, rarity, language))
         existing_card = cursor.fetchone()
         if existing_card:
             if existing_card['quantity'] <= 0:
                 card_id = existing_card['id']
-                cursor.execute(''' UPDATE cards SET name = ?, quantity = ?, buy_price = ?, market_price_usd = ?, foil_market_price_usd = ?, image_uri = ?, sell_price = ?, last_updated = ?, scryfall_id = ?, date_added = ? WHERE id = ? ''', (name, quantity, buy_price, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, scryfall_id, timestamp, card_id))
+                cursor.execute(''' UPDATE cards SET name = ?, quantity = ?, buy_price = ?, market_price_usd = ?, foil_market_price_usd = ?, image_uri = ?, sell_price = ?, last_updated = ?, scryfall_id = ?, date_added = ? WHERE id = ? ''',
+                               (name, quantity, buy_price, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, scryfall_id, timestamp, card_id))
                 conn.commit(); return card_id
             else: return None # Indicate already exists and is active
         else:
-            cursor.execute(''' INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''', (set_code, collector_number, name, quantity, buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id))
+            cursor.execute(''' INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id, rarity, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ''',
+                           (set_code, collector_number, name, quantity, buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id, rarity, language))
             conn.commit(); return cursor.lastrowid
     except sqlite3.Error as e: print(f"DB error in add_card: {e}"); conn.rollback(); return None
     finally: conn.close()

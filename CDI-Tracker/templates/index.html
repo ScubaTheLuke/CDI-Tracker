@@ -71,6 +71,28 @@
                 </div>
                 <div><label for="card_name_add">Card Name:</label><input type="text" id="card_name_add" name="card_name"></div>
                 <div><label for="collector_number_add">Collector Number:</label><input type="text" id="collector_number_add" name="collector_number"></div>
+                <div>
+                    <label for="rarity_add">Rarity:</label>
+                    <input type="text" id="rarity_add" name="rarity" placeholder="e.g., common, mythic">
+                </div>
+                <div>
+                    <label for="language_add">Language:</label>
+                    <select id="language_add" name="language">
+                        <option value="en" selected>English (en)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="zhs">Simplified Chinese (zhs)</option>
+                        <option value="zht">Traditional Chinese (zht)</option>
+                        <option value="ph">Phyrexian (ph)</option>
+                        <option value="">Other (Specify if lookup fails)</option>
+                    </select>
+                </div>
                 <div><label for="quantity_add">Quantity:</label><input type="number" id="quantity_add" name="quantity" min="1" value="1" required></div>
                 <div>
                     <label for="buy_price_add">Buy Price (each):</label>
@@ -82,7 +104,7 @@
             <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;"><label for="is_foil_add">Foil</label></div>
             <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
         </form>
-        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required.</em></p>
+        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required. Rarity/Language will be auto-filled by Scryfall if found, or use your input.</em></p>
     </div>
 
     <div id="addSealedProductTab" class="tab-content">
@@ -92,7 +114,22 @@
                 <div><label for="product_name_sealed">Product Name:</label><input type="text" id="product_name_sealed" name="product_name" required placeholder="e.g., MOM Draft Pack"></div>
                 <div><label for="set_name_sealed">Set Name:</label><input type="text" id="set_name_sealed" name="set_name" required placeholder="e.g., March of the Machine"></div>
                 <div><label for="product_type_sealed">Product Type:</label><select id="product_type_sealed" name="product_type" required><option value="">-- Select --</option><option>Draft Booster Pack</option><option>Set Booster Pack</option><option>Collector Booster Pack</option><option>Play Booster Pack</option><option>Draft Booster Box</option><option>Set Booster Box</option><option>Collector Booster Box</option><option>Play Booster Box</option><option>Bundle / Fat Pack</option><option>Precon Deck</option><option>Dual Deck Set</option><option>Secret Lair</option><option value="Other">Other</option></select></div>
-                <div><label for="language_sealed">Language:</label><input type="text" id="language_sealed" name="language" value="English"></div>
+                <div>
+                    <label for="language_sealed">Language:</label>
+                    <select id="language_sealed" name="language">
+                        <option value="en" selected>English (en)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="zhs">Simplified Chinese (zhs)</option>
+                        <option value="zht">Traditional Chinese (zht)</option>
+                    </select>
+                </div>
                 <div><label for="quantity_sealed">Quantity:</label><input type="number" id="quantity_sealed" name="quantity" min="1" required></div>
                 <div><label for="buy_price_sealed">Buy Price (ea):</label><input type="number" id="buy_price_sealed" name="buy_price" step="0.01" min="0" required placeholder="$0.00"></div>
                 <div><label for="manual_market_price_sealed">Market Price (ea, opt.):</label><input type="number" id="manual_market_price_sealed" name="manual_market_price" step="0.01" min="0" placeholder="$0.00"></div>
@@ -134,23 +171,38 @@
             <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span>
         </p>
         <div class="filter-controls">
-             <div><label for="inventoryFilterInput">Text Search:</label><input type="text" id="inventoryFilterInput" placeholder="Name, Set, Loc, CN..."></div>
+             <div><label for="inventoryFilterInput">Text Search:</label><input type="text" id="inventoryFilterInput" placeholder="Name, Set, Loc, CN, Rarity, Lang..."></div>
              <div><label for="inventoryTypeFilter">Item Type:</label><select id="inventoryTypeFilter"><option value="all" selected>All Types</option><option value="single_card">Single Cards</option><option value="sealed_product">Sealed Products</option></select></div>
              <div><label for="inventoryLocationFilter">Location:</label><select id="inventoryLocationFilter"><option value="all" selected>All Locations</option></select></div>
              <div><label for="inventorySetFilter">Set:</label><select id="inventorySetFilter"><option value="all" selected>All Sets</option></select></div>
              <div><label for="inventoryFoilFilter">Foil (Cards):</label><select id="inventoryFoilFilter"><option value="all" selected>Any</option><option value="yes">Foil Only</option><option value="no">Non-Foil Only</option></select></div>
+             <div><label for="inventoryRarityFilter">Rarity (Cards):</label><select id="inventoryRarityFilter"><option value="all" selected>All Rarities</option></select></div>
+             <div><label for="inventoryLanguageFilter">Language (Cards):</label><select id="inventoryLanguageFilter"><option value="all" selected>All Languages</option></select></div>
              <div><label for="inventoryCollectorFilter">Collector's (Sealed):</label><select id="inventoryCollectorFilter"><option value="all" selected>Any</option><option value="yes">Collector's Only</option><option value="no">Non-Collector's Only</option></select></div>
+             <div><label for="inventorySealedLanguageFilter">Language (Sealed):</label><select id="inventorySealedLanguageFilter"><option value="all" selected>All Languages</option></select></div>
              <div><label>&nbsp;</label><button onclick="clearInventoryFilters()">Clear Filters</button></div>
         </div>
         <div class="card-grid" id="inventoryGrid">
             {% if inventory_items %}
                 {% for item in inventory_items %}
-                <div class="card-entry" data-type="{{ item.type }}" data-name="{{ item.display_name }}" data-set="{{ item.set_code or item.set_name }}" data-location="{{ item.location }}" data-cn="{{ item.collector_number if item.type == 'single_card' else '' }}" data-prodtype="{{ item.product_type if item.type == 'sealed_product' else '' }}" data-foil="{{ 'yes' if item.is_foil else 'no' if item.type == 'single_card' else '' }}" data-collector="{{ 'yes' if item.is_collectors_item else 'no' if item.type == 'sealed_product' else '' }}">
+                <div class="card-entry"
+                     data-type="{{ item.type }}"
+                     data-name="{{ item.display_name }}"
+                     data-set="{{ item.set_code or item.set_name }}"
+                     data-location="{{ item.location }}"
+                     data-cn="{{ item.collector_number if item.type == 'single_card' else '' }}"
+                     data-prodtype="{{ item.product_type if item.type == 'sealed_product' else '' }}"
+                     data-foil="{{ 'yes' if item.is_foil else 'no' if item.type == 'single_card' else '' }}"
+                     data-rarity="{{ item.rarity if item.type == 'single_card' else '' }}"
+                     data-language="{{ item.language }}" {# Generic language for both, specific filter for cards vs sealed #}
+                     data-collector="{{ 'yes' if item.is_collectors_item else 'no' if item.type == 'sealed_product' else '' }}">
                     {% if item.image_uri %}<img src="{{ item.image_uri }}" alt="{{ item.display_name }}" class="card-image">{% else %}<div class="card-image-placeholder">No Image</div>{% endif %}
                     <h3>{{ item.display_name }}</h3>
                     <p>
                         {% if item.type == 'single_card' %}
                             <strong>Set:</strong> {{ item.set_code.upper() }}-{{ item.collector_number }} {% if item.is_foil %}(Foil){% endif %}<br>
+                            <strong>Rarity:</strong> {{ item.rarity | capitalize }}<br>
+                            <strong>Language:</strong> {{ item.language | upper }}<br>
                             <strong>Location:</strong> {{ item.location }}<br>
                             <strong>Quantity:</strong> {{ item.quantity }}<br>
                             <strong>Buy Price (ea):</strong> {{ item.buy_price | currency_commas }}<br>
@@ -162,7 +214,7 @@
                         {% elif item.type == 'sealed_product' %}
                             <strong>Set:</strong> {{ item.set_name }}<br>
                             <strong>Type:</strong> {{ item.product_type }} {% if item.is_collectors_item %}<span style="font-style: italic;">(Collector's Item)</span>{% endif %}<br>
-                            <strong>Language:</strong> {{ item.language }}<br>
+                            <strong>Language:</strong> {{ item.language | upper }}<br>
                             <strong>Location:</strong> {{ item.location }}<br>
                             <strong>Quantity:</strong> {{ item.quantity }}<br>
                             <strong>Buy Price (ea):</strong> {{ item.buy_price | currency_commas }}<br>
@@ -180,7 +232,24 @@
                      <div class="actions"><form action="{{ url_for('delete_sealed_product_route', product_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry?');">Delete</button></form>
                         <form action="{{ url_for('initiate_open_sealed_route', product_id=item.original_id) }}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="{{ item.quantity }}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="{{ item.display_name }}"><input type="hidden" name="original_buy_price" value="{{ item.buy_price }}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form>
                     </div>
-                     <details class="update-details"><summary>Update Sealed Details</summary><form action="{{ url_for('update_sealed_product_route', product_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="{{ '%.2f'|format(item.current_market_price) if item.current_market_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="{{ item.image_uri if item.image_uri else '' }}" placeholder="http://... Blank to clear"></div><div><input type="checkbox" id="update_is_collectors_item_sealed_{{item.original_id}}" name="is_collectors_item" value="true" {% if item.is_collectors_item %}checked{% endif %}><label for="update_is_collectors_item_sealed_{{item.original_id}}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>
+                     <details class="update-details"><summary>Update Sealed Details</summary><form action="{{ url_for('update_sealed_product_route', product_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="{{ '%.2f'|format(item.current_market_price) if item.current_market_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="{{ item.image_uri if item.image_uri else '' }}" placeholder="http://... Blank to clear"></div>
+                        <div>
+                            <label for="update_language_sealed_{{item.original_id}}">Language:</label>
+                            <select id="update_language_sealed_{{item.original_id}}" name="language">
+                                <option value="en" {% if item.language == 'en' %}selected{% endif %}>English (en)</option>
+                                <option value="es" {% if item.language == 'es' %}selected{% endif %}>Spanish (es)</option>
+                                <option value="fr" {% if item.language == 'fr' %}selected{% endif %}>French (fr)</option>
+                                <option value="de" {% if item.language == 'de' %}selected{% endif %}>German (de)</option>
+                                <option value="it" {% if item.language == 'it' %}selected{% endif %}>Italian (it)</option>
+                                <option value="pt" {% if item.language == 'pt' %}selected{% endif %}>Portuguese (pt)</option>
+                                <option value="ja" {% if item.language == 'ja' %}selected{% endif %}>Japanese (ja)</option>
+                                <option value="ko" {% if item.language == 'ko' %}selected{% endif %}>Korean (ko)</option>
+                                <option value="ru" {% if item.language == 'ru' %}selected{% endif %}>Russian (ru)</option>
+                                <option value="zhs" {% if item.language == 'zhs' %}selected{% endif %}>Simplified Chinese (zhs)</option>
+                                <option value="zht" {% if item.language == 'zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
+                            </select>
+                        </div>
+                        <div><input type="checkbox" id="update_is_collectors_item_sealed_{{item.original_id}}" name="is_collectors_item" value="true" {% if item.is_collectors_item %}checked{% endif %}><label for="update_is_collectors_item_sealed_{{item.original_id}}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>
                      {% endif %}
                 </div> {% endfor %}
                 <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
@@ -193,8 +262,8 @@
         <h2>Import Collection from CSV (TCGPlayer Format)</h2>
         <form action="{{ url_for('import_csv_route') }}" method="post" enctype="multipart/form-data" class="card-form">
             <p style="font-size: 0.9em; color: var(--text-secondary);">
-                Upload a CSV file. The importer expects columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing'.
-                Other fields will use defaults you provide below.
+                Upload a CSV file. The importer expects columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing', 'Rarity', 'Language'.
+                Other fields will use defaults you provide below. Language should be a 2-letter code (e.g., en, ja).
             </p>
             <div>
                 <label for="csv_file">CSV File:</label>
@@ -212,6 +281,23 @@
                  <div>
                     <label for="default_asking_price_csv">Default Asking Price (optional):</label>
                     <input type="number" id="default_asking_price_csv" name="default_asking_price" step="0.01" min="0" placeholder="$0.00 (optional)">
+                </div>
+                <div>
+                    <label for="default_language_csv">Default Language (if not in CSV):</label>
+                    <select id="default_language_csv" name="default_language_csv">
+                        <option value="en" selected>English (en)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="zhs">Simplified Chinese (zhs)</option>
+                        <option value="zht">Traditional Chinese (zht)</option>
+                        <option value="ph">Phyrexian (ph)</option>
+                    </select>
                 </div>
             </div>
             <div style="margin-top:15px;">
@@ -253,7 +339,18 @@
     <script>
         // Data for inventory items (combined list for filtering)
         const inventoryItemsData = [
-            {% for item in inventory_items %} { id: "{{ item.original_id }}", type: "{{ item.type }}", name: "{{ item.display_name |replace('"', '\\"') |replace("'", "\\'") }}", set: "{{ (item.set_code or item.set_name) |replace('"', '\\"') |replace("'", "\\'") }}", location: "{{ item.location |replace('"', '\\"') |replace("'", "\\'") }}", cn: "{{ item.collector_number if item.type == 'single_card' else '' |replace('"', '\\"') |replace("'", "\\'") }}", prodtype: "{{ item.product_type if item.type == 'sealed_product' else '' |replace('"', '\\"') |replace("'", "\\'") }}", is_foil: {{ 'true' if item.is_foil else 'false' if item.type == 'single_card' else 'null'}}, is_collector: {{ 'true' if item.is_collectors_item else 'false' if item.type == 'sealed_product' else 'null'}} }, {% endfor %}
+            {% for item in inventory_items %} {
+                id: "{{ item.original_id }}", type: "{{ item.type }}",
+                name: "{{ item.display_name |replace('"', '\\"') |replace("'", "\\'") }}",
+                set: "{{ (item.set_code or item.set_name) |replace('"', '\\"') |replace("'", "\\'") }}",
+                location: "{{ item.location |replace('"', '\\"') |replace("'", "\\'") }}",
+                cn: "{{ item.collector_number if item.type == 'single_card' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
+                prodtype: "{{ item.product_type if item.type == 'sealed_product' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
+                is_foil: {{ 'true' if item.is_foil else 'false' if item.type == 'single_card' else 'null'}},
+                rarity: "{{ item.rarity if item.type == 'single_card' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
+                language: "{{ item.language |replace('"', '\\"') |replace("'", "\\'") }}",
+                is_collector: {{ 'true' if item.is_collectors_item else 'false' if item.type == 'sealed_product' else 'null'}}
+            }, {% endfor %}
         ];
         const saleInventoryOptionsData = [
             {% for option in sale_inventory_options %} { id: "{{ option.id |replace('"', '\\"') |replace("'", "\\'") }}", displayText: "{{ option.display |replace('"', '\\"') |replace("'", "\\'") }}" }, {% endfor %}
@@ -267,10 +364,122 @@
         var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
 
         // Inventory Filtering
-        const inventoryFilterInput = document.getElementById('inventoryFilterInput'); const inventoryTypeFilter = document.getElementById('inventoryTypeFilter'); const inventoryLocationFilter = document.getElementById('inventoryLocationFilter'); const inventorySetFilter = document.getElementById('inventorySetFilter'); const inventoryFoilFilter = document.getElementById('inventoryFoilFilter'); const inventoryCollectorFilter = document.getElementById('inventoryCollectorFilter'); const inventoryGrid = document.getElementById('inventoryGrid'); const noInventoryResultsMsg = document.getElementById('noInventoryResults');
-        function populateDropdown(selectElement, dataList, property) { if (!selectElement || !dataList) return; const uniqueValues = [...new Set(dataList.map(item => item[property]).filter(value => value && String(value).trim() !== ''))].sort((a, b) => String(a).toLowerCase().localeCompare(String(b).toLowerCase())); selectElement.innerHTML = '<option value="all" selected>All</option>'; uniqueValues.forEach(value => { const option = document.createElement('option'); option.value = value; option.textContent = value; selectElement.appendChild(option); }); selectElement.value = 'all'; }
-        function filterInventory() { if (!inventoryGrid) return; const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : ''; const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all'; const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all'; const filterSet = inventorySetFilter ? inventorySetFilter.value : 'all'; const filterFoil = inventoryFoilFilter ? inventoryFoilFilter.value : 'all'; const filterCollector = inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all'; const items = inventoryGrid.getElementsByClassName('card-entry'); let visibleCount = 0; for (let i = 0; i < items.length; i++) { const item = items[i]; const itemType = item.dataset.type; const itemName = item.dataset.name.toLowerCase(); const itemSet = item.dataset.set.toLowerCase(); const itemLocation = item.dataset.location.toLowerCase(); const itemCn = item.dataset.cn.toLowerCase(); const itemProdType = item.dataset.prodtype.toLowerCase(); const itemIsFoil = item.dataset.foil; const itemIsCollector = item.dataset.collector; let show = true; if (filterType !== 'all' && itemType !== filterType) { show = false; } if (show && filterLocation !== 'all' && item.dataset.location !== filterLocation) { show = false; } if (show && filterSet !== 'all' && item.dataset.set !== filterSet) { show = false; } if (show && itemType === 'single_card' && filterFoil !== 'all' && itemIsFoil !== filterFoil) { show = false; } if (show && itemType === 'sealed_product' && filterCollector !== 'all' && itemIsCollector !== filterCollector) { show = false; } if (show && filterText !== '') { if (!(itemName.includes(filterText) || itemSet.includes(filterText) || itemLocation.includes(filterText) || (itemType === 'single_card' && itemCn.includes(filterText)) || (itemType === 'sealed_product' && itemProdType.includes(filterText)))) { show = false; } } item.style.display = show ? 'flex' : 'none'; if(show) visibleCount++; } if (noInventoryResultsMsg) { noInventoryResultsMsg.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none'; } }
-        function clearInventoryFilters() { if (inventoryFilterInput) inventoryFilterInput.value = ''; if (inventoryTypeFilter) inventoryTypeFilter.value = 'all'; if (inventoryLocationFilter) inventoryLocationFilter.value = 'all'; if (inventorySetFilter) inventorySetFilter.value = 'all'; if (inventoryFoilFilter) inventoryFoilFilter.value = 'all'; if (inventoryCollectorFilter) inventoryCollectorFilter.value = 'all'; filterInventory(); }
+        const inventoryFilterInput = document.getElementById('inventoryFilterInput');
+        const inventoryTypeFilter = document.getElementById('inventoryTypeFilter');
+        const inventoryLocationFilter = document.getElementById('inventoryLocationFilter');
+        const inventorySetFilter = document.getElementById('inventorySetFilter');
+        const inventoryFoilFilter = document.getElementById('inventoryFoilFilter');
+        const inventoryRarityFilter = document.getElementById('inventoryRarityFilter'); // Added
+        const inventoryLanguageFilter = document.getElementById('inventoryLanguageFilter'); // Added for cards
+        const inventoryCollectorFilter = document.getElementById('inventoryCollectorFilter');
+        const inventorySealedLanguageFilter = document.getElementById('inventorySealedLanguageFilter'); // Added for sealed
+
+        const inventoryGrid = document.getElementById('inventoryGrid');
+        const noInventoryResultsMsg = document.getElementById('noInventoryResults');
+
+        function populateDropdown(selectElement, dataList, property, itemTypeFilter = null) {
+            if (!selectElement || !dataList) return;
+            let filteredData = dataList;
+            if (itemTypeFilter) {
+                filteredData = dataList.filter(item => item.type === itemTypeFilter);
+            }
+            const uniqueValues = [...new Set(filteredData.map(item => item[property]).filter(value => value && String(value).trim() !== ''))].sort((a, b) => {
+                const valA = String(a).toLowerCase();
+                const valB = String(b).toLowerCase();
+                if (valA < valB) return -1;
+                if (valA > valB) return 1;
+                return 0;
+            });
+            // Preserve current value if 'all' is not the selected one or if dropdown is being initially populated
+            const currentValue = selectElement.value !== 'all' ? selectElement.value : 'all';
+            selectElement.innerHTML = '<option value="all">All</option>'; // Default 'All'
+            uniqueValues.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value.charAt(0).toUpperCase() + value.slice(1); // Capitalize first letter for display
+                selectElement.appendChild(option);
+            });
+            // Try to set back to previous value, or default to 'all'
+            if (uniqueValues.includes(currentValue)) {
+                selectElement.value = currentValue;
+            } else {
+                selectElement.value = 'all';
+            }
+        }
+
+
+        function filterInventory() {
+            if (!inventoryGrid) return;
+            const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : '';
+            const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
+            const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all';
+            const filterSet = inventorySetFilter ? inventorySetFilter.value : 'all';
+            const filterFoil = inventoryFoilFilter ? inventoryFoilFilter.value : 'all';
+            const filterRarity = inventoryRarityFilter ? inventoryRarityFilter.value : 'all'; // Added
+            const filterCardLanguage = inventoryLanguageFilter ? inventoryLanguageFilter.value : 'all'; // Added
+            const filterCollector = inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all';
+            const filterSealedLanguage = inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all'; // Added
+
+
+            const items = inventoryGrid.getElementsByClassName('card-entry');
+            let visibleCount = 0;
+            for (let i = 0; i < items.length; i++) {
+                const item = items[i];
+                const itemType = item.dataset.type;
+                const itemName = item.dataset.name.toLowerCase();
+                const itemSet = item.dataset.set.toLowerCase();
+                const itemLocation = item.dataset.location.toLowerCase();
+                const itemCn = item.dataset.cn.toLowerCase();
+                const itemProdType = item.dataset.prodtype.toLowerCase();
+                const itemIsFoil = item.dataset.foil;
+                const itemRarity = item.dataset.rarity.toLowerCase(); // Added
+                const itemLanguage = item.dataset.language.toLowerCase(); // Added (generic)
+                const itemIsCollector = item.dataset.collector;
+
+                let show = true;
+                if (filterType !== 'all' && itemType !== filterType) { show = false; }
+                if (show && filterLocation !== 'all' && item.dataset.location !== filterLocation) { show = false; }
+                if (show && filterSet !== 'all' && item.dataset.set !== filterSet) { show = false; }
+
+                if (itemType === 'single_card') {
+                    if (show && filterFoil !== 'all' && itemIsFoil !== filterFoil) { show = false; }
+                    if (show && filterRarity !== 'all' && itemRarity !== filterRarity) { show = false; } // Added
+                    if (show && filterCardLanguage !== 'all' && itemLanguage !== filterCardLanguage) { show = false; } // Added for card language
+                } else if (itemType === 'sealed_product') {
+                    if (show && filterCollector !== 'all' && itemIsCollector !== filterCollector) { show = false; }
+                    if (show && filterSealedLanguage !== 'all' && itemLanguage !== filterSealedLanguage) { show = false; } // Added for sealed language
+                }
+
+
+                if (show && filterText !== '') {
+                    if (!(itemName.includes(filterText) ||
+                          itemSet.includes(filterText) ||
+                          itemLocation.includes(filterText) ||
+                          (itemType === 'single_card' && (itemCn.includes(filterText) || itemRarity.includes(filterText) || itemLanguage.includes(filterText) ) ) ||
+                          (itemType === 'sealed_product' && (itemProdType.includes(filterText) || itemLanguage.includes(filterText) ) )
+                        )) {
+                        show = false;
+                    }
+                }
+                item.style.display = show ? 'flex' : 'none';
+                if(show) visibleCount++;
+            }
+            if (noInventoryResultsMsg) {
+                noInventoryResultsMsg.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none';
+            }
+        }
+        function clearInventoryFilters() {
+            if (inventoryFilterInput) inventoryFilterInput.value = '';
+            if (inventoryTypeFilter) inventoryTypeFilter.value = 'all';
+            if (inventoryLocationFilter) inventoryLocationFilter.value = 'all';
+            if (inventorySetFilter) inventorySetFilter.value = 'all';
+            if (inventoryFoilFilter) inventoryFoilFilter.value = 'all';
+            if (inventoryRarityFilter) inventoryRarityFilter.value = 'all'; // Added
+            if (inventoryLanguageFilter) inventoryLanguageFilter.value = 'all'; // Added
+            if (inventoryCollectorFilter) inventoryCollectorFilter.value = 'all';
+            if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.value = 'all'; // Added
+            filterInventory();
+        }
 
         // Sale Item Search
         const cardSearchInput = document.getElementById('cardSearchInput'); const cardSearchResultsDiv = document.getElementById('cardSearchResults'); const selectedInventoryCardIdInput = document.getElementById('selectedInventoryCardId');
@@ -297,15 +506,24 @@
          // Initialize
          document.addEventListener('DOMContentLoaded', function() {
             openTab(null, activeTabFromFlask);
+            // Populate all inventory filters
             populateDropdown(inventoryLocationFilter, inventoryItemsData, 'location');
             populateDropdown(inventorySetFilter, inventoryItemsData, 'set');
+            populateDropdown(inventoryRarityFilter, inventoryItemsData, 'rarity', 'single_card'); // Added for cards
+            populateDropdown(inventoryLanguageFilter, inventoryItemsData, 'language', 'single_card'); // Added for cards
+            populateDropdown(inventorySealedLanguageFilter, inventoryItemsData, 'language', 'sealed_product'); // Added for sealed
+
             if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', filterInventory);
             if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', filterInventory);
             if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', filterInventory);
             if (inventorySetFilter) inventorySetFilter.addEventListener('change', filterInventory);
             if (inventoryFoilFilter) inventoryFoilFilter.addEventListener('change', filterInventory);
+            if (inventoryRarityFilter) inventoryRarityFilter.addEventListener('change', filterInventory); // Added
+            if (inventoryLanguageFilter) inventoryLanguageFilter.addEventListener('change', filterInventory); // Added
             if (inventoryCollectorFilter) inventoryCollectorFilter.addEventListener('change', filterInventory);
-            filterInventory();
+            if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.addEventListener('change', filterInventory); // Added
+
+            filterInventory(); // Initial filter application
          });
     </script>
 

@@ -4,7 +4,7 @@ import urllib.parse
 
 SCRYFALL_API_BASE_URL = "https://api.scryfall.com"
 
-def get_card_details(card_name=None, set_code=None, collector_number=None):
+def get_card_details(card_name=None, set_code=None, collector_number=None, lang=None):
     url = None
     api_method = "object"
     search_query_for_log = "" # For logging search queries
@@ -12,23 +12,26 @@ def get_card_details(card_name=None, set_code=None, collector_number=None):
     set_code_lower = set_code.lower().strip() if set_code else None
     card_name_stripped = card_name.strip() if card_name else None
     collector_number_stripped = collector_number.strip() if collector_number else None
+    lang_param = f"&lang={lang}" if lang else ""
 
     if set_code_lower and collector_number_stripped:
-        url = f"{SCRYFALL_API_BASE_URL}/cards/{set_code_lower}/{collector_number_stripped}"
+        url = f"{SCRYFALL_API_BASE_URL}/cards/{set_code_lower}/{collector_number_stripped}?{lang_param.lstrip('&') if lang_param else ''}"
         api_method = "object"
     elif card_name_stripped and set_code_lower:
         encoded_card_name = urllib.parse.quote_plus(card_name_stripped)
-        url = f"{SCRYFALL_API_BASE_URL}/cards/named?exact={encoded_card_name}&set={set_code_lower}"
+        url = f"{SCRYFALL_API_BASE_URL}/cards/named?exact={encoded_card_name}&set={set_code_lower}{lang_param}"
         api_method = "object"
     elif card_name_stripped and collector_number_stripped:
         encoded_card_name = urllib.parse.quote_plus(card_name_stripped)
         search_query_for_log = f'!"{card_name_stripped}" cn:"{collector_number_stripped}"'
+        if lang:
+            search_query_for_log += f' lang:{lang}'
         encoded_query = urllib.parse.quote_plus(search_query_for_log)
-        url = f"{SCRYFALL_API_BASE_URL}/cards/search?q={encoded_query}&unique=cards&include_extras=true" # include_extras might be useful
+        url = f"{SCRYFALL_API_BASE_URL}/cards/search?q={encoded_query}&unique=cards&include_extras=true"
         api_method = "list"
     elif card_name_stripped:
         encoded_card_name = urllib.parse.quote_plus(card_name_stripped)
-        url = f"{SCRYFALL_API_BASE_URL}/cards/named?exact={encoded_card_name}"
+        url = f"{SCRYFALL_API_BASE_URL}/cards/named?exact={encoded_card_name}{lang_param}"
         api_method = "object"
     else:
         print("Error: Insufficient parameters for Scryfall lookup.")
@@ -86,6 +89,8 @@ def get_card_details(card_name=None, set_code=None, collector_number=None):
         collector_number_from_api = card_data.get('collector_number')
         set_code_from_api = card_data.get('set')
         scryfall_id_from_api = card_data.get('id')
+        rarity_from_api = card_data.get('rarity')
+        lang_from_api = card_data.get('lang')
         market_price_usd = None
         foil_market_price_usd = None
         image_uri = None
@@ -105,6 +110,7 @@ def get_card_details(card_name=None, set_code=None, collector_number=None):
         return {
             "name": name_from_api, "collector_number": collector_number_from_api,
             "set_code": set_code_from_api, "id": scryfall_id_from_api,
+            "rarity": rarity_from_api, "language": lang_from_api,
             "market_price_usd": float(market_price_usd) if market_price_usd else None,
             "foil_market_price_usd": float(foil_market_price_usd) if foil_market_price_usd else None,
             "image_uri": image_uri
@@ -116,9 +122,45 @@ def get_card_details(card_name=None, set_code=None, collector_number=None):
     except requests.exceptions.RequestException as e:
         print(f"Request error for Scryfall URL: {url}. Error: {e}")
         return None
-    except ValueError as e:
-        print(f"Error parsing price for card. URL: {url}. Error: {e}")
-        return None
+    except ValueError as e: # Handles potential float conversion errors for prices
+        print(f"Error parsing data (e.g., price) for card. URL: {url}. Error: {e}")
+        # Attempt to return partial data if essential fields are present
+        if card_data and 'name' in card_data and 'collector_number' in card_data and 'set' in card_data:
+            return {
+                "name": card_data.get('name'), "collector_number": card_data.get('collector_number'),
+                "set_code": card_data.get('set'), "id": card_data.get('id'),
+                "rarity": card_data.get('rarity'), "language": card_data.get('lang'),
+                "market_price_usd": None, "foil_market_price_usd": None, # Prices failed
+                "image_uri": image_uri # image_uri might have been set before price error
+            }
+        return None # Critical data missing or error too early
     except Exception as e:
         print(f"Unexpected error in get_card_details. URL: {url}. Error: {e}")
+        return None
+
+
+def fetch_all_set_data(): # Added this function based on its usage in app.py
+    """Fetches all set data from Scryfall."""
+    url = f"{SCRYFALL_API_BASE_URL}/sets"
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        time.sleep(0.1) # Respect API rate limits
+        set_data = response.json()
+        if set_data.get("object") == "list" and "data" in set_data:
+            # Filter out unwanted set types if necessary, or return all
+            # For example, to exclude tokens:
+            # return [s for s in set_data["data"] if s.get("set_type") != "token"]
+            return sorted(set_data["data"], key=lambda s: s.get("name", "").lower())
+        else:
+            print("Failed to parse set data from Scryfall or no data found.")
+            return None
+    except requests.exceptions.HTTPError as e:
+        print(f"HTTP error fetching all sets: {e.response.status_code} - {e.response.text if e.response is not None else e}")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"Request error fetching all sets: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error fetching all sets: {e}")
         return None
