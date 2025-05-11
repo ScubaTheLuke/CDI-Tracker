@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-    <script src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js'></script>
     <style>
         /* Styles for filter area - can be moved to style.css */
         .filter-controls { background-color: var(--bg-secondary); padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
@@ -33,20 +32,7 @@
         .set-symbol-item .set-name { display: block; font-weight: bold; color: var(--text-primary); }
         .set-symbol-item .set-code { font-size: 0.9em; color: var(--text-secondary); }
 
-        /* --- Styles for Camera Scan Modal --- */
-        #cameraScanModal .modal-content { max-width: 640px; /* Adjust for typical camera aspect ratios */ }
-        #cameraFeed {
-            width: 100%;
-            max-width: 600px;
-            height: auto;
-            border: 1px solid var(--border-color);
-            background-color: var(--bg-tertiary);
-            border-radius: 4px;
-            margin-bottom: 15px;
-        }
-        #cameraScanModal button { margin-top: 10px; }
-        #ocrStatus { margin-top: 10px; color: var(--text-secondary); font-style: italic; min-height: 20px;}
-        #capturedImageCanvas { display: none; /* Hidden canvas for processing */ }
+        /* Camera Scan Modal Styles REMOVED */
     </style>
 </head>
 <body>
@@ -62,11 +48,11 @@
         <button id="enterSaleTabNav" class="tab-button" onclick="openTab(event, 'enterSaleTab')">Enter Sale</button>
         <button id="inventoryTabNav" class="tab-button" onclick="openTab(event, 'inventoryTab')">View Inventory</button>
         <button id="salesHistoryTabNav" class="tab-button" onclick="openTab(event, 'salesHistoryTab')">View Sales History</button>
+        <button id="importCsvTabNav" class="tab-button" onclick="openTab(event, 'importCsvTab')">Import CSV</button>
     </div>
 
     <div id="addCardTab" class="tab-content">
         <h2>Add Single Card to Inventory</h2>
-
         {% if from_pack_details and suggested_buy_price is not none %}
         <div class="info-box">
             <p>Opened <strong>{{ from_pack_details.qty_opened }} x {{ from_pack_details.name }}</strong> (Cost: {{ from_pack_details.cost | currency_commas }}).<br>
@@ -74,11 +60,6 @@
             </p>
         </div>
         {% endif %}
-
-        <div style="margin-bottom: 15px;">
-             <button type="button" id="scanCardWithCameraBtn" class="refresh-button" style="background-color: var(--mtg-blue);">Scan Card with Camera</button>
-        </div>
-
         <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
             <div class="form-grid">
                 <div>
@@ -206,7 +187,43 @@
             {% else %}
                  <p style="grid-column: 1 / -1; text-align: center;">Your inventory is empty. Add some items using the tabs above!</p>
             {% endif %}
-        </div> </div> <div id="salesHistoryTab" class="tab-content">
+        </div> </div>
+
+    <div id="importCsvTab" class="tab-content">
+        <h2>Import Collection from CSV (TCGPlayer Format)</h2>
+        <form action="{{ url_for('import_csv_route') }}" method="post" enctype="multipart/form-data" class="card-form">
+            <p style="font-size: 0.9em; color: var(--text-secondary);">
+                Upload a CSV file. The importer expects columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing'.
+                Other fields will use defaults you provide below.
+            </p>
+            <div>
+                <label for="csv_file">CSV File:</label>
+                <input type="file" id="csv_file" name="csv_file" accept=".csv" required>
+            </div>
+            <div class="form-grid" style="margin-top: 15px;">
+                <div>
+                    <label for="default_buy_price_csv">Default Buy Price (if not in CSV):</label>
+                    <input type="number" id="default_buy_price_csv" name="default_buy_price" step="0.01" min="0" value="0.00" required placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="default_location_csv">Default Location:</label>
+                    <input type="text" id="default_location_csv" name="default_location" required value="Imported Batch">
+                </div>
+                 <div>
+                    <label for="default_asking_price_csv">Default Asking Price (optional):</label>
+                    <input type="number" id="default_asking_price_csv" name="default_asking_price" step="0.01" min="0" placeholder="$0.00 (optional)">
+                </div>
+            </div>
+            <div style="margin-top:15px;">
+                <input type="checkbox" id="assume_non_foil_csv" name="assume_non_foil" value="true" checked>
+                <label for="assume_non_foil_csv">Assume Non-Foil (if 'Printing' is 'Normal' or foil info missing)</label>
+            </div>
+            <button type="submit" style="margin-top:20px;">Import Cards from CSV</button>
+        </form>
+    </div>
+
+
+    <div id="salesHistoryTab" class="tab-content">
         <h2>Sales History</h2>
          {% if sales_history %}
             <table style="width:100%; border-collapse: collapse;">
@@ -233,17 +250,6 @@
         </div>
     </div>
 
-    <div id="cameraScanModal" class="modal">
-        <div class="modal-content">
-            <span class="modal-close-button" onclick="closeCameraScanModal()">&times;</span>
-            <h2>Scan Card with Camera</h2>
-            <video id="cameraFeed" playsinline autoplay muted></video>
-            <button type="button" id="captureImageBtn" class="refresh-button">Capture & Process Image</button>
-            <button type="button" onclick="closeCameraScanModal()" style="margin-left:10px;">Cancel</button>
-            <p id="ocrStatus"></p>
-            <canvas id="capturedImageCanvas"></canvas> </div>
-    </div>
-
     <script>
         // Data for inventory items (combined list for filtering)
         const inventoryItemsData = [
@@ -254,7 +260,7 @@
         ];
 
         let allScryfallSets = []; // To store fetched set data for symbol finder
-        let cameraStream = null; // To store the camera stream
+        // Camera related variables REMOVED
 
         // Tab functionality
         function openTab(evt, tabName) { var i, tabcontent, tabbuttons; tabcontent = document.getElementsByClassName("tab-content"); for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; } tabbuttons = document.getElementsByClassName("tab-button"); for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); } var currentTab = document.getElementById(tabName); if (currentTab) { currentTab.style.display = "block"; } var activeBtnId = tabName + "Nav"; var activeBtn = document.getElementById(activeBtnId); if (evt && evt.currentTarget) { evt.currentTarget.className += " active"; } else if (activeBtn) { activeBtn.className += " active"; } }
@@ -279,150 +285,13 @@
         function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
         function closeSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "none"; } }
         if (findSetBySymbolBtn) { findSetBySymbolBtn.onclick = openSetSymbolModal; }
-        if (setSymbolSearchInput) { setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); } // Listener for search bar
+        if (setSymbolSearchInput) { setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); }
 
-        // --- Camera Scan Modal JavaScript ---
-        const cameraScanModal = document.getElementById("cameraScanModal");
-        const scanCardWithCameraBtn = document.getElementById("scanCardWithCameraBtn");
-        const cameraFeed = document.getElementById("cameraFeed");
-        const captureImageBtn = document.getElementById("captureImageBtn");
-        const capturedImageCanvas = document.getElementById("capturedImageCanvas");
-        const ocrStatus = document.getElementById("ocrStatus");
-        const cardNameAddInput = document.getElementById("card_name_add");
-        const collectorNumberAddInput = document.getElementById("collector_number_add");
-        // const setCodeAddInput is already defined above for symbol finder
+        // Camera Scan JavaScript REMOVED
 
-        async function startCamera() {
-            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                try {
-                    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-                    cameraFeed.srcObject = cameraStream;
-                    cameraFeed.style.display = 'block';
-                    if(ocrStatus) ocrStatus.textContent = "Position card in view and capture.";
-                } catch (err) {
-                    console.error("Error accessing camera:", err);
-                    if(ocrStatus) ocrStatus.textContent = "Error accessing camera. Check permissions.";
-                    alert("Could not access the camera. Please ensure permissions are granted.");
-                    closeCameraScanModal(); // Close modal if camera fails
-                }
-            } else {
-                alert("Your browser does not support camera access.");
-                if(ocrStatus) ocrStatus.textContent = "Camera access not supported by this browser.";
-                closeCameraScanModal();
-            }
-        }
-
-        function stopCamera() {
-            if (cameraStream) {
-                cameraStream.getTracks().forEach(track => track.stop());
-                cameraFeed.srcObject = null;
-                cameraStream = null;
-                cameraFeed.style.display = 'none';
-            }
-        }
-
-        function openCameraScanModal() {
-            if (cameraScanModal) {
-                cameraScanModal.style.display = "block";
-                startCamera();
-            }
-        }
-
-        function closeCameraScanModal() {
-            if (cameraScanModal) {
-                cameraScanModal.style.display = "none";
-                stopCamera();
-                if(ocrStatus) ocrStatus.textContent = ""; // Clear status
-            }
-        }
-
-        if (scanCardWithCameraBtn) {
-            scanCardWithCameraBtn.onclick = openCameraScanModal;
-        }
-
-        if (captureImageBtn) {
-            captureImageBtn.onclick = async function() { // Make async for Tesseract
-                if (!cameraStream || !cameraFeed.srcObject) {
-                    if(ocrStatus) ocrStatus.textContent = "Camera not active.";
-                    return;
-                }
-                const context = capturedImageCanvas.getContext('2d');
-                capturedImageCanvas.width = cameraFeed.videoWidth;
-                capturedImageCanvas.height = cameraFeed.videoHeight;
-                context.drawImage(cameraFeed, 0, 0, cameraFeed.videoWidth, cameraFeed.videoHeight);
-
-                if(ocrStatus) ocrStatus.textContent = "Image captured. Processing with OCR...";
-                captureImageBtn.disabled = true; // Disable button during processing
-
-                try {
-                    const { data: { text } } = await Tesseract.recognize(
-                        capturedImageCanvas,
-                        'eng', // Language: English
-                        {
-                            logger: m => {
-                                console.log(m); // Log OCR progress
-                                if (m.status === 'recognizing text') {
-                                     if(ocrStatus) ocrStatus.textContent = `Recognizing text: ${Math.round(m.progress * 100)}%`;
-                                }
-                            }
-                        }
-                    );
-
-                    if(ocrStatus) ocrStatus.textContent = "OCR complete. Attempting to parse...";
-                    console.log("OCR Raw Text:", text);
-
-                    // --- Basic Parsing Logic (Can be significantly improved) ---
-                    let foundCardName = "";
-                    let foundCollectorNumber = "";
-
-                    const lines = text.split('\n');
-                    if (lines.length > 0) {
-                        // Assume card name is often one of the first few prominent lines
-                        // This is very naive and will need refinement
-                        foundCardName = lines[0].trim(); // Simplistic: take the first line as name
-                        if (lines.length > 1 && lines[1].trim().length > 3 && lines[1].trim().length < 20) { // Heuristic for second line as name part
-                            if (!/\d/.test(lines[1])) { // If it doesn't look like a collector number line
-                                foundCardName += " " + lines[1].trim();
-                            }
-                        }
-                    }
-
-                    // Look for collector number (e.g., "123/456", "123", "EN 123")
-                    const cnRegex = /(\d{1,3}(?:\s*[\/\-\.]\s*\d{1,3})?)(?:\s*★)?(?:\s*[A-Z]{2,3})?/i; // Matches "123/456", "123", "123EN", "123 ★"
-                    const cnMatch = text.match(cnRegex);
-                    if (cnMatch && cnMatch[1]) {
-                        foundCollectorNumber = cnMatch[1].replace(/\s*[\/\-\.]\s*\d{1,3}$/, '').trim(); // Keep only the first part if it's like "123/456"
-                    }
-                    // A more specific regex if collector numbers are usually at the bottom near set info
-                    const bottomCnRegex = /(\d{1,3})\s*[\/\-\.]\s*\d{1,3}\s*[A-Z]{2,4}/i; // e.g. 001/275 LCI EN
-                    const bottomMatch = text.match(bottomCnRegex);
-                    if(bottomMatch && bottomMatch[1] && !foundCollectorNumber) { // Prioritize this if found and no other CN
-                        foundCollectorNumber = bottomMatch[1];
-                    }
-
-
-                    // Pre-fill form fields
-                    if (cardNameAddInput) cardNameAddInput.value = foundCardName;
-                    if (collectorNumberAddInput) collectorNumberAddInput.value = foundCollectorNumber;
-
-                    if(ocrStatus) ocrStatus.textContent = `OCR Results: Name: "${foundCardName}", CN: "${foundCollectorNumber}". Please verify.`;
-                    flash(`OCR attempt: Name: ${foundCardName}, CN: ${foundCollectorNumber}. Please verify and enter Set Code.`, "info"); // Use Flask flash
-
-                    // Optionally close modal after a delay or keep it open for review
-                    setTimeout(closeCameraScanModal, 3000); // Close after 3 seconds
-
-                } catch (err) {
-                    console.error("OCR Error:", err);
-                    if(ocrStatus) ocrStatus.textContent = "OCR processing failed. Please try again.";
-                } finally {
-                     captureImageBtn.disabled = false; // Re-enable button
-                }
-            };
-        }
-
-         window.onclick = function(event) { // Combined window click for all modals
+         window.onclick = function(event) { // Updated window click for just set symbol modal
             if (event.target == setSymbolModal) { closeSetSymbolModal(); }
-            if (event.target == cameraScanModal) { closeCameraScanModal(); }
+            // Camera modal click outside REMOVED
         }
 
          // Initialize
