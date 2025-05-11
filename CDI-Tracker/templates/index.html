@@ -7,18 +7,26 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         /* Styles for filter area - can be moved to style.css */
-        .filter-controls { background-color: var(--bg-secondary); padding: 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
+        .filter-controls { background-color: var(--bg-secondary); padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
         .filter-controls > div { display: flex; flex-direction: column; }
         .filter-controls label { margin-bottom: 4px; font-size: 0.85em; color: var(--text-secondary); }
         .filter-controls input[type="text"], .filter-controls select { padding: 8px 10px; width: auto; min-width: 150px; font-size: 0.9em; }
         .filter-controls button { padding: 8px 15px; font-size: 0.9em; margin-bottom: 0; align-self: flex-end; }
+
+        /* Styles for Sort Controls */
+        .sort-controls { background-color: var(--bg-secondary); padding: 10px 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        .sort-controls label { font-size: 0.9em; color: var(--text-secondary); margin-right: 5px;}
+        .sort-controls select { padding: 8px 10px; font-size: 0.9em; }
+        .sort-controls .direction-toggle button { padding: 8px 12px; font-size: 0.9em; background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); cursor:pointer; }
+        .sort-controls .direction-toggle button.active { background-color: var(--mtg-gold-accent); color: var(--bg-primary); border-color: var(--mtg-gold-accent); }
+
+
         #enterSaleTab .search-input-container input[type="text"] { min-width: 250px; font-size: 1em; }
         #enterSaleTab .search-input-container label { margin-bottom: 6px; font-size: 1em; }
         .info-box { background-color: var(--bg-tertiary); padding: 10px 15px; margin-bottom: 15px; border-radius: 4px; border: 1px solid var(--border-color); }
         .info-box p { margin:0; color: var(--text-secondary); line-height: 1.4; }
         .info-box strong { color: var(--text-primary); }
 
-        /* --- Styles for Set Symbol Finder Modal (Enhanced for Visual Scanning) --- */
         .modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
         .modal-content { background-color: var(--bg-secondary); margin: 5% auto; padding: 25px; border: 1px solid var(--border-color); border-radius: 8px; width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); color: var(--text-primary); position: relative; }
         .modal-close-button { color: var(--text-secondary); float: right; font-size: 32px; font-weight: bold; line-height: 1; }
@@ -31,8 +39,6 @@
         .set-symbol-item .set-details { font-size: 0.95em; display: flex; flex-direction: column; }
         .set-symbol-item .set-name { display: block; font-weight: bold; color: var(--text-primary); }
         .set-symbol-item .set-code { font-size: 0.9em; color: var(--text-secondary); }
-
-        /* Camera Scan Modal Styles REMOVED */
     </style>
 </head>
 <body>
@@ -165,8 +171,8 @@
     <div id="inventoryTab" class="tab-content">
         <h2>Current Inventory</h2>
         <p>
-            <strong>Total Inventory Buy Cost:</strong> {{ total_buy_cost_of_inventory | currency_commas }}<br>
-            <strong>Total Inventory Market Value:</strong> {{ total_inventory_market_value | currency_commas }}<br>
+            <strong>Total Inventory Buy Cost:</strong> <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span><br>
+            <strong>Total Inventory Market Value:</strong> <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span><br>
             <strong>Overall Realized P/L (from Sales):</strong>
             <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span>
         </p>
@@ -180,83 +186,33 @@
              <div><label for="inventoryLanguageFilter">Language (Cards):</label><select id="inventoryLanguageFilter"><option value="all" selected>All Languages</option></select></div>
              <div><label for="inventoryCollectorFilter">Collector's (Sealed):</label><select id="inventoryCollectorFilter"><option value="all" selected>Any</option><option value="yes">Collector's Only</option><option value="no">Non-Collector's Only</option></select></div>
              <div><label for="inventorySealedLanguageFilter">Language (Sealed):</label><select id="inventorySealedLanguageFilter"><option value="all" selected>All Languages</option></select></div>
-             <div><label>&nbsp;</label><button onclick="clearInventoryFilters()">Clear Filters</button></div>
+             <div><label>&nbsp;</label><button onclick="clearInventoryFiltersAndSort()">Clear Filters & Sort</button></div>
+        </div>
+        <div class="sort-controls">
+            <label for="inventorySortKey">Sort by:</label>
+            <select id="inventorySortKey">
+                <option value="display_name" selected>Name</option>
+                <option value="set_name_sort">Set</option>
+                <option value="location">Location</option>
+                <option value="quantity">Quantity</option>
+                <option value="buy_price">Buy Price</option>
+                <option value="current_market_price">Market Price</option>
+                <option value="rarity">Rarity (Cards)</option>
+                <option value="language">Language</option>
+                <option value="collector_number">Collector # (Cards)</option>
+                <option value="product_type">Product Type (Sealed)</option>
+            </select>
+            <label for="inventorySortDirection" style="margin-left:10px;">Direction:</label>
+            <div class="direction-toggle">
+                <button id="sortAscBtn" class="active" data-direction="asc">Ascending &#x25B2;</button>
+                <button id="sortDescBtn" data-direction="desc">Descending &#x25BC;</button>
+            </div>
         </div>
         <div class="card-grid" id="inventoryGrid">
-            {% if inventory_items %}
-                {% for item in inventory_items %}
-                <div class="card-entry"
-                     data-type="{{ item.type }}"
-                     data-name="{{ item.display_name }}"
-                     data-set="{{ item.set_code or item.set_name }}"
-                     data-location="{{ item.location }}"
-                     data-cn="{{ item.collector_number if item.type == 'single_card' else '' }}"
-                     data-prodtype="{{ item.product_type if item.type == 'sealed_product' else '' }}"
-                     data-foil="{{ 'yes' if item.is_foil else 'no' if item.type == 'single_card' else '' }}"
-                     data-rarity="{{ item.rarity if item.type == 'single_card' else '' }}"
-                     data-language="{{ item.language }}" {# Generic language for both, specific filter for cards vs sealed #}
-                     data-collector="{{ 'yes' if item.is_collectors_item else 'no' if item.type == 'sealed_product' else '' }}">
-                    {% if item.image_uri %}<img src="{{ item.image_uri }}" alt="{{ item.display_name }}" class="card-image">{% else %}<div class="card-image-placeholder">No Image</div>{% endif %}
-                    <h3>{{ item.display_name }}</h3>
-                    <p>
-                        {% if item.type == 'single_card' %}
-                            <strong>Set:</strong> {{ item.set_code.upper() }}-{{ item.collector_number }} {% if item.is_foil %}(Foil){% endif %}<br>
-                            <strong>Rarity:</strong> {{ item.rarity | capitalize }}<br>
-                            <strong>Language:</strong> {{ item.language | upper }}<br>
-                            <strong>Location:</strong> {{ item.location }}<br>
-                            <strong>Quantity:</strong> {{ item.quantity }}<br>
-                            <strong>Buy Price (ea):</strong> {{ item.buy_price | currency_commas }}<br>
-                            <strong>Total Buy Cost:</strong> {{ item.total_buy_cost | currency_commas }}<br>
-                            <strong>Market Price (ea):</strong> {% if item.current_market_price is not none %}{{ item.current_market_price | currency_commas }}{% else %} N/A {% endif %}<br>
-                            <strong>Market vs. Buy:</strong> {% if item.market_vs_buy_percentage_display == "N/A" or item.market_vs_buy_percentage_display == "Infinite" %}{{ item.market_vs_buy_percentage_display }}{% else %}<span class="{{ 'profit' if item.market_vs_buy_percentage_display >= 0 else 'loss' }}">{{ "%.2f"|format(item.market_vs_buy_percentage_display) }}%</span>{% endif %}<br>
-                            <strong>Asking Price (ea):</strong> {% if item.sell_price is not none %}{{ item.sell_price | currency_commas }}{% else %} Not Set {% endif %}<br>
-                            <strong>Potential P/L (at Asking Price):</strong> {% if item.potential_pl_at_asking_price_display is number %}<span class="{{ 'profit' if item.potential_pl_at_asking_price_display >= 0 else 'loss' }}">{{ item.potential_pl_at_asking_price_display | currency_commas }}</span>{% else %} {{ item.potential_pl_at_asking_price_display }} {% endif %}
-                        {% elif item.type == 'sealed_product' %}
-                            <strong>Set:</strong> {{ item.set_name }}<br>
-                            <strong>Type:</strong> {{ item.product_type }} {% if item.is_collectors_item %}<span style="font-style: italic;">(Collector's Item)</span>{% endif %}<br>
-                            <strong>Language:</strong> {{ item.language | upper }}<br>
-                            <strong>Location:</strong> {{ item.location }}<br>
-                            <strong>Quantity:</strong> {{ item.quantity }}<br>
-                            <strong>Buy Price (ea):</strong> {{ item.buy_price | currency_commas }}<br>
-                            <strong>Total Buy Cost:</strong> {{ item.total_buy_cost | currency_commas }}<br>
-                            <strong>Market Price (ea):</strong> {% if item.current_market_price is not none %}{{ item.current_market_price | currency_commas }} <em style="font-size:0.9em;">(Manual)</em>{% else %} N/A {% endif %}<br>
-                            <strong>Total Market Value:</strong> {% if item.total_market_value is not none %} {{ item.total_market_value | currency_commas }} <em style="font-size:0.9em;">(Manual)</em>{% else %} N/A {% endif %}<br>
-                            <strong>Asking Price (ea):</strong> {% if item.sell_price is not none %}{{ item.sell_price | currency_commas }}{% else %} Not Set {% endif %}<br>
-                            <strong>Potential P/L (at Asking Price):</strong> {% if item.potential_pl_at_asking_price_display is number %}<span class="{{ 'profit' if item.potential_pl_at_asking_price_display >= 0 else 'loss' }}">{{ item.potential_pl_at_asking_price_display | currency_commas }}</span>{% else %} {{ item.potential_pl_at_asking_price_display }} {% endif %}
-                        {% endif %}
-                    </p>
-                    {% if item.type == 'single_card' %}
-                    <div class="actions"><form action="{{ url_for('delete_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry?');">Delete</button></form><form action="{{ url_for('refresh_card_route', card_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div>
-                    <details class="update-details"><summary>Update Card Details</summary><form action="{{ url_for('update_card_route', card_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><button type="submit">Save Card</button></form></details>
-                    {% elif item.type == 'sealed_product' %}
-                     <div class="actions"><form action="{{ url_for('delete_sealed_product_route', product_id=item.original_id) }}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry?');">Delete</button></form>
-                        <form action="{{ url_for('initiate_open_sealed_route', product_id=item.original_id) }}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="{{ item.quantity }}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="{{ item.display_name }}"><input type="hidden" name="original_buy_price" value="{{ item.buy_price }}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form>
-                    </div>
-                     <details class="update-details"><summary>Update Sealed Details</summary><form action="{{ url_for('update_sealed_product_route', product_id=item.original_id) }}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="{{ item.quantity }}" min="0" ></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="{{ '%.2f'|format(item.buy_price) }}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="{{ '%.2f'|format(item.current_market_price) if item.current_market_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="{{ '%.2f'|format(item.sell_price) if item.sell_price is not none else '' }}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="{{ item.location }}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="{{ item.image_uri if item.image_uri else '' }}" placeholder="http://... Blank to clear"></div>
-                        <div>
-                            <label for="update_language_sealed_{{item.original_id}}">Language:</label>
-                            <select id="update_language_sealed_{{item.original_id}}" name="language">
-                                <option value="en" {% if item.language == 'en' %}selected{% endif %}>English (en)</option>
-                                <option value="es" {% if item.language == 'es' %}selected{% endif %}>Spanish (es)</option>
-                                <option value="fr" {% if item.language == 'fr' %}selected{% endif %}>French (fr)</option>
-                                <option value="de" {% if item.language == 'de' %}selected{% endif %}>German (de)</option>
-                                <option value="it" {% if item.language == 'it' %}selected{% endif %}>Italian (it)</option>
-                                <option value="pt" {% if item.language == 'pt' %}selected{% endif %}>Portuguese (pt)</option>
-                                <option value="ja" {% if item.language == 'ja' %}selected{% endif %}>Japanese (ja)</option>
-                                <option value="ko" {% if item.language == 'ko' %}selected{% endif %}>Korean (ko)</option>
-                                <option value="ru" {% if item.language == 'ru' %}selected{% endif %}>Russian (ru)</option>
-                                <option value="zhs" {% if item.language == 'zhs' %}selected{% endif %}>Simplified Chinese (zhs)</option>
-                                <option value="zht" {% if item.language == 'zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
-                            </select>
-                        </div>
-                        <div><input type="checkbox" id="update_is_collectors_item_sealed_{{item.original_id}}" name="is_collectors_item" value="true" {% if item.is_collectors_item %}checked{% endif %}><label for="update_is_collectors_item_sealed_{{item.original_id}}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>
-                     {% endif %}
-                </div> {% endfor %}
-                <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
-            {% else %}
-                 <p style="grid-column: 1 / -1; text-align: center;">Your inventory is empty. Add some items using the tabs above!</p>
-            {% endif %}
-        </div> </div>
+            {# Inventory items will be rendered here by JavaScript #}
+        </div>
+        <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
+    </div>
 
     <div id="importCsvTab" class="tab-content">
         <h2>Import Collection from CSV (TCGPlayer Format)</h2>
@@ -311,18 +267,13 @@
 
     <div id="salesHistoryTab" class="tab-content">
         <h2>Sales History</h2>
-         {% if sales_history %}
-            <table style="width:100%; border-collapse: collapse;">
-                 <thead><tr><th>Sale Date</th><th>Item Name</th><th>Details</th><th>Qty Sold</th><th>Buy Price (ea)</th><th>Sell Price (ea)</th><th>Shipping Cost</th><th>Net P/L for Sale</th><th>Notes</th></tr></thead>
-                <tbody>
-                    {% for sale in sales_history %}
-                    <tr><td>{{ sale.sale_date.strftime('%Y-%m-%d') if sale.sale_date else 'N/A' }}</td><td>{{ sale.original_item_name }}</td><td>{{ sale.original_item_details }}</td><td>{{ sale.quantity_sold }}</td><td>{{ sale.buy_price_per_item | currency_commas }}</td><td>{{ sale.sell_price_per_item | currency_commas }}</td><td>{{ sale.shipping_cost | currency_commas if sale.shipping_cost is not none and sale.shipping_cost > 0 else '$0.00' }}</td><td><span class="{{ 'profit' if sale.profit_loss >= 0 else 'loss' }}">{{ sale.profit_loss | currency_commas }}</span></td><td>{{ sale.notes if sale.notes else ''}}</td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p>No sales recorded yet. Record sales using the 'Enter Sale' tab.</p>
-        {% endif %}
+        <table style="width:100%; border-collapse: collapse;">
+            <thead><tr><th>Sale Date</th><th>Item Name</th><th>Details</th><th>Qty Sold</th><th>Buy Price (ea)</th><th>Sell Price (ea)</th><th>Shipping Cost</th><th>Net P/L for Sale</th><th>Notes</th></tr></thead>
+            <tbody id="salesHistoryTableBody">
+                {# Sales history will be populated by JavaScript #}
+            </tbody>
+        </table>
+        <p id="noSalesResults" style="display: none;">No sales recorded yet. Record sales using the 'Enter Sale' tab.</p>
     </div>
 
     <div id="setSymbolModal" class="modal">
@@ -336,194 +287,499 @@
         </div>
     </div>
 
+    <script type="application/json" id="inventory_items_json_data">{{ inventory_items_json | safe }}</script>
+    <script type="application/json" id="sales_history_json_data">{{ sales_history_json | safe }}</script>
+    <script type="application/json" id="sale_inventory_options_json_data">{{ sale_inventory_options_json | safe }}</script>
+
     <script>
-        // Data for inventory items (combined list for filtering)
-        const inventoryItemsData = [
-            {% for item in inventory_items %} {
-                id: "{{ item.original_id }}", type: "{{ item.type }}",
-                name: "{{ item.display_name |replace('"', '\\"') |replace("'", "\\'") }}",
-                set: "{{ (item.set_code or item.set_name) |replace('"', '\\"') |replace("'", "\\'") }}",
-                location: "{{ item.location |replace('"', '\\"') |replace("'", "\\'") }}",
-                cn: "{{ item.collector_number if item.type == 'single_card' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
-                prodtype: "{{ item.product_type if item.type == 'sealed_product' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
-                is_foil: {{ 'true' if item.is_foil else 'false' if item.type == 'single_card' else 'null'}},
-                rarity: "{{ item.rarity if item.type == 'single_card' else '' |replace('"', '\\"') |replace("'", "\\'") }}",
-                language: "{{ item.language |replace('"', '\\"') |replace("'", "\\'") }}",
-                is_collector: {{ 'true' if item.is_collectors_item else 'false' if item.type == 'sealed_product' else 'null'}}
-            }, {% endfor %}
-        ];
-        const saleInventoryOptionsData = [
-            {% for option in sale_inventory_options %} { id: "{{ option.id |replace('"', '\\"') |replace("'", "\\'") }}", displayText: "{{ option.display |replace('"', '\\"') |replace("'", "\\'") }}" }, {% endfor %}
-        ];
+        // Main application JavaScript
+        // Helper functions to safely get properties
+        function getStr(obj, key, defaultVal = '') {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                return String(obj[key]);
+            }
+            return defaultVal;
+        }
+        function getNum(obj, key, defaultVal = null) {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                const num = parseFloat(obj[key]);
+                if (!isNaN(num)) return num;
+            }
+            return defaultVal;
+        }
+        function getBool(obj, key, defaultVal = false) {
+            if (obj && typeof obj === 'object' && obj !== null && typeof obj[key] === 'boolean') return obj[key];
+            return defaultVal;
+        }
 
-        let allScryfallSets = []; // To store fetched set data for symbol finder
-        // Camera related variables REMOVED
+        function formatCurrencyJS(value) {
+            const numValue = parseFloat(value); // Allow getNum to handle parsing before this
+            if (value === null || value === undefined || isNaN(numValue)) return "$0.00";
+            try {
+                if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            } catch (e) { return String(value); }
+        }
 
-        // Tab functionality
-        function openTab(evt, tabName) { var i, tabcontent, tabbuttons; tabcontent = document.getElementsByClassName("tab-content"); for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; } tabbuttons = document.getElementsByClassName("tab-button"); for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); } var currentTab = document.getElementById(tabName); if (currentTab) { currentTab.style.display = "block"; } var activeBtnId = tabName + "Nav"; var activeBtn = document.getElementById(activeBtnId); if (evt && evt.currentTarget) { evt.currentTarget.className += " active"; } else if (activeBtn) { activeBtn.className += " active"; } }
+        let rawInventoryItemsData = [];
+        let rawSalesHistoryData = [];
+        let saleInventoryOptionsData = [];
+
+        try {
+            const invJsonEl = document.getElementById('inventory_items_json_data');
+            const invJson = invJsonEl ? invJsonEl.textContent : '[]';
+            rawInventoryItemsData = JSON.parse(invJson);
+            if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = [];
+        } catch (e) {
+            console.error("Error parsing inventory_items_json:", e, document.getElementById('inventory_items_json_data')?.textContent);
+            rawInventoryItemsData = [];
+        }
+        try {
+            const salesJsonEl = document.getElementById('sales_history_json_data');
+            const salesJson = salesJsonEl ? salesJsonEl.textContent : '[]';
+            rawSalesHistoryData = JSON.parse(salesJson);
+            if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];
+        } catch (e) {
+            console.error("Error parsing sales_history_json:", e, document.getElementById('sales_history_json_data')?.textContent);
+            rawSalesHistoryData = [];
+        }
+        try {
+            const saleOptsJsonEl = document.getElementById('sale_inventory_options_json_data');
+            const saleOptsJson = saleOptsJsonEl ? saleOptsJsonEl.textContent : '[]';
+            saleInventoryOptionsData = JSON.parse(saleOptsJson);
+            if (!Array.isArray(saleInventoryOptionsData)) saleInventoryOptionsData = [];
+        } catch (e) {
+            console.error("Error parsing sale_inventory_options_json:", e, document.getElementById('sale_inventory_options_json_data')?.textContent);
+            saleInventoryOptionsData = [];
+        }
+
+        let allScryfallSets = [];
+
+        function openTab(evt, tabName) {
+            var i, tabcontent, tabbuttons;
+            tabcontent = document.getElementsByClassName("tab-content");
+            for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
+            tabbuttons = document.getElementsByClassName("tab-button");
+            for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); }
+            var currentTab = document.getElementById(tabName);
+            if (currentTab) { currentTab.style.display = "block"; }
+            var activeBtnId = tabName + "Nav";
+            var activeBtn = document.getElementById(activeBtnId);
+            if (evt && evt.currentTarget) { evt.currentTarget.className += " active"; }
+            else if (activeBtn) { activeBtn.className += " active"; }
+        }
         var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
 
-        // Inventory Filtering
         const inventoryFilterInput = document.getElementById('inventoryFilterInput');
         const inventoryTypeFilter = document.getElementById('inventoryTypeFilter');
         const inventoryLocationFilter = document.getElementById('inventoryLocationFilter');
         const inventorySetFilter = document.getElementById('inventorySetFilter');
         const inventoryFoilFilter = document.getElementById('inventoryFoilFilter');
-        const inventoryRarityFilter = document.getElementById('inventoryRarityFilter'); // Added
-        const inventoryLanguageFilter = document.getElementById('inventoryLanguageFilter'); // Added for cards
+        const inventoryRarityFilter = document.getElementById('inventoryRarityFilter');
+        const inventoryLanguageFilter = document.getElementById('inventoryLanguageFilter');
         const inventoryCollectorFilter = document.getElementById('inventoryCollectorFilter');
-        const inventorySealedLanguageFilter = document.getElementById('inventorySealedLanguageFilter'); // Added for sealed
-
+        const inventorySealedLanguageFilter = document.getElementById('inventorySealedLanguageFilter');
         const inventoryGrid = document.getElementById('inventoryGrid');
         const noInventoryResultsMsg = document.getElementById('noInventoryResults');
 
+        const inventorySortKeySelect = document.getElementById('inventorySortKey');
+        const sortAscBtn = document.getElementById('sortAscBtn');
+        const sortDescBtn = document.getElementById('sortDescBtn');
+        let currentSortDirection = 'asc';
+
         function populateDropdown(selectElement, dataList, property, itemTypeFilter = null) {
-            if (!selectElement || !dataList) return;
-            let filteredData = dataList;
-            if (itemTypeFilter) {
-                filteredData = dataList.filter(item => item.type === itemTypeFilter);
+            if (!selectElement || !dataList || !Array.isArray(dataList)) {
+                console.warn("populateDropdown: Invalid arguments or dataList not an array.", {selectElement, dataList});
+                return;
             }
-            const uniqueValues = [...new Set(filteredData.map(item => item[property]).filter(value => value && String(value).trim() !== ''))].sort((a, b) => {
-                const valA = String(a).toLowerCase();
-                const valB = String(b).toLowerCase();
-                if (valA < valB) return -1;
-                if (valA > valB) return 1;
-                return 0;
-            });
-            // Preserve current value if 'all' is not the selected one or if dropdown is being initially populated
-            const currentValue = selectElement.value !== 'all' ? selectElement.value : 'all';
-            selectElement.innerHTML = '<option value="all">All</option>'; // Default 'All'
-            uniqueValues.forEach(value => {
-                const option = document.createElement('option');
-                option.value = value;
-                option.textContent = value.charAt(0).toUpperCase() + value.slice(1); // Capitalize first letter for display
-                selectElement.appendChild(option);
-            });
-            // Try to set back to previous value, or default to 'all'
-            if (uniqueValues.includes(currentValue)) {
-                selectElement.value = currentValue;
-            } else {
-                selectElement.value = 'all';
-            }
+            try {
+                let sourceData = dataList;
+                if (itemTypeFilter) {
+                    sourceData = dataList.filter(item => item && getStr(item, 'type') === itemTypeFilter);
+                }
+                const uniqueValues = [...new Set(
+                    sourceData.map(item => item && item[property] !== undefined && item[property] !== null ? String(item[property]) : null)
+                              .filter(value => value !== null && value.trim() !== '')
+                )].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
+
+                const currentValue = selectElement.value;
+                selectElement.innerHTML = '<option value="all" selected>All</option>';
+                uniqueValues.forEach(value => {
+                    const option = document.createElement('option');
+                    option.value = value;
+                    const text = String(value);
+                    option.textContent = text.charAt(0).toUpperCase() + text.slice(1);
+                    selectElement.appendChild(option);
+                });
+                if (uniqueValues.includes(String(currentValue))) {
+                    selectElement.value = currentValue;
+                } else {
+                     selectElement.value = 'all';
+                }
+            } catch(e) { console.error("Error in populateDropdown for property:", property, e); }
         }
 
 
-        function filterInventory() {
-            if (!inventoryGrid) return;
-            const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : '';
-            const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
-            const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all';
-            const filterSet = inventorySetFilter ? inventorySetFilter.value : 'all';
-            const filterFoil = inventoryFoilFilter ? inventoryFoilFilter.value : 'all';
-            const filterRarity = inventoryRarityFilter ? inventoryRarityFilter.value : 'all'; // Added
-            const filterCardLanguage = inventoryLanguageFilter ? inventoryLanguageFilter.value : 'all'; // Added
-            const filterCollector = inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all';
-            const filterSealedLanguage = inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all'; // Added
+        function renderInventory() {
+            if (!inventoryGrid) { console.error("inventoryGrid not found for renderInventory"); return; }
+            try {
+                const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : '';
+                const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
+                const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all';
+                const filterSet = inventorySetFilter ? inventorySetFilter.value : 'all';
+                const filterFoil = inventoryFoilFilter ? inventoryFoilFilter.value : 'all';
+                const filterRarity = inventoryRarityFilter ? inventoryRarityFilter.value : 'all';
+                const filterCardLanguage = inventoryLanguageFilter ? inventoryLanguageFilter.value : 'all';
+                const filterCollector = inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all';
+                const filterSealedLanguage = inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all';
+                const sortKey = inventorySortKeySelect ? inventorySortKeySelect.value : 'display_name';
 
-
-            const items = inventoryGrid.getElementsByClassName('card-entry');
-            let visibleCount = 0;
-            for (let i = 0; i < items.length; i++) {
-                const item = items[i];
-                const itemType = item.dataset.type;
-                const itemName = item.dataset.name.toLowerCase();
-                const itemSet = item.dataset.set.toLowerCase();
-                const itemLocation = item.dataset.location.toLowerCase();
-                const itemCn = item.dataset.cn.toLowerCase();
-                const itemProdType = item.dataset.prodtype.toLowerCase();
-                const itemIsFoil = item.dataset.foil;
-                const itemRarity = item.dataset.rarity.toLowerCase(); // Added
-                const itemLanguage = item.dataset.language.toLowerCase(); // Added (generic)
-                const itemIsCollector = item.dataset.collector;
-
-                let show = true;
-                if (filterType !== 'all' && itemType !== filterType) { show = false; }
-                if (show && filterLocation !== 'all' && item.dataset.location !== filterLocation) { show = false; }
-                if (show && filterSet !== 'all' && item.dataset.set !== filterSet) { show = false; }
-
-                if (itemType === 'single_card') {
-                    if (show && filterFoil !== 'all' && itemIsFoil !== filterFoil) { show = false; }
-                    if (show && filterRarity !== 'all' && itemRarity !== filterRarity) { show = false; } // Added
-                    if (show && filterCardLanguage !== 'all' && itemLanguage !== filterCardLanguage) { show = false; } // Added for card language
-                } else if (itemType === 'sealed_product') {
-                    if (show && filterCollector !== 'all' && itemIsCollector !== filterCollector) { show = false; }
-                    if (show && filterSealedLanguage !== 'all' && itemLanguage !== filterSealedLanguage) { show = false; } // Added for sealed language
-                }
-
-
-                if (show && filterText !== '') {
-                    if (!(itemName.includes(filterText) ||
-                          itemSet.includes(filterText) ||
-                          itemLocation.includes(filterText) ||
-                          (itemType === 'single_card' && (itemCn.includes(filterText) || itemRarity.includes(filterText) || itemLanguage.includes(filterText) ) ) ||
-                          (itemType === 'sealed_product' && (itemProdType.includes(filterText) || itemLanguage.includes(filterText) ) )
-                        )) {
-                        show = false;
+                let filteredItems = (rawInventoryItemsData || []).filter(item => {
+                    if (!item) return false;
+                    let show = true;
+                    if (filterType !== 'all' && getStr(item, 'type') !== filterType) { show = false; }
+                    if (show && filterLocation !== 'all' && getStr(item, 'location') !== filterLocation) { show = false; }
+                    const itemSetIdentifier = getStr(item, 'type') === 'single_card' ? (getStr(item, 'set_code') || getStr(item, 'set_name')) : getStr(item, 'set_name');
+                    if (show && filterSet !== 'all' && String(itemSetIdentifier) !== String(filterSet)) { show = false; }
+                    if (getStr(item, 'type') === 'single_card') {
+                        if (show && filterFoil !== 'all' && (getBool(item, 'is_foil') ? 'yes' : 'no') !== filterFoil) { show = false; }
+                        if (show && filterRarity !== 'all' && getStr(item, 'rarity') !== filterRarity) { show = false; }
+                        if (show && filterCardLanguage !== 'all' && getStr(item, 'language') !== filterCardLanguage) { show = false; }
+                    } else if (getStr(item, 'type') === 'sealed_product') {
+                        if (show && filterCollector !== 'all' && (getBool(item, 'is_collectors_item') ? 'yes' : 'no') !== filterCollector) { show = false; }
+                        if (show && filterSealedLanguage !== 'all' && getStr(item, 'language') !== filterSealedLanguage) { show = false; }
                     }
+                    if (show && filterText !== '') {
+                        const searchText = filterText.toLowerCase();
+                        if (! ( (getStr(item, 'display_name')).toLowerCase().includes(searchText) ||
+                                (getStr(item, 'set_code')).toLowerCase().includes(searchText) ||
+                                (getStr(item, 'set_name')).toLowerCase().includes(searchText) ||
+                                (getStr(item, 'location')).toLowerCase().includes(searchText) ||
+                                (item.type === 'single_card' && (getStr(item, 'collector_number')).toLowerCase().includes(searchText)) ||
+                                (item.type === 'single_card' && (getStr(item, 'rarity')).toLowerCase().includes(searchText)) ||
+                                (getStr(item, 'language')).toLowerCase().includes(searchText) ||
+                                (item.type === 'sealed_product' && (getStr(item, 'product_type')).toLowerCase().includes(searchText))
+                             )) { show = false; }
+                    }
+                    return show;
+                });
+
+                filteredItems.sort((a, b) => {
+                    let valA, valB;
+                    if (!a || !b) return 0; 
+
+                    if (sortKey === 'set_name_sort') { 
+                        valA = getStr(a, 'type') === 'single_card' ? (getStr(a, 'set_code') || getStr(a, 'set_name')) : getStr(a, 'set_name');
+                        valB = getStr(b, 'type') === 'single_card' ? (getStr(b, 'set_code') || getStr(b, 'set_name')) : getStr(b, 'set_name');
+                    } else {
+                        valA = a[sortKey]; 
+                        valB = b[sortKey];
+                    }
+
+                    const valAIsNull = valA === null || valA === undefined;
+                    const valBIsNull = valB === null || valB === undefined;
+
+                    if (valAIsNull && valBIsNull) return 0;
+                    if (valAIsNull) return currentSortDirection === 'asc' ? 1 : -1; 
+                    if (valBIsNull) return currentSortDirection === 'asc' ? -1 : 1; 
+
+                    const typeA = typeof valA; const typeB = typeof valB;
+                    if (typeA === 'string' && typeB === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+                    else if (typeA === 'number' && typeB === 'number') { /* No change */ }
+                    else if (typeA === 'boolean' && typeB === 'boolean') { /* No change */ }
+                    else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); }
+
+                    let comparison = 0;
+                    if (valA > valB) comparison = 1;
+                    else if (valA < valB) comparison = -1;
+                    return currentSortDirection === 'asc' ? comparison : comparison * -1;
+                });
+
+                inventoryGrid.innerHTML = '';
+                if (noInventoryResultsMsg) noInventoryResultsMsg.style.display = filteredItems.length === 0 ? 'block' : 'none';
+
+                filteredItems.forEach(item => {
+                    if (!item) return; 
+                    const cardEntry = document.createElement('div');
+                    cardEntry.className = 'card-entry';
+                    const displayName = getStr(item, 'display_name', 'N/A');
+                    const imageUri = getStr(item, 'image_uri');
+                    const setCode = getStr(item, 'set_code', 'N/A');
+                    const collectorNum = getStr(item, 'collector_number', 'N/A');
+                    const rarity = getStr(item, 'rarity', 'N/A');
+                    const language = getStr(item, 'language', 'N/A');
+                    const location = getStr(item, 'location', 'N/A');
+                    const quantity = getNum(item, 'quantity', 0);
+                    const buyPrice = getNum(item, 'buy_price');
+                    const marketPrice = getNum(item, 'current_market_price');
+                    const sellPrice = getNum(item, 'sell_price');
+                    const setName = getStr(item, 'set_name', 'N/A');
+                    const productType = getStr(item, 'product_type', 'N/A');
+                    const isFoil = getBool(item, 'is_foil');
+                    const isCollectorsItem = getBool(item, 'is_collectors_item');
+                    const originalId = item.original_id; // Assuming original_id is always present and valid
+
+                    let itemHTML = `
+                        ${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}
+                        <h3>${displayName}</h3>
+                        <p>`;
+                    if (item.type === 'single_card') {
+                        itemHTML += `
+                            <strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br>
+                            <strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br>
+                            <strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br>
+                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
+                            <strong>Location:</strong> ${location}<br>
+                            <strong>Quantity:</strong> ${quantity}<br>
+                            <strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br>
+                            <strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br>
+                        `;
+                    } else if (item.type === 'sealed_product') {
+                        itemHTML += `
+                            <strong>Set:</strong> ${setName}<br>
+                            <strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br>
+                            <strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br>
+                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
+                            <strong>Location:</strong> ${location}<br>
+                            <strong>Quantity:</strong> ${quantity}<br>
+                            <strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) + ' <em style="font-size:0.9em;">(Manual)</em>' : 'N/A'}<br>
+                            <strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br>
+                        `;
+                    }
+                    itemHTML += `</p>`;
+                    if (item.type === 'single_card') {
+                        const displayNameEscaped = displayName.replace(/"/g, '&quot;');
+                        itemHTML += `
+                        <div class="actions">
+                            <form action="/delete_card/${originalId}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form>
+                            <form action="/refresh_card/${originalId}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form>
+                        </div>
+                        <details class="update-details"><summary>Update Card Details</summary>
+                            <form action="/update_card/${originalId}" method="post" class="update-form">
+                                <div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div>
+                                <div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div>
+                                <div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div>
+                                <div><label>Location:</label><input type="text" name="location" value="${location}" required></div>
+                                <button type="submit">Save Card</button>
+                            </form>
+                        </details>`;
+                    } else if (item.type === 'sealed_product') {
+                        const displayNameEscaped = displayName.replace(/"/g, '&quot;');
+                        const buyPriceValue = buyPrice !== null ? buyPrice : '';
+                        itemHTML += `
+                        <div class="actions">
+                            <form action="/delete_sealed_product/${originalId}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form>
+                            <form action="/initiate_open_sealed/${originalId}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="${quantity}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="${displayNameEscaped}"><input type="hidden" name="original_buy_price" value="${buyPriceValue}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form>
+                        </div>
+                        <details class="update-details"><summary>Update Sealed Details</summary>
+                            <form action="/update_sealed_product/${originalId}" method="post" class="update-form">
+                                <div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div>
+                                <div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div>
+                                <div><label>Market Price:</label><input type="number" name="manual_market_price" value="${marketPrice !== null ? marketPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div>
+                                <div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div>
+                                <div><label>Location:</label><input type="text" name="location" value="${location}" required></div>
+                                <div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div>
+                                <div><label for="update_language_sealed_${originalId}">Language:</label>
+                                    <select id="update_language_sealed_${originalId}" name="language">
+                                        <option value="en" ${language === 'en' ? 'selected' : ''}>English (en)</option>
+                                        <option value="es" ${language === 'es' ? 'selected' : ''}>Spanish (es)</option>
+                                        <option value="fr" ${language === 'fr' ? 'selected' : ''}>French (fr)</option>
+                                        <option value="de" ${language === 'de' ? 'selected' : ''}>German (de)</option>
+                                        <option value="it" ${language === 'it' ? 'selected' : ''}>Italian (it)</option>
+                                        <option value="pt" ${language === 'pt' ? 'selected' : ''}>Portuguese (pt)</option>
+                                        <option value="ja" ${language === 'ja' ? 'selected' : ''}>Japanese (ja)</option>
+                                        <option value="ko" ${language === 'ko' ? 'selected' : ''}>Korean (ko)</option>
+                                        <option value="ru" ${language === 'ru' ? 'selected' : ''}>Russian (ru)</option>
+                                        <option value="zhs" ${language === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option>
+                                        <option value="zht" ${language === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option>
+                                    </select>
+                                </div>
+                                <div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div>
+                                <button type="submit">Save Sealed</button>
+                            </form>
+                        </details>`;
                 }
-                item.style.display = show ? 'flex' : 'none';
-                if(show) visibleCount++;
-            }
-            if (noInventoryResultsMsg) {
-                noInventoryResultsMsg.style.display = (visibleCount === 0 && items.length > 0) ? 'block' : 'none';
+                cardEntry.innerHTML = itemHTML;
+                inventoryGrid.appendChild(cardEntry);
+            });
+            } catch (e) {
+                console.error("Error in renderInventory:", e);
+                if (inventoryGrid) inventoryGrid.innerHTML = "<p style='color:red;'>Error rendering inventory. Check browser console for details.</p>";
             }
         }
-        function clearInventoryFilters() {
+
+        function renderSalesHistory() {
+            const tableBody = document.getElementById('salesHistoryTableBody');
+            const noSalesMsg = document.getElementById('noSalesResults');
+            if (!tableBody || !noSalesMsg) { console.error("Sales history table elements not found"); return; }
+            try {
+                tableBody.innerHTML = '';
+                if (!rawSalesHistoryData || rawSalesHistoryData.length === 0) {
+                    noSalesMsg.style.display = 'block';
+                } else {
+                    noSalesMsg.style.display = 'none';
+                    rawSalesHistoryData.forEach(sale => {
+                        if(!sale) return;
+                        const row = tableBody.insertRow();
+                        row.insertCell().textContent = getStr(sale, 'sale_date', 'N/A');
+                        row.insertCell().textContent = getStr(sale, 'original_item_name', 'N/A');
+                        row.insertCell().textContent = getStr(sale, 'original_item_details', 'N/A');
+                        row.insertCell().textContent = getNum(sale, 'quantity_sold', 0);
+                        row.insertCell().innerHTML = formatCurrencyJS(getNum(sale, 'buy_price_per_item'));
+                        row.insertCell().innerHTML = formatCurrencyJS(getNum(sale, 'sell_price_per_item'));
+                        row.insertCell().innerHTML = formatCurrencyJS(getNum(sale, 'shipping_cost'));
+                        const profitLossCell = row.insertCell();
+                        const profitLoss = getNum(sale, 'profit_loss');
+                        profitLossCell.innerHTML = `<span class="${(typeof profitLoss === 'number' && profitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(profitLoss)}</span>`;
+                        row.insertCell().textContent = getStr(sale, 'notes', '');
+                    });
+                }
+            } catch (e) {
+                console.error("Error in renderSalesHistory:", e);
+                if (tableBody) tableBody.innerHTML = "<tr><td colspan='9' style='color:red;'>Error rendering sales history. Check browser console.</td></tr>";
+            }
+        }
+
+        function clearInventoryFiltersAndSort() {
             if (inventoryFilterInput) inventoryFilterInput.value = '';
             if (inventoryTypeFilter) inventoryTypeFilter.value = 'all';
             if (inventoryLocationFilter) inventoryLocationFilter.value = 'all';
             if (inventorySetFilter) inventorySetFilter.value = 'all';
             if (inventoryFoilFilter) inventoryFoilFilter.value = 'all';
-            if (inventoryRarityFilter) inventoryRarityFilter.value = 'all'; // Added
-            if (inventoryLanguageFilter) inventoryLanguageFilter.value = 'all'; // Added
+            if (inventoryRarityFilter) inventoryRarityFilter.value = 'all';
+            if (inventoryLanguageFilter) inventoryLanguageFilter.value = 'all';
             if (inventoryCollectorFilter) inventoryCollectorFilter.value = 'all';
-            if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.value = 'all'; // Added
-            filterInventory();
+            if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.value = 'all';
+            if (inventorySortKeySelect) inventorySortKeySelect.value = 'display_name';
+            currentSortDirection = 'asc';
+            updateSortDirectionButtons();
+            renderInventory();
         }
 
-        // Sale Item Search
-        const cardSearchInput = document.getElementById('cardSearchInput'); const cardSearchResultsDiv = document.getElementById('cardSearchResults'); const selectedInventoryCardIdInput = document.getElementById('selectedInventoryCardId');
-        if (cardSearchInput && cardSearchResultsDiv && selectedInventoryCardIdInput) { cardSearchInput.addEventListener('input', function() { const searchTerm = this.value.toLowerCase().trim(); cardSearchResultsDiv.innerHTML = ''; selectedInventoryCardIdInput.value = ''; if (searchTerm.length < 1) { cardSearchResultsDiv.style.display = 'none'; return; } const matchedItems = saleInventoryOptionsData.filter(item => item.displayText.toLowerCase().includes(searchTerm)); if (matchedItems.length > 0) { cardSearchResultsDiv.style.display = 'block'; matchedItems.slice(0, 15).forEach(item => { const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = item.displayText; itemDiv.dataset.itemId = item.id; itemDiv.addEventListener('click', function() { selectedInventoryCardIdInput.value = this.dataset.itemId; cardSearchInput.value = this.textContent; cardSearchResultsDiv.innerHTML = ''; cardSearchResultsDiv.style.display = 'none'; }); cardSearchResultsDiv.appendChild(itemDiv); }); } else { cardSearchResultsDiv.style.display = 'none'; } }); document.addEventListener('click', function(event) { if (cardSearchInput && cardSearchResultsDiv){ if (!cardSearchInput.contains(event.target) && !cardSearchResultsDiv.contains(event.target)) { cardSearchResultsDiv.style.display = 'none'; } } }); }
+        function updateSortDirectionButtons() {
+            if (sortAscBtn && sortDescBtn) {
+                if (currentSortDirection === 'asc') {
+                    sortAscBtn.classList.add('active');
+                    sortDescBtn.classList.remove('active');
+                } else {
+                    sortDescBtn.classList.add('active');
+                    sortAscBtn.classList.remove('active');
+                }
+            }
+        }
 
-        // Set Symbol Finder Modal JavaScript
-        const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
-        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } setSymbolListContainer.innerHTML = "<p>Loading set symbols...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } allScryfallSets = await response.json(); renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); setSymbolListContainer.innerHTML = "<p>Error loading set symbols. Please try again later.</p>"; } }
-        function renderSetSymbols(setsToRender) { setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found matching your search.</p>"; return; } setsToRender.forEach(set => { if (set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = set.name + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = set.name; const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${set.code.toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
-        function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = allScryfallSets.filter(set => { return set.name.toLowerCase().includes(filterText) || set.code.toLowerCase().includes(filterText); }); renderSetSymbols(filteredSets); }
-        function selectSetSymbol(setCode) { if (setCodeAddInput) { setCodeAddInput.value = setCode.toUpperCase(); } closeSetSymbolModal(); }
+        const cardSearchInputEl = document.getElementById('cardSearchInput');
+        const cardSearchResultsDivEl = document.getElementById('cardSearchResults');
+        const selectedInventoryCardIdInputEl = document.getElementById('selectedInventoryCardId');
+
+        if (cardSearchInputEl && cardSearchResultsDivEl && selectedInventoryCardIdInputEl) {
+             cardSearchInputEl.addEventListener('input', function() {
+                const searchTerm = this.value.toLowerCase().trim();
+                cardSearchResultsDivEl.innerHTML = '';
+                selectedInventoryCardIdInputEl.value = '';
+                if (searchTerm.length < 1) { cardSearchResultsDivEl.style.display = 'none'; return; }
+                const matchedItems = (saleInventoryOptionsData || []).filter(item => item && (item.displayText || '').toLowerCase().includes(searchTerm));
+                if (matchedItems.length > 0) {
+                    cardSearchResultsDivEl.style.display = 'block';
+                    matchedItems.slice(0, 15).forEach(item => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.classList.add('search-result-item');
+                        itemDiv.textContent = item.displayText;
+                        itemDiv.dataset.itemId = item.id;
+                        itemDiv.addEventListener('click', function() {
+                            selectedInventoryCardIdInputEl.value = this.dataset.itemId;
+                            cardSearchInputEl.value = this.textContent;
+                            cardSearchResultsDivEl.innerHTML = '';
+                            cardSearchResultsDivEl.style.display = 'none';
+                        });
+                        cardSearchResultsDivEl.appendChild(itemDiv);
+                    });
+                } else { cardSearchResultsDivEl.style.display = 'none'; }
+            });
+            document.addEventListener('click', function(event) {
+                if (cardSearchInputEl && cardSearchResultsDivEl) {
+                     if (!cardSearchInputEl.contains(event.target) && !cardSearchResultsDivEl.contains(event.target)) {
+                        cardSearchResultsDivEl.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        const setSymbolModal = document.getElementById("setSymbolModal");
+        const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn");
+        const setSymbolListContainer = document.getElementById("setSymbolListContainer");
+        const setCodeAddInput = document.getElementById("set_code_add");
+        const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
+
+        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } setSymbolListContainer.innerHTML = "<p>Loading set symbols...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); setSymbolListContainer.innerHTML = "<p>Error loading set symbols. Please try again later.</p>"; } }
+        function renderSetSymbols(setsToRender) { setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found matching your search.</p>"; return; } setsToRender.forEach(set => { if (set && set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = (getStr(set, 'name', 'Set')) + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = getStr(set, 'name', 'N/A'); const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
+        function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => { return set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText)); }); renderSetSymbols(filteredSets); }
+        function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) { setCodeAddInput.value = setCode.toUpperCase(); } closeSetSymbolModal(); }
         function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
         function closeSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "none"; } }
         if (findSetBySymbolBtn) { findSetBySymbolBtn.onclick = openSetSymbolModal; }
         if (setSymbolSearchInput) { setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); }
 
-        // Camera Scan JavaScript REMOVED
-
-         window.onclick = function(event) { // Updated window click for just set symbol modal
+         window.onclick = function(event) {
             if (event.target == setSymbolModal) { closeSetSymbolModal(); }
-            // Camera modal click outside REMOVED
         }
 
-         // Initialize
          document.addEventListener('DOMContentLoaded', function() {
-            openTab(null, activeTabFromFlask);
-            // Populate all inventory filters
-            populateDropdown(inventoryLocationFilter, inventoryItemsData, 'location');
-            populateDropdown(inventorySetFilter, inventoryItemsData, 'set');
-            populateDropdown(inventoryRarityFilter, inventoryItemsData, 'rarity', 'single_card'); // Added for cards
-            populateDropdown(inventoryLanguageFilter, inventoryItemsData, 'language', 'single_card'); // Added for cards
-            populateDropdown(inventorySealedLanguageFilter, inventoryItemsData, 'language', 'sealed_product'); // Added for sealed
+            console.log("DOM Content Loaded. Initializing page...");
+            try {
+                openTab(null, activeTabFromFlask);
+                console.log("Tab opened.");
 
-            if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', filterInventory);
-            if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', filterInventory);
-            if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', filterInventory);
-            if (inventorySetFilter) inventorySetFilter.addEventListener('change', filterInventory);
-            if (inventoryFoilFilter) inventoryFoilFilter.addEventListener('change', filterInventory);
-            if (inventoryRarityFilter) inventoryRarityFilter.addEventListener('change', filterInventory); // Added
-            if (inventoryLanguageFilter) inventoryLanguageFilter.addEventListener('change', filterInventory); // Added
-            if (inventoryCollectorFilter) inventoryCollectorFilter.addEventListener('change', filterInventory);
-            if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.addEventListener('change', filterInventory); // Added
+                try {
+                    console.log("Populating dropdowns...");
+                    populateDropdown(inventoryLocationFilter, rawInventoryItemsData, 'location');
+                    let uniqueSets = [...new Set((rawInventoryItemsData || []).map(item => item.type === 'single_card' ? (getStr(item, 'set_code') || getStr(item, 'set_name')) : getStr(item, 'set_name')).filter(s => s).sort((a,b) => String(a).toLowerCase().localeCompare(String(b).toLowerCase())))];
+                    if (inventorySetFilter) {
+                        const currentSetVal = inventorySetFilter.value;
+                        inventorySetFilter.innerHTML = '<option value="all" selected>All Sets</option>';
+                        uniqueSets.forEach(s => { const option = document.createElement('option'); option.value = s; option.textContent = s; inventorySetFilter.appendChild(option); });
+                        if (uniqueSets.includes(currentSetVal)) inventorySetFilter.value = currentSetVal; else inventorySetFilter.value = 'all';
+                    }
+                    populateDropdown(inventoryRarityFilter, rawInventoryItemsData, 'rarity', 'single_card');
+                    populateDropdown(inventoryLanguageFilter, rawInventoryItemsData, 'language', 'single_card');
+                    populateDropdown(inventorySealedLanguageFilter, rawInventoryItemsData, 'language', 'sealed_product');
+                    console.log("Dropdowns populated.");
+                } catch (e) { console.error("Error populating dropdowns:", e); }
 
-            filterInventory(); // Initial filter application
+
+                if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', renderInventory);
+                if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', renderInventory);
+                if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', renderInventory);
+                if (inventorySetFilter) inventorySetFilter.addEventListener('change', renderInventory);
+                if (inventoryFoilFilter) inventoryFoilFilter.addEventListener('change', renderInventory);
+                if (inventoryRarityFilter) inventoryRarityFilter.addEventListener('change', renderInventory);
+                if (inventoryLanguageFilter) inventoryLanguageFilter.addEventListener('change', renderInventory);
+                if (inventoryCollectorFilter) inventoryCollectorFilter.addEventListener('change', renderInventory);
+                if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.addEventListener('change', renderInventory);
+
+                if (inventorySortKeySelect) inventorySortKeySelect.addEventListener('change', renderInventory);
+                if (sortAscBtn) sortAscBtn.addEventListener('click', function() { currentSortDirection = 'asc'; updateSortDirectionButtons(); renderInventory(); });
+                if (sortDescBtn) sortDescBtn.addEventListener('click', function() { currentSortDirection = 'desc'; updateSortDirectionButtons(); renderInventory(); });
+                console.log("Event listeners attached.");
+
+                updateSortDirectionButtons();
+                console.log("Rendering initial inventory...");
+                renderInventory();
+                console.log("Rendering sales history...");
+                renderSalesHistory();
+                console.log("Page initialization complete.");
+
+            } catch (e) {
+                console.error("Critical error during DOMContentLoaded setup:", e);
+                const body = document.querySelector('body');
+                if (body) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>";
+                    errorDiv.style.color = "red"; errorDiv.style.padding = "20px"; errorDiv.style.textAlign = "center"; errorDiv.style.border = "2px solid red"; errorDiv.style.margin = "20px";
+                    const h1 = document.querySelector('h1');
+                    if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling); else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild); else body.appendChild(errorDiv);
+                }
+            }
          });
     </script>
 
