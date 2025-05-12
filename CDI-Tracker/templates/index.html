@@ -351,14 +351,19 @@
 
     <script>
         // Main application JavaScript
-        // Helper functions to safely get properties
+
+        // Helper functions to safely get properties from an object
         function getStr(obj, key, defaultVal = '') {
+            // Ensures that if a key exists, its value is returned as a string.
+            // If the key doesn't exist or its value is null/undefined, returns the defaultVal.
             if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
                 return String(obj[key]);
             }
             return defaultVal;
         }
         function getNum(obj, key, defaultVal = null) {
+            // Attempts to parse a value from an object as a float.
+            // Returns the number if successful, otherwise the defaultVal.
             if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
                 const num = parseFloat(obj[key]);
                 if (!isNaN(num)) return num;
@@ -366,36 +371,46 @@
             return defaultVal;
         }
         function getBool(obj, key, defaultVal = false) {
+            // Returns a boolean value from an object.
+            // If the key exists and its value is strictly a boolean, returns that value.
+            // Otherwise, returns the defaultVal.
             if (obj && typeof obj === 'object' && obj !== null && typeof obj[key] === 'boolean') return obj[key];
             return defaultVal;
         }
 
+        // Formats a numeric value as currency (e.g., $1,234.56 or -$50.00)
         function formatCurrencyJS(value) {
             const numValue = parseFloat(value); 
-            if (value === null || value === undefined || isNaN(numValue)) return "$0.00";
+            if (value === null || value === undefined || isNaN(numValue)) return "$0.00"; // Default for invalid inputs
             try {
+                // Uses toLocaleString for proper formatting including commas and two decimal places.
                 if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                 return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-            } catch (e) { return String(value); }
+            } catch (e) { 
+                // Fallback if toLocaleString fails (should be rare)
+                return String(value); 
+            }
         }
 
+        // Global variables to store data fetched from the server
         let rawInventoryItemsData = [];
-        let rawSalesHistoryData = [];
-        let saleInventoryOptionsData = [];
+        let rawSalesHistoryData = []; // For the detailed sales log
+        let saleInventoryOptionsData = []; // For the "Enter Sale" search dropdown
 
+        // Safely parse JSON data embedded in the HTML
         try {
             const invJsonEl = document.getElementById('inventory_items_json_data');
             const invJson = invJsonEl ? invJsonEl.textContent : '[]';
             rawInventoryItemsData = JSON.parse(invJson);
-            if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = [];
+            if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = []; // Ensure it's an array
         } catch (e) {
             console.error("Error parsing inventory_items_json:", e, document.getElementById('inventory_items_json_data')?.textContent);
-            rawInventoryItemsData = [];
+            rawInventoryItemsData = []; // Default to empty array on error
         }
         try {
             const salesJsonEl = document.getElementById('sales_history_json_data');
             const salesJson = salesJsonEl ? salesJsonEl.textContent : '[]';
-            rawSalesHistoryData = JSON.parse(salesJson); // This will be used for the detailed sales table
+            rawSalesHistoryData = JSON.parse(salesJson);
             if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];
         } catch (e) {
             console.error("Error parsing sales_history_json:", e, document.getElementById('sales_history_json_data')?.textContent);
@@ -411,23 +426,32 @@
             saleInventoryOptionsData = [];
         }
 
-        let allScryfallSets = [];
+        let allScryfallSets = []; // To store set data for the "Find Set by Symbol" modal
 
+        // Function to switch between tabs
         function openTab(evt, tabName) {
             var i, tabcontent, tabbuttons;
             tabcontent = document.getElementsByClassName("tab-content");
-            for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
+            for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; } // Hide all tab content
             tabbuttons = document.getElementsByClassName("tab-button");
-            for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); }
+            for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); } // Deactivate all tab buttons
+            
             var currentTab = document.getElementById(tabName);
-            if (currentTab) { currentTab.style.display = "block"; }
-            var activeBtnId = tabName + "Nav";
+            if (currentTab) { currentTab.style.display = "block"; } // Display the selected tab content
+            
+            // Activate the clicked tab button
+            var activeBtnId = tabName + "Nav"; 
             var activeBtn = document.getElementById(activeBtnId);
-            if (evt && evt.currentTarget) { evt.currentTarget.className += " active"; }
-            else if (activeBtn) { activeBtn.className += " active"; }
+            if (evt && evt.currentTarget) { 
+                evt.currentTarget.className += " active"; 
+            } else if (activeBtn) { // For programmatic tab opening (e.g., on page load)
+                activeBtn.className += " active"; 
+            }
         }
+        // Get the active tab from Flask (if specified in URL, otherwise default to inventoryTab)
         var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
 
+        // DOM elements for inventory filtering and display
         const inventoryFilterInput = document.getElementById('inventoryFilterInput');
         const inventoryTypeFilter = document.getElementById('inventoryTypeFilter');
         const inventoryLocationFilter = document.getElementById('inventoryLocationFilter');
@@ -440,11 +464,13 @@
         const inventoryGrid = document.getElementById('inventoryGrid');
         const noInventoryResultsMsg = document.getElementById('noInventoryResults');
 
+        // DOM elements for inventory sorting
         const inventorySortKeySelect = document.getElementById('inventorySortKey');
         const sortAscBtn = document.getElementById('sortAscBtn');
         const sortDescBtn = document.getElementById('sortDescBtn');
-        let currentSortDirection = 'asc';
+        let currentSortDirection = 'asc'; // Default sort direction
 
+        // Populates a select dropdown with unique values from a data list
         function populateDropdown(selectElement, dataList, property, itemTypeFilter = null) {
             if (!selectElement || !dataList || !Array.isArray(dataList)) {
                 console.warn("populateDropdown: Invalid arguments or dataList not an array.", {selectElement, dataList});
@@ -452,35 +478,39 @@
             }
             try {
                 let sourceData = dataList;
+                // Optionally filter data by item type before extracting unique values
                 if (itemTypeFilter) {
                     sourceData = dataList.filter(item => item && getStr(item, 'type') === itemTypeFilter);
                 }
+                // Get unique, non-empty string values for the specified property, then sort them
                 const uniqueValues = [...new Set(
                     sourceData.map(item => item && item[property] !== undefined && item[property] !== null ? String(item[property]) : null)
                               .filter(value => value !== null && value.trim() !== '')
                 )].sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()));
 
-                const currentValue = selectElement.value;
-                selectElement.innerHTML = '<option value="all" selected>All</option>';
+                const currentValue = selectElement.value; // Preserve current selection if possible
+                selectElement.innerHTML = '<option value="all" selected>All</option>'; // Default "All" option
                 uniqueValues.forEach(value => {
                     const option = document.createElement('option');
                     option.value = value;
                     const text = String(value);
-                    option.textContent = text.charAt(0).toUpperCase() + text.slice(1);
+                    option.textContent = text.charAt(0).toUpperCase() + text.slice(1); // Capitalize first letter
                     selectElement.appendChild(option);
                 });
+                // Restore previous selection if it's still valid
                 if (uniqueValues.includes(String(currentValue))) {
                     selectElement.value = currentValue;
                 } else {
-                     selectElement.value = 'all';
+                     selectElement.value = 'all'; // Default to "All" if previous selection is no longer valid
                 }
             } catch(e) { console.error("Error in populateDropdown for property:", property, e); }
         }
 
-
+        // Renders the inventory items based on current filters and sort order
         function renderInventory() {
             if (!inventoryGrid) { console.error("inventoryGrid not found for renderInventory"); return; }
             try {
+                // Get current filter values
                 const filterText = inventoryFilterInput ? inventoryFilterInput.value.toLowerCase() : '';
                 const filterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
                 const filterLocation = inventoryLocationFilter ? inventoryLocationFilter.value : 'all';
@@ -492,13 +522,19 @@
                 const filterSealedLanguage = inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all';
                 const sortKey = inventorySortKeySelect ? inventorySortKeySelect.value : 'display_name';
 
+                // Filter items from raw data
                 let filteredItems = (rawInventoryItemsData || []).filter(item => {
                     if (!item) return false;
                     let show = true;
+                    // Apply type filter
                     if (filterType !== 'all' && getStr(item, 'type') !== filterType) { show = false; }
+                    // Apply location filter
                     if (show && filterLocation !== 'all' && getStr(item, 'location') !== filterLocation) { show = false; }
+                    // Apply set filter (handles both set_code for cards and set_name for sealed)
                     const itemSetIdentifier = getStr(item, 'type') === 'single_card' ? (getStr(item, 'set_code') || getStr(item, 'set_name')) : getStr(item, 'set_name');
                     if (show && filterSet !== 'all' && String(itemSetIdentifier) !== String(filterSet)) { show = false; }
+                    
+                    // Type-specific filters
                     if (getStr(item, 'type') === 'single_card') {
                         if (show && filterFoil !== 'all' && (getBool(item, 'is_foil') ? 'yes' : 'no') !== filterFoil) { show = false; }
                         if (show && filterRarity !== 'all' && getStr(item, 'rarity') !== filterRarity) { show = false; }
@@ -507,6 +543,7 @@
                         if (show && filterCollector !== 'all' && (getBool(item, 'is_collectors_item') ? 'yes' : 'no') !== filterCollector) { show = false; }
                         if (show && filterSealedLanguage !== 'all' && getStr(item, 'language') !== filterSealedLanguage) { show = false; }
                     }
+                    // Apply text search filter across multiple fields
                     if (show && filterText !== '') {
                         const searchText = filterText.toLowerCase();
                         if (! ( (getStr(item, 'display_name')).toLowerCase().includes(searchText) ||
@@ -522,10 +559,12 @@
                     return show;
                 });
 
+                // Sort filtered items
                 filteredItems.sort((a, b) => {
                     let valA, valB;
                     if (!a || !b) return 0; 
 
+                    // Special handling for sorting by set (uses set_code or set_name)
                     if (sortKey === 'set_name_sort') { 
                         valA = getStr(a, 'type') === 'single_card' ? (getStr(a, 'set_code') || getStr(a, 'set_name')) : getStr(a, 'set_name');
                         valB = getStr(b, 'type') === 'single_card' ? (getStr(b, 'set_code') || getStr(b, 'set_name')) : getStr(b, 'set_name');
@@ -534,79 +573,135 @@
                         valB = b[sortKey];
                     }
 
+                    // Handle null/undefined values by pushing them to the end
                     const valAIsNull = valA === null || valA === undefined;
                     const valBIsNull = valB === null || valB === undefined;
-
                     if (valAIsNull && valBIsNull) return 0;
                     if (valAIsNull) return currentSortDirection === 'asc' ? 1 : -1; 
                     if (valBIsNull) return currentSortDirection === 'asc' ? -1 : 1; 
 
+                    // Normalize values for comparison (lowercase for strings)
                     const typeA = typeof valA; const typeB = typeof valB;
                     if (typeA === 'string' && typeB === 'string') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
-                    else if (typeA === 'number' && typeB === 'number') { /* No change */ }
-                    else if (typeA === 'boolean' && typeB === 'boolean') { /* No change */ }
-                    else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); }
+                    else if (typeA === 'number' && typeB === 'number') { /* No change needed */ }
+                    else if (typeA === 'boolean' && typeB === 'boolean') { /* No change needed */ }
+                    else { valA = String(valA).toLowerCase(); valB = String(valB).toLowerCase(); } // Fallback to string comparison
 
                     let comparison = 0;
                     if (valA > valB) comparison = 1;
                     else if (valA < valB) comparison = -1;
-                    return currentSortDirection === 'asc' ? comparison : comparison * -1;
+                    return currentSortDirection === 'asc' ? comparison : comparison * -1; // Apply sort direction
                 });
 
-                inventoryGrid.innerHTML = '';
-                if (noInventoryResultsMsg) noInventoryResultsMsg.style.display = filteredItems.length === 0 ? 'block' : 'none';
+                inventoryGrid.innerHTML = ''; // Clear previous inventory display
+                if (noInventoryResultsMsg) noInventoryResultsMsg.style.display = filteredItems.length === 0 ? 'block' : 'none'; // Show/hide "no results" message
 
+                // Create and append HTML for each filtered item
                 filteredItems.forEach(item => {
                     if (!item) return; 
                     const cardEntry = document.createElement('div');
                     cardEntry.className = 'card-entry';
+                    
+                    // Extract common item properties
                     const displayName = getStr(item, 'display_name', 'N/A');
                     const imageUri = getStr(item, 'image_uri');
-                    const setCode = getStr(item, 'set_code', 'N/A');
-                    const collectorNum = getStr(item, 'collector_number', 'N/A');
-                    const rarity = getStr(item, 'rarity', 'N/A');
-                    const language = getStr(item, 'language', 'N/A');
                     const location = getStr(item, 'location', 'N/A');
                     const quantity = getNum(item, 'quantity', 0);
                     const buyPrice = getNum(item, 'buy_price');
                     const marketPrice = getNum(item, 'current_market_price');
-                    const sellPrice = getNum(item, 'sell_price');
-                    const setName = getStr(item, 'set_name', 'N/A');
-                    const productType = getStr(item, 'product_type', 'N/A');
-                    const isFoil = getBool(item, 'is_foil');
-                    const isCollectorsItem = getBool(item, 'is_collectors_item');
+                    const sellPrice = getNum(item, 'sell_price'); // This is the asking price
                     const originalId = item.original_id; 
 
                     let itemHTML = `
                         ${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}
                         <h3>${displayName}</h3>
                         <p>`;
+                    
                     if (item.type === 'single_card') {
+                        const setCode = getStr(item, 'set_code', 'N/A');
+                        const collectorNum = getStr(item, 'collector_number', 'N/A');
+                        const rarity = getStr(item, 'rarity', 'N/A');
+                        const language = getStr(item, 'language', 'N/A');
+                        const isFoil = getBool(item, 'is_foil');
+                        
+                        // Get pre-calculated display values from the item object (passed from app.py)
+                        const marketVsBuyPercentageDisplay = getStr(item, 'market_vs_buy_percentage_display', 'N/A');
+                        const potentialPLAtAskingPriceDisplay = item.potential_pl_at_asking_price_display; // Can be number or string
+
+                        
+                        let marketVsBuyPercentageHTML = 'N/A'; // Default
+
+                        if (marketVsBuyPercentageDisplay === "Infinite") {
+                            marketVsBuyPercentageHTML = `<span class="profit">Infinite%</span>`;
+                        } else if (marketVsBuyPercentageDisplay === "N/A") {
+                            marketVsBuyPercentageHTML = 'N/A';
+                        } else {
+                            // Try to parse as a number if it's not "Infinite" or "N/A"
+                            const numericVal = parseFloat(marketVsBuyPercentageDisplay);
+                            if (!isNaN(numericVal)) { // Check if parsing was successful
+                                const className = numericVal >= 0 ? 'profit' : 'loss';
+                                marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`;
+                            } else {
+                                // If it's not "Infinite", "N/A", or a valid number string, display the original string
+                                marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay; 
+                            }
+                        }
+
+                        let potentialPLHTML = 'N/A (No asking price)';
+                        if (typeof potentialPLAtAskingPriceDisplay === 'number') {
+                            const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss';
+                            potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`;
+                        } else { // Should be "N/A (No asking price)" string
+                            potentialPLHTML = potentialPLAtAskingPriceDisplay;
+                        }
+
                         itemHTML += `
                             <strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br>
                             <strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br>
                             <strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br>
-                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
                             <strong>Location:</strong> ${location}<br>
                             <strong>Quantity:</strong> ${quantity}<br>
+                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
                             <strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br>
                             <strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br>
+                            <strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br>
+                            <strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>
                         `;
                     } else if (item.type === 'sealed_product') {
+                        const setName = getStr(item, 'set_name', 'N/A');
+                        const productType = getStr(item, 'product_type', 'N/A');
+                        const language = getStr(item, 'language', 'N/A');
+                        // Ensure isCollectorsItem is declared and retrieved correctly for sealed_product
+                        const isCollectorsItem = getBool(item, 'is_collectors_item'); 
+                        
+                        const marketVsBuyDisplay = getStr(item, 'market_vs_buy_percentage_display', "N/A (Manual Price)");
+                        const potentialPLDisplay = item.potential_pl_at_asking_price_display;
+
+                        let potentialPLSealedHTML = 'N/A (No asking price)';
+                        if (typeof potentialPLDisplay === 'number') {
+                             const className = potentialPLDisplay >= 0 ? 'profit' : 'loss';
+                             potentialPLSealedHTML = `<span class="${className}">${formatCurrencyJS(potentialPLDisplay)}</span>`;
+                        } else {
+                            potentialPLSealedHTML = potentialPLDisplay;
+                        }
                         itemHTML += `
                             <strong>Set:</strong> ${setName}<br>
                             <strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br>
                             <strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br>
-                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
                             <strong>Location:</strong> ${location}<br>
                             <strong>Quantity:</strong> ${quantity}<br>
+                            <strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br>
                             <strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) + ' <em style="font-size:0.9em;">(Manual)</em>' : 'N/A'}<br>
                             <strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br>
+                            <strong>Market vs. Buy %:</strong> ${marketVsBuyDisplay}<br>
+                            <strong>Potential P/L (Asking):</strong> ${potentialPLSealedHTML}<br>
                         `;
                     }
-                    itemHTML += `</p>`;
+                    itemHTML += `</p>`; // Close the paragraph for item details
+
+                    // Add action buttons and update forms
                     if (item.type === 'single_card') {
-                        const displayNameEscaped = displayName.replace(/"/g, '&quot;');
+                        const displayNameEscaped = displayName.replace(/"/g, '&quot;'); // Escape quotes for JS confirm
                         itemHTML += `
                         <div class="actions">
                             <form action="/delete_card/${originalId}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form>
@@ -623,7 +718,11 @@
                         </details>`;
                     } else if (item.type === 'sealed_product') {
                         const displayNameEscaped = displayName.replace(/"/g, '&quot;');
-                        const buyPriceValue = buyPrice !== null ? buyPrice : '';
+                        const buyPriceValue = buyPrice !== null ? buyPrice : ''; // Ensure a value for hidden input
+                        // Re-ensure isCollectorsItem is in scope if used again, or re-fetch if necessary
+                        // For this structure, it's already defined above for sealed products
+                        const isCollectorsItem = getBool(item, 'is_collectors_item'); // This re-declaration is technically redundant if structured perfectly, but safe.
+
                         itemHTML += `
                         <div class="actions">
                             <form action="/delete_sealed_product/${originalId}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form>
@@ -639,17 +738,17 @@
                                 <div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div>
                                 <div><label for="update_language_sealed_${originalId}">Language:</label>
                                     <select id="update_language_sealed_${originalId}" name="language">
-                                        <option value="en" ${language === 'en' ? 'selected' : ''}>English (en)</option>
-                                        <option value="es" ${language === 'es' ? 'selected' : ''}>Spanish (es)</option>
-                                        <option value="fr" ${language === 'fr' ? 'selected' : ''}>French (fr)</option>
-                                        <option value="de" ${language === 'de' ? 'selected' : ''}>German (de)</option>
-                                        <option value="it" ${language === 'it' ? 'selected' : ''}>Italian (it)</option>
-                                        <option value="pt" ${language === 'pt' ? 'selected' : ''}>Portuguese (pt)</option>
-                                        <option value="ja" ${language === 'ja' ? 'selected' : ''}>Japanese (ja)</option>
-                                        <option value="ko" ${language === 'ko' ? 'selected' : ''}>Korean (ko)</option>
-                                        <option value="ru" ${language === 'ru' ? 'selected' : ''}>Russian (ru)</option>
-                                        <option value="zhs" ${language === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option>
-                                        <option value="zht" ${language === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option>
+                                        <option value="en" ${getStr(item, 'language') === 'en' ? 'selected' : ''}>English (en)</option>
+                                        <option value="es" ${getStr(item, 'language') === 'es' ? 'selected' : ''}>Spanish (es)</option>
+                                        <option value="fr" ${getStr(item, 'language') === 'fr' ? 'selected' : ''}>French (fr)</option>
+                                        <option value="de" ${getStr(item, 'language') === 'de' ? 'selected' : ''}>German (de)</option>
+                                        <option value="it" ${getStr(item, 'language') === 'it' ? 'selected' : ''}>Italian (it)</option>
+                                        <option value="pt" ${getStr(item, 'language') === 'pt' ? 'selected' : ''}>Portuguese (pt)</option>
+                                        <option value="ja" ${getStr(item, 'language') === 'ja' ? 'selected' : ''}>Japanese (ja)</option>
+                                        <option value="ko" ${getStr(item, 'language') === 'ko' ? 'selected' : ''}>Korean (ko)</option>
+                                        <option value="ru" ${getStr(item, 'language') === 'ru' ? 'selected' : ''}>Russian (ru)</option>
+                                        <option value="zhs" ${getStr(item, 'language') === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option>
+                                        <option value="zht" ${getStr(item, 'language') === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option>
                                     </select>
                                 </div>
                                 <div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div>
@@ -666,29 +765,25 @@
             }
         }
 
+        // Renders the detailed sales history table
         function renderSalesHistory() {
             const tableBody = document.getElementById('salesHistoryTableBody');
             const noSalesMsg = document.getElementById('noSalesResults');
             if (!tableBody || !noSalesMsg) { console.error("Sales history table elements not found"); return; }
             try {
-                tableBody.innerHTML = '';
-                if (!rawSalesHistoryData || rawSalesHistoryData.length === 0) {
-                    noSalesMsg.style.display = 'block';
-                     // Also hide the monthly summary table if there are no sales at all
-                    const monthlySummaryTable = document.querySelector('.monthly-summary-table');
-                    if (monthlySummaryTable) monthlySummaryTable.style.display = 'none';
-                    const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3');
-                    if (monthlySummaryHeading) monthlySummaryHeading.style.display = 'none';
-
-                } else {
-                    noSalesMsg.style.display = 'none';
-                     // Show monthly summary if data exists (Jinja handles empty historical_monthly_sales_summary)
-                    const monthlySummaryTable = document.querySelector('.monthly-summary-table');
-                    if (monthlySummaryTable) monthlySummaryTable.style.display = ''; // Or 'table'
-                     const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3');
-                    if (monthlySummaryHeading) monthlySummaryHeading.style.display = '';
+                tableBody.innerHTML = ''; // Clear previous sales
+                // Show/hide the "no sales" message and the monthly summary section based on whether any sales data exists
+                const hasSales = rawSalesHistoryData && rawSalesHistoryData.length > 0;
+                noSalesMsg.style.display = hasSales ? 'none' : 'block';
+                
+                const monthlySummaryTable = document.querySelector('.monthly-summary-table');
+                const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3'); // Assumes h3 is for monthly summary
+                
+                if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none'; // Or 'table'
+                if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
 
 
+                if (hasSales) {
                     rawSalesHistoryData.forEach(sale => {
                         if(!sale) return;
                         const row = tableBody.insertRow();
@@ -711,6 +806,7 @@
             }
         }
 
+        // Clears all inventory filters and resets sort order, then re-renders inventory
         function clearInventoryFiltersAndSort() {
             if (inventoryFilterInput) inventoryFilterInput.value = '';
             if (inventoryTypeFilter) inventoryTypeFilter.value = 'all';
@@ -721,12 +817,13 @@
             if (inventoryLanguageFilter) inventoryLanguageFilter.value = 'all';
             if (inventoryCollectorFilter) inventoryCollectorFilter.value = 'all';
             if (inventorySealedLanguageFilter) inventorySealedLanguageFilter.value = 'all';
-            if (inventorySortKeySelect) inventorySortKeySelect.value = 'display_name';
-            currentSortDirection = 'asc';
+            if (inventorySortKeySelect) inventorySortKeySelect.value = 'display_name'; // Default sort key
+            currentSortDirection = 'asc'; // Default sort direction
             updateSortDirectionButtons();
             renderInventory();
         }
 
+        // Updates the visual state of sort direction buttons (Ascending/Descending)
         function updateSortDirectionButtons() {
             if (sortAscBtn && sortDescBtn) {
                 if (currentSortDirection === 'asc') {
@@ -739,6 +836,7 @@
             }
         }
 
+        // --- "Enter Sale" Tab: Inventory Search Functionality ---
         const cardSearchInputEl = document.getElementById('cardSearchInput');
         const cardSearchResultsDivEl = document.getElementById('cardSearchResults');
         const selectedInventoryCardIdInputEl = document.getElementById('selectedInventoryCardId');
@@ -746,27 +844,35 @@
         if (cardSearchInputEl && cardSearchResultsDivEl && selectedInventoryCardIdInputEl) {
              cardSearchInputEl.addEventListener('input', function() {
                 const searchTerm = this.value.toLowerCase().trim();
-                cardSearchResultsDivEl.innerHTML = '';
-                selectedInventoryCardIdInputEl.value = '';
-                if (searchTerm.length < 1) { cardSearchResultsDivEl.style.display = 'none'; return; }
+                cardSearchResultsDivEl.innerHTML = ''; // Clear previous results
+                selectedInventoryCardIdInputEl.value = ''; // Clear hidden input
+                if (searchTerm.length < 1) { // Don't search if input is empty
+                    cardSearchResultsDivEl.style.display = 'none'; 
+                    return; 
+                }
+                // Filter inventory options based on search term
                 const matchedItems = (saleInventoryOptionsData || []).filter(item => item && (item.display || '').toLowerCase().includes(searchTerm));
+                
                 if (matchedItems.length > 0) {
-                    cardSearchResultsDivEl.style.display = 'block';
-                    matchedItems.slice(0, 15).forEach(item => {
+                    cardSearchResultsDivEl.style.display = 'block'; // Show dropdown
+                    matchedItems.slice(0, 15).forEach(item => { // Limit to 15 results
                         const itemDiv = document.createElement('div');
                         itemDiv.classList.add('search-result-item');
                         itemDiv.textContent = item.display; 
-                        itemDiv.dataset.itemId = item.id;
+                        itemDiv.dataset.itemId = item.id; // Store item ID
                         itemDiv.addEventListener('click', function() {
-                            selectedInventoryCardIdInputEl.value = this.dataset.itemId;
-                            cardSearchInputEl.value = this.textContent; 
-                            cardSearchResultsDivEl.innerHTML = '';
-                            cardSearchResultsDivEl.style.display = 'none';
+                            selectedInventoryCardIdInputEl.value = this.dataset.itemId; // Set hidden input
+                            cardSearchInputEl.value = this.textContent; // Set search bar text
+                            cardSearchResultsDivEl.innerHTML = ''; // Clear results
+                            cardSearchResultsDivEl.style.display = 'none'; // Hide dropdown
                         });
                         cardSearchResultsDivEl.appendChild(itemDiv);
                     });
-                } else { cardSearchResultsDivEl.style.display = 'none'; }
+                } else { 
+                    cardSearchResultsDivEl.style.display = 'none'; // Hide if no matches
+                }
             });
+            // Hide search results dropdown if clicked outside
             document.addEventListener('click', function(event) {
                 if (cardSearchInputEl && cardSearchResultsDivEl) {
                      if (!cardSearchInputEl.contains(event.target) && !cardSearchResultsDivEl.contains(event.target)) {
@@ -776,34 +882,119 @@
             });
         }
 
+        // --- "Find Set by Symbol" Modal Functionality ---
         const setSymbolModal = document.getElementById("setSymbolModal");
         const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn");
         const setSymbolListContainer = document.getElementById("setSymbolListContainer");
-        const setCodeAddInput = document.getElementById("set_code_add");
-        const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
+        const setCodeAddInput = document.getElementById("set_code_add"); // Input field to populate
+        const setSymbolSearchInput = document.getElementById("setSymbolSearchInput"); // Search within modal
 
-        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } setSymbolListContainer.innerHTML = "<p>Loading set symbols...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); setSymbolListContainer.innerHTML = "<p>Error loading set symbols. Please try again later.</p>"; } }
-        function renderSetSymbols(setsToRender) { setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found matching your search.</p>"; return; } setsToRender.forEach(set => { if (set && set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = (getStr(set, 'name', 'Set')) + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = getStr(set, 'name', 'N/A'); const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
-        function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => { return set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText)); }); renderSetSymbols(filteredSets); }
-        function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) { setCodeAddInput.value = setCode.toUpperCase(); } closeSetSymbolModal(); }
-        function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
-        function closeSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "none"; } }
+        // Fetches all set data from Scryfall API (if not already fetched) and renders symbols
+        async function fetchAndDisplaySetSymbols() { 
+            if (allScryfallSets.length > 0) { // Use cached data if available
+                renderSetSymbols(allScryfallSets); 
+                return; 
+            } 
+            setSymbolListContainer.innerHTML = "<p>Loading set symbols...</p>"; 
+            try { 
+                const response = await fetch("{{ url_for('api_all_sets_info') }}"); 
+                if (!response.ok) { throw new Error(`HTTP error! status: ${response.status}`); } 
+                allScryfallSets = await response.json(); 
+                if(!Array.isArray(allScryfallSets)) allScryfallSets = []; // Ensure it's an array
+                renderSetSymbols(allScryfallSets); 
+            } catch (error) { 
+                console.error("Could not fetch set symbols:", error); 
+                setSymbolListContainer.innerHTML = "<p>Error loading set symbols. Please try again later.</p>"; 
+            } 
+        }
+        // Renders the list of set symbols in the modal
+        function renderSetSymbols(setsToRender) { 
+            setSymbolListContainer.innerHTML = ""; 
+            if (!setsToRender || setsToRender.length === 0) { 
+                setSymbolListContainer.innerHTML = "<p>No sets found matching your search.</p>"; 
+                return; 
+            } 
+            setsToRender.forEach(set => { 
+                if (set && set.icon_svg_uri) { // Only display if an icon URI exists
+                    const itemDiv = document.createElement("div"); 
+                    itemDiv.className = "set-symbol-item"; 
+                    itemDiv.onclick = function() { selectSetSymbol(set.code); }; // Set click action
+                    
+                    const img = document.createElement("img"); 
+                    img.src = set.icon_svg_uri; 
+                    img.alt = (getStr(set, 'name', 'Set')) + " symbol"; 
+                    
+                    const detailsDiv = document.createElement("div"); 
+                    detailsDiv.className = "set-details"; 
+                    const nameSpan = document.createElement("span"); 
+                    nameSpan.className = "set-name"; 
+                    nameSpan.textContent = getStr(set, 'name', 'N/A'); 
+                    const codeSpan = document.createElement("span"); 
+                    codeSpan.className = "set-code"; 
+                    codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; 
+                    
+                    detailsDiv.appendChild(nameSpan); 
+                    detailsDiv.appendChild(codeSpan); 
+                    itemDiv.appendChild(img); 
+                    itemDiv.appendChild(detailsDiv); 
+                    setSymbolListContainer.appendChild(itemDiv); 
+                } 
+            }); 
+        }
+        // Filters set symbols based on text input in the modal's search bar
+        function filterSetSymbols() { 
+            if (!setSymbolSearchInput) return; 
+            const filterText = setSymbolSearchInput.value.toLowerCase(); 
+            const filteredSets = (allScryfallSets || []).filter(set => { 
+                return set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText)); 
+            }); 
+            renderSetSymbols(filteredSets); 
+        }
+        // Action when a set symbol is clicked: populates the set code input and closes modal
+        function selectSetSymbol(setCode) { 
+            if (setCodeAddInput && setCode) { 
+                setCodeAddInput.value = setCode.toUpperCase(); 
+            } 
+            closeSetSymbolModal(); 
+        }
+        // Opens the "Find Set by Symbol" modal
+        function openSetSymbolModal() { 
+            if (setSymbolModal) { 
+                setSymbolModal.style.display = "block"; 
+                fetchAndDisplaySetSymbols(); // Fetch/render symbols when modal opens
+            } 
+        }
+        // Closes the "Find Set by Symbol" modal
+        function closeSetSymbolModal() { 
+            if (setSymbolModal) { 
+                setSymbolModal.style.display = "none"; 
+            } 
+        }
+        // Event listener for the "Find Symbol" button
         if (findSetBySymbolBtn) { findSetBySymbolBtn.onclick = openSetSymbolModal; }
+        // Event listener for the search input within the modal
         if (setSymbolSearchInput) { setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); }
 
+        // Close modal if clicked outside of its content area
          window.onclick = function(event) {
-            if (event.target == setSymbolModal) { closeSetSymbolModal(); }
+            if (event.target == setSymbolModal) { 
+                closeSetSymbolModal(); 
+            }
         }
 
+        // --- Main Page Initialization on DOMContentLoaded ---
          document.addEventListener('DOMContentLoaded', function() {
             console.log("DOM Content Loaded. Initializing page...");
             try {
+                // Open the correct tab based on Flask's context or default
                 openTab(null, activeTabFromFlask);
                 console.log("Tab opened.");
 
+                // Populate filter dropdowns for the inventory view
                 try {
                     console.log("Populating dropdowns...");
                     populateDropdown(inventoryLocationFilter, rawInventoryItemsData, 'location');
+                    // Populate set filter with unique set codes/names
                     let uniqueSets = [...new Set((rawInventoryItemsData || []).map(item => item.type === 'single_card' ? (getStr(item, 'set_code') || getStr(item, 'set_name')) : getStr(item, 'set_name')).filter(s => s).sort((a,b) => String(a).toLowerCase().localeCompare(String(b).toLowerCase())))];
                     if (inventorySetFilter) {
                         const currentSetVal = inventorySetFilter.value;
@@ -817,7 +1008,7 @@
                     console.log("Dropdowns populated.");
                 } catch (e) { console.error("Error populating dropdowns:", e); }
 
-
+                // Attach event listeners to inventory filter and sort controls
                 if (inventoryFilterInput) inventoryFilterInput.addEventListener('input', renderInventory);
                 if (inventoryTypeFilter) inventoryTypeFilter.addEventListener('change', renderInventory);
                 if (inventoryLocationFilter) inventoryLocationFilter.addEventListener('change', renderInventory);
@@ -833,21 +1024,23 @@
                 if (sortDescBtn) sortDescBtn.addEventListener('click', function() { currentSortDirection = 'desc'; updateSortDirectionButtons(); renderInventory(); });
                 console.log("Event listeners attached.");
 
+                // Initial render of dynamic content
                 updateSortDirectionButtons();
                 console.log("Rendering initial inventory...");
                 renderInventory();
                 console.log("Rendering sales history...");
-                renderSalesHistory(); // This will now also handle showing/hiding the monthly summary table
+                renderSalesHistory(); 
                 console.log("Page initialization complete.");
 
             } catch (e) {
+                // Catch-all for critical errors during page setup
                 console.error("Critical error during DOMContentLoaded setup:", e);
                 const body = document.querySelector('body');
-                if (body) {
+                if (body) { // Display an error message to the user if possible
                     const errorDiv = document.createElement('div');
                     errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>";
                     errorDiv.style.color = "red"; errorDiv.style.padding = "20px"; errorDiv.style.textAlign = "center"; errorDiv.style.border = "2px solid red"; errorDiv.style.margin = "20px";
-                    const h1 = document.querySelector('h1');
+                    const h1 = document.querySelector('h1'); // Try to insert error message after main heading
                     if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling); else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild); else body.appendChild(errorDiv);
                 }
             }
