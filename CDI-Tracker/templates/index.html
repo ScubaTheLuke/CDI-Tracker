@@ -39,6 +39,30 @@
         .set-symbol-item .set-details { font-size: 0.95em; display: flex; flex-direction: column; }
         .set-symbol-item .set-name { display: block; font-weight: bold; color: var(--text-primary); }
         .set-symbol-item .set-code { font-size: 0.9em; color: var(--text-secondary); }
+        
+        /* Style for the historical monthly summary table */
+        .monthly-summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px; /* Add space before the detailed sales table */
+            font-size: 0.95em;
+        }
+        .monthly-summary-table th, .monthly-summary-table td {
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            text-align: left;
+        }
+        .monthly-summary-table th {
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-weight: bold;
+        }
+        .monthly-summary-table tr:nth-child(even) {
+            background-color: var(--bg-secondary);
+        }
+        .monthly-summary-table tr:hover {
+            background-color: #383740;
+        }
     </style>
 </head>
 <body>
@@ -169,12 +193,18 @@
     </div>
 
     <div id="inventoryTab" class="tab-content">
-        <h2>Current Inventory</h2>
+        <h2>Current Inventory & Sales Summary</h2>
         <p>
             <strong>Total Inventory Buy Cost:</strong> <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span><br>
             <strong>Total Inventory Market Value:</strong> <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span><br>
-            <strong>Overall Realized P/L (from Sales):</strong>
-            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span>
+            <strong>Overall Realized P/L (All Time):</strong>
+            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span><br>
+            <br> 
+            <strong>{{ current_month_name }} P/L (Current Month):</strong>
+            <span class="{{ 'profit' if current_month_profit_loss >= 0 else 'loss' }}">{{ current_month_profit_loss | currency_commas }}</span><br>
+            <strong>Total Sales Transactions ({{ current_month_name }}):</strong> {{ current_month_sales_count }}<br>
+            <strong>Total Single Cards Sold (Units, {{ current_month_name }}):</strong> {{ current_month_single_cards_sold_quantity }}<br>
+            <strong>Total Sealed Products Sold (Units, {{ current_month_name }}):</strong> {{ current_month_sealed_sold_quantity }}
         </p>
         <div class="filter-controls">
              <div><label for="inventoryFilterInput">Text Search:</label><input type="text" id="inventoryFilterInput" placeholder="Name, Set, Loc, CN, Rarity, Lang..."></div>
@@ -267,6 +297,34 @@
 
     <div id="salesHistoryTab" class="tab-content">
         <h2>Sales History</h2>
+
+        {% if historical_monthly_sales_summary %}
+        <h3>Monthly Sales Summaries</h3>
+        <table class="monthly-summary-table">
+            <thead>
+                <tr>
+                    <th>Month</th>
+                    <th>Total P/L</th>
+                    <th>Sales Transactions</th>
+                    <th>Single Cards Sold (Units)</th>
+                    <th>Sealed Products Sold (Units)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for summary in historical_monthly_sales_summary %}
+                <tr>
+                    <td>{{ summary.month_name }}</td>
+                    <td><span class="{{ 'profit' if summary.profit_loss >= 0 else 'loss' }}">{{ summary.profit_loss | currency_commas }}</span></td>
+                    <td>{{ summary.sales_count }}</td>
+                    <td>{{ summary.single_cards_sold }}</td>
+                    <td>{{ summary.sealed_products_sold }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endif %}
+
+        <h3>All Individual Sales</h3>
         <table style="width:100%; border-collapse: collapse;">
             <thead><tr><th>Sale Date</th><th>Item Name</th><th>Details</th><th>Qty Sold</th><th>Buy Price (ea)</th><th>Sell Price (ea)</th><th>Shipping Cost</th><th>Net P/L for Sale</th><th>Notes</th></tr></thead>
             <tbody id="salesHistoryTableBody">
@@ -313,7 +371,7 @@
         }
 
         function formatCurrencyJS(value) {
-            const numValue = parseFloat(value); // Allow getNum to handle parsing before this
+            const numValue = parseFloat(value); 
             if (value === null || value === undefined || isNaN(numValue)) return "$0.00";
             try {
                 if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -337,7 +395,7 @@
         try {
             const salesJsonEl = document.getElementById('sales_history_json_data');
             const salesJson = salesJsonEl ? salesJsonEl.textContent : '[]';
-            rawSalesHistoryData = JSON.parse(salesJson);
+            rawSalesHistoryData = JSON.parse(salesJson); // This will be used for the detailed sales table
             if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];
         } catch (e) {
             console.error("Error parsing sales_history_json:", e, document.getElementById('sales_history_json_data')?.textContent);
@@ -517,7 +575,7 @@
                     const productType = getStr(item, 'product_type', 'N/A');
                     const isFoil = getBool(item, 'is_foil');
                     const isCollectorsItem = getBool(item, 'is_collectors_item');
-                    const originalId = item.original_id; // Assuming original_id is always present and valid
+                    const originalId = item.original_id; 
 
                     let itemHTML = `
                         ${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}
@@ -616,8 +674,21 @@
                 tableBody.innerHTML = '';
                 if (!rawSalesHistoryData || rawSalesHistoryData.length === 0) {
                     noSalesMsg.style.display = 'block';
+                     // Also hide the monthly summary table if there are no sales at all
+                    const monthlySummaryTable = document.querySelector('.monthly-summary-table');
+                    if (monthlySummaryTable) monthlySummaryTable.style.display = 'none';
+                    const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3');
+                    if (monthlySummaryHeading) monthlySummaryHeading.style.display = 'none';
+
                 } else {
                     noSalesMsg.style.display = 'none';
+                     // Show monthly summary if data exists (Jinja handles empty historical_monthly_sales_summary)
+                    const monthlySummaryTable = document.querySelector('.monthly-summary-table');
+                    if (monthlySummaryTable) monthlySummaryTable.style.display = ''; // Or 'table'
+                     const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3');
+                    if (monthlySummaryHeading) monthlySummaryHeading.style.display = '';
+
+
                     rawSalesHistoryData.forEach(sale => {
                         if(!sale) return;
                         const row = tableBody.insertRow();
@@ -678,17 +749,17 @@
                 cardSearchResultsDivEl.innerHTML = '';
                 selectedInventoryCardIdInputEl.value = '';
                 if (searchTerm.length < 1) { cardSearchResultsDivEl.style.display = 'none'; return; }
-                const matchedItems = (saleInventoryOptionsData || []).filter(item => item && (item.displayText || '').toLowerCase().includes(searchTerm));
+                const matchedItems = (saleInventoryOptionsData || []).filter(item => item && (item.display || '').toLowerCase().includes(searchTerm));
                 if (matchedItems.length > 0) {
                     cardSearchResultsDivEl.style.display = 'block';
                     matchedItems.slice(0, 15).forEach(item => {
                         const itemDiv = document.createElement('div');
                         itemDiv.classList.add('search-result-item');
-                        itemDiv.textContent = item.displayText;
+                        itemDiv.textContent = item.display; 
                         itemDiv.dataset.itemId = item.id;
                         itemDiv.addEventListener('click', function() {
                             selectedInventoryCardIdInputEl.value = this.dataset.itemId;
-                            cardSearchInputEl.value = this.textContent;
+                            cardSearchInputEl.value = this.textContent; 
                             cardSearchResultsDivEl.innerHTML = '';
                             cardSearchResultsDivEl.style.display = 'none';
                         });
@@ -766,7 +837,7 @@
                 console.log("Rendering initial inventory...");
                 renderInventory();
                 console.log("Rendering sales history...");
-                renderSalesHistory();
+                renderSalesHistory(); // This will now also handle showing/hiding the monthly summary table
                 console.log("Page initialization complete.");
 
             } catch (e) {

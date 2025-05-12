@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import database
 import scryfall
-import datetime
+import datetime 
 import os
 import requests
 import csv
 import io
 import json
+from collections import defaultdict # Ensure defaultdict is imported
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_very_secret_key_here_CHANGE_ME_TO_SOMETHING_RANDOM_AND_SECURE')
@@ -80,21 +81,91 @@ def index():
     inventory_cards_data = database.get_all_cards()
     sealed_products_data = database.get_all_sealed_products()
     sales_history_raw = database.get_all_sales()
-    sales_history_data = []
+    
+    sales_history_data_for_json = [] # For passing to JS, dates as ISO strings
     for raw_sale_row in sales_history_raw:
-        sale = dict(raw_sale_row)
-        current_sale_date_value = sale.get('sale_date')
-        if isinstance(current_sale_date_value, str):
+        sale_item = dict(raw_sale_row) 
+        for key, value in sale_item.items():
+            if isinstance(value, datetime.datetime): 
+                sale_item[key] = value.isoformat()
+            elif isinstance(value, datetime.date): 
+                sale_item[key] = value.isoformat()
+        sales_history_data_for_json.append(sale_item)
+
+    # --- Calculate current month summary statistics (for Inventory Tab) ---
+    current_month_sales_count = 0
+    current_month_sealed_sold_quantity = 0
+    current_month_single_cards_sold_quantity = 0
+    current_month_profit_loss = 0.0
+    
+    today_date_obj = datetime.date.today()
+    current_month_val = today_date_obj.month
+    current_year_val = today_date_obj.year
+
+    # --- Calculate historical monthly summary statistics (for Sales History Tab) ---
+    historical_monthly_summary_temp = defaultdict(lambda: {
+        'profit_loss': 0.0,
+        'sales_count': 0,
+        'single_cards_sold': 0,
+        'sealed_products_sold': 0
+    })
+
+    for sale_row in sales_history_raw: # Iterate over raw data with date objects
+        sale_dict = dict(sale_row) # Convert sqlite3.Row to dict
+        sale_date_obj = sale_dict.get('sale_date')
+
+        if isinstance(sale_date_obj, str): # If date is string, try to parse
             try:
-                sale['sale_date'] = datetime.datetime.strptime(current_sale_date_value, '%Y-%m-%d').date().isoformat()
+                sale_date_obj = datetime.date.fromisoformat(sale_date_obj)
             except ValueError:
-                if not (isinstance(current_sale_date_value, str) and len(current_sale_date_value) == 10 and current_sale_date_value[4] == '-' and current_sale_date_value[7] == '-'):
-                    sale['sale_date'] = None
-        elif isinstance(current_sale_date_value, datetime.date):
-             sale['sale_date'] = current_sale_date_value.isoformat()
-        else:
-            sale['sale_date'] = None
-        sales_history_data.append(sale)
+                print(f"Warning: Could not parse sale_date string '{sale_dict.get('sale_date')}' for historical summary.")
+                continue # Skip this sale if date is unparseable
+        
+        if not isinstance(sale_date_obj, datetime.date):
+            print(f"Warning: sale_date is not a date object for sale ID {sale_dict.get('id')}. Skipping for monthly summary.")
+            continue
+
+        year_month_key = (sale_date_obj.year, sale_date_obj.month)
+        
+        # Accumulate for historical monthly summary
+        profit_loss_val = sale_dict.get('profit_loss', 0.0)
+        quantity_sold_val = sale_dict.get('quantity_sold', 0)
+        item_type_val = sale_dict.get('item_type')
+
+        if profit_loss_val is not None:
+             historical_monthly_summary_temp[year_month_key]['profit_loss'] += float(profit_loss_val)
+        historical_monthly_summary_temp[year_month_key]['sales_count'] += 1
+        
+        if item_type_val == 'single_card' and quantity_sold_val is not None:
+            historical_monthly_summary_temp[year_month_key]['single_cards_sold'] += int(quantity_sold_val)
+        elif item_type_val == 'sealed_product' and quantity_sold_val is not None:
+            historical_monthly_summary_temp[year_month_key]['sealed_products_sold'] += int(quantity_sold_val)
+
+        # Accumulate for current month summary (Inventory Tab)
+        if sale_date_obj.month == current_month_val and sale_date_obj.year == current_year_val:
+            if profit_loss_val is not None:
+                current_month_profit_loss += float(profit_loss_val)
+            current_month_sales_count += 1
+            if item_type_val == 'single_card' and quantity_sold_val is not None:
+                current_month_single_cards_sold_quantity += int(quantity_sold_val)
+            elif item_type_val == 'sealed_product' and quantity_sold_val is not None:
+                current_month_sealed_sold_quantity += int(quantity_sold_val)
+
+    # Convert historical monthly defaultdict to a sorted list of dictionaries
+    historical_monthly_sales_summary = []
+    for (year, month), data in historical_monthly_summary_temp.items():
+        historical_monthly_sales_summary.append({
+            'year': year,
+            'month': month,
+            'month_name': datetime.date(year, month, 1).strftime('%B %Y'), # e.g., "May 2024"
+            'profit_loss': data['profit_loss'],
+            'sales_count': data['sales_count'],
+            'single_cards_sold': data['single_cards_sold'],
+            'sealed_products_sold': data['sealed_products_sold']
+        })
+    # Sort by year and month, most recent first
+    historical_monthly_sales_summary.sort(key=lambda x: (x['year'], x['month']), reverse=True)
+
 
     processed_inventory_cards = []
     total_inventory_market_value_cards = 0
@@ -177,7 +248,7 @@ def index():
     combined_inventory_items = processed_inventory_cards + processed_sealed_products
     total_buy_cost_of_inventory = total_buy_cost_of_inventory_cards + total_buy_cost_of_inventory_sealed
     total_inventory_market_value = total_inventory_market_value_cards + total_inventory_market_value_sealed
-    overall_realized_pl = sum(s['profit_loss'] for s in sales_history_data if s.get('profit_loss') is not None)
+    overall_realized_pl = sum(float(s.get('profit_loss', 0.0)) for s in sales_history_data_for_json if s.get('profit_loss') is not None) # Use data_for_json here
 
     sale_inventory_options = []
     temp_sorted_for_sale_options = sorted(combined_inventory_items, key=lambda x: x.get('display_name', '').lower())
@@ -195,7 +266,7 @@ def index():
         sale_inventory_options.append({"id": f"{item['type']}-{item['original_id']}", "display": display_text, "type": item['type']})
 
     inventory_items_json = json.dumps(combined_inventory_items)
-    sales_history_json = json.dumps(sales_history_data)
+    sales_history_json = json.dumps(sales_history_data_for_json) 
     sale_inventory_options_json = json.dumps(sale_inventory_options)
 
     return render_template('index.html',
@@ -205,6 +276,14 @@ def index():
                            total_inventory_market_value=total_inventory_market_value,
                            total_buy_cost_of_inventory=total_buy_cost_of_inventory,
                            overall_realized_pl=overall_realized_pl,
+                           # Current month stats for Inventory Tab
+                           current_month_sales_count=current_month_sales_count,
+                           current_month_sealed_sold_quantity=current_month_sealed_sold_quantity,
+                           current_month_single_cards_sold_quantity=current_month_single_cards_sold_quantity,
+                           current_month_profit_loss=current_month_profit_loss,
+                           current_month_name=today_date_obj.strftime("%B"), 
+                           # Historical monthly summary for Sales History Tab
+                           historical_monthly_sales_summary=historical_monthly_sales_summary,
                            active_tab=active_tab,
                            current_date=datetime.date.today().isoformat(),
                            suggested_buy_price=suggested_buy_price,
@@ -403,8 +482,8 @@ def update_card_route(card_id):
         if buy_price_str is not None and buy_price_str.strip() != '':
             price = float(buy_price_str)
             if price < 0: flash('Buy price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab'))
-            # Always add to data_to_update if valid; DB layer handles if it's truly a change or causes conflict
-            data_to_update['buy_price'] = price
+            if price != original_card['buy_price']: 
+                data_to_update['buy_price'] = price
 
         if asking_price_str is not None:
             ask_price = None
@@ -431,7 +510,7 @@ def update_sealed_product_route(product_id):
     if not original_product: flash('Product not found for update.', 'error'); return redirect(url_for('index', tab='inventoryTab'))
     try:
         quantity_str = request.form.get('quantity')
-        buy_price_str = request.form.get('buy_price') # Read buy_price
+        buy_price_str = request.form.get('buy_price')
         manual_market_price_str = request.form.get('manual_market_price')
         asking_price_str = request.form.get('asking_price')
         location_str = request.form.get('location')
@@ -444,35 +523,43 @@ def update_sealed_product_route(product_id):
             if qty < 0: flash('Quantity must be non-negative.'); return redirect(url_for('index', tab='inventoryTab'))
             if qty != original_product['quantity']: data_to_update['quantity'] = qty
 
-        if buy_price_str is not None and buy_price_str.strip() != '': # Process buy_price
+        if buy_price_str is not None and buy_price_str.strip() != '':
             price = float(buy_price_str)
             if price < 0: flash('Buy price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab'))
-            # Always add to data_to_update if valid; DB layer handles if it's truly a change or causes conflict
-            data_to_update['buy_price'] = price
+            if price != original_product['buy_price']:
+                data_to_update['buy_price'] = price
 
         if manual_market_price_str is not None:
             mkt_price = None if manual_market_price_str.strip() == '' else float(manual_market_price_str)
             if mkt_price is not None and mkt_price < 0: flash('Market Price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab'))
             if mkt_price != original_product['manual_market_price']: data_to_update['manual_market_price'] = mkt_price
+        
         if asking_price_str is not None:
             ask_price = None if asking_price_str.strip() == '' else float(asking_price_str)
             if ask_price is not None and ask_price < 0: flash('Asking price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab'))
             if ask_price != original_product['sell_price']: data_to_update['sell_price'] = ask_price
+        
         if location_str is not None:
             location = location_str.strip()
             if not location: flash('Location cannot be empty.'); return redirect(url_for('index', tab='inventoryTab'))
             if location != original_product['location']: data_to_update['location'] = location
+        
         if image_uri_str is not None:
              img_uri = image_uri_str.strip() if image_uri_str.strip() else None
              if img_uri != original_product['image_uri']: data_to_update['image_uri'] = img_uri
+        
         if language_str is not None:
             lang = language_str.strip()
             if lang != original_product['language']: data_to_update['language'] = lang
-        if is_collectors_item_form != bool(original_product['is_collectors_item']):
+        
+        current_is_collectors_item_db = bool(original_product['is_collectors_item'])
+        if is_collectors_item_form != current_is_collectors_item_db:
              data_to_update['is_collectors_item'] = is_collectors_item_form
+
     except ValueError: flash('Invalid number format for quantity or price fields.', 'error'); return redirect(url_for('index', tab='inventoryTab'))
 
     if not data_to_update: flash('No changes detected to update.', 'warning'); return redirect(url_for('index', tab='inventoryTab'))
+    
     success, message = database.update_sealed_product_fields(product_id, data_to_update)
     if success: flash(f'Sealed product details updated! Info: {message}', 'success')
     else: flash(f'Failed to update sealed product. Reason: {message}', 'error')
@@ -540,11 +627,12 @@ def import_csv_route():
                 return redirect(url_for('index', tab='importCsvTab'))
 
             required_csv_cols_for_core = [expected_headers['quantity'].lower(), expected_headers['name'].lower(), expected_headers['collector_number_csv'].lower()]
-            missing_expected_cols = [col for col in required_csv_cols_for_core if col not in csv_reader.fieldnames]
+            missing_expected_cols_check = [col for col in required_csv_cols_for_core if col not in csv_reader.fieldnames]
             if not (expected_headers['set_code_csv'].lower() in csv_reader.fieldnames or expected_headers['set_name_csv'].lower() in csv_reader.fieldnames):
-                 missing_expected_cols.append(f"{expected_headers['set_code_csv']} (or {expected_headers['set_name_csv']})")
-            if missing_expected_cols:
-                msg = f"CSV is missing required columns: {', '.join(missing_expected_cols)}. Please check your CSV file."
+                 missing_expected_cols_check.append(f"{expected_headers['set_code_csv']} (or {expected_headers['set_name_csv']})")
+
+            if missing_expected_cols_check: 
+                msg = f"CSV is missing required columns: {', '.join(missing_expected_cols_check)}. Please check your CSV file."
                 flash(msg, 'error'); print(f"CSV Import Error: {msg}")
                 return redirect(url_for('index', tab='importCsvTab'))
 
@@ -577,8 +665,9 @@ def import_csv_route():
 
                 if set_code_from_csv and set_code_from_csv.upper() == "LIST": card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
                 if not card_details and set_code_from_csv : card_details = scryfall.get_card_details(card_name=card_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
-                if not card_details and set_name_from_csv: card_details = scryfall.get_card_details(card_name=card_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
+                if not card_details and set_name_from_csv: card_details = scryfall.get_card_details(card_name=card_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup) 
                 if not card_details: card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
+
 
                 if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
                     print(f"Scryfall success for '{card_name}': Set='{card_details['set_code']}', CN='{card_details['collector_number']}', Rarity='{card_details.get('rarity')}', Lang='{card_details.get('language')}'")
