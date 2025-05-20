@@ -1,19 +1,23 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import database
 import scryfall
-import datetime 
+import datetime
 import os
 import requests
 import csv
 import io
 import json
 from collections import defaultdict # Ensure defaultdict is imported
+import math # Added for math.ceil or integer division for total_pages
+import re 
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'your_very_secret_key_here_CHANGE_ME_TO_SOMETHING_RANDOM_AND_SECURE')
 
 ROBOFLOW_API_KEY = os.environ.get("ROBOFLOW_API_KEY", "YOUR_ROBOFLOW_API_KEY_HERE")
 ROBOFLOW_MODEL_ENDPOINT = os.environ.get("ROBOFLOW_MODEL_ENDPOINT", "YOUR_ROBOFLOW_MODEL_INFERENCE_URL_HERE")
+
+ITEMS_PER_PAGE = 50 # For pagination
 
 def format_currency_with_commas(value):
     if value is None:
@@ -70,6 +74,22 @@ def scan_card_via_roboflow_route():
 @app.route('/')
 def index():
     active_tab = request.args.get('tab', 'inventoryTab')
+    page = request.args.get('page', 1, type=int)
+    
+    # Get filter and sort parameters from request.args
+    query_filter_text = request.args.get('filter_text', '').strip().lower()
+    query_filter_type = request.args.get('filter_type', 'all')
+    query_filter_location = request.args.get('filter_location', 'all')
+    query_filter_set = request.args.get('filter_set', 'all')
+    query_filter_foil = request.args.get('filter_foil', 'all')
+    query_filter_rarity = request.args.get('filter_rarity', 'all')
+    query_filter_card_lang = request.args.get('filter_card_lang', 'all')
+    query_filter_collector = request.args.get('filter_collector', 'all')
+    query_filter_sealed_lang = request.args.get('filter_sealed_lang', 'all')
+    
+    query_sort_key = request.args.get('sort_key', 'display_name')
+    query_sort_direction = request.args.get('sort_dir', 'asc')
+
     suggested_buy_price = request.args.get('suggested_buy_price', type=float)
     from_pack_details = None
     if request.args.get('from_pack_name'):
@@ -78,95 +98,14 @@ def index():
             "cost": request.args.get('from_pack_cost', type=float),
             "qty_opened": request.args.get('from_pack_qty_opened', type=int)
         }
+        
     inventory_cards_data = database.get_all_cards()
     sealed_products_data = database.get_all_sealed_products()
     sales_history_raw = database.get_all_sales()
-    
-    sales_history_data_for_json = [] # For passing to JS, dates as ISO strings
-    for raw_sale_row in sales_history_raw:
-        sale_item = dict(raw_sale_row) 
-        for key, value in sale_item.items():
-            if isinstance(value, datetime.datetime): 
-                sale_item[key] = value.isoformat()
-            elif isinstance(value, datetime.date): 
-                sale_item[key] = value.isoformat()
-        sales_history_data_for_json.append(sale_item)
 
-    # --- Calculate current month summary statistics (for Inventory Tab) ---
-    current_month_sales_count = 0
-    current_month_sealed_sold_quantity = 0
-    current_month_single_cards_sold_quantity = 0
-    current_month_profit_loss = 0.0
-    
-    today_date_obj = datetime.date.today()
-    current_month_val = today_date_obj.month
-    current_year_val = today_date_obj.year
-
-    # --- Calculate historical monthly summary statistics (for Sales History Tab) ---
-    historical_monthly_summary_temp = defaultdict(lambda: {
-        'profit_loss': 0.0,
-        'sales_count': 0,
-        'single_cards_sold': 0,
-        'sealed_products_sold': 0
-    })
-
-    for sale_row in sales_history_raw: # Iterate over raw data with date objects
-        sale_dict = dict(sale_row) # Convert sqlite3.Row to dict
-        sale_date_obj = sale_dict.get('sale_date')
-
-        if isinstance(sale_date_obj, str): # If date is string, try to parse
-            try:
-                sale_date_obj = datetime.date.fromisoformat(sale_date_obj)
-            except ValueError:
-                print(f"Warning: Could not parse sale_date string '{sale_dict.get('sale_date')}' for historical summary.")
-                continue # Skip this sale if date is unparseable
-        
-        if not isinstance(sale_date_obj, datetime.date):
-            print(f"Warning: sale_date is not a date object for sale ID {sale_dict.get('id')}. Skipping for monthly summary.")
-            continue
-
-        year_month_key = (sale_date_obj.year, sale_date_obj.month)
-        
-        # Accumulate for historical monthly summary
-        profit_loss_val = sale_dict.get('profit_loss', 0.0)
-        quantity_sold_val = sale_dict.get('quantity_sold', 0)
-        item_type_val = sale_dict.get('item_type')
-
-        if profit_loss_val is not None:
-             historical_monthly_summary_temp[year_month_key]['profit_loss'] += float(profit_loss_val)
-        historical_monthly_summary_temp[year_month_key]['sales_count'] += 1
-        
-        if item_type_val == 'single_card' and quantity_sold_val is not None:
-            historical_monthly_summary_temp[year_month_key]['single_cards_sold'] += int(quantity_sold_val)
-        elif item_type_val == 'sealed_product' and quantity_sold_val is not None:
-            historical_monthly_summary_temp[year_month_key]['sealed_products_sold'] += int(quantity_sold_val)
-
-        # Accumulate for current month summary (Inventory Tab)
-        if sale_date_obj.month == current_month_val and sale_date_obj.year == current_year_val:
-            if profit_loss_val is not None:
-                current_month_profit_loss += float(profit_loss_val)
-            current_month_sales_count += 1
-            if item_type_val == 'single_card' and quantity_sold_val is not None:
-                current_month_single_cards_sold_quantity += int(quantity_sold_val)
-            elif item_type_val == 'sealed_product' and quantity_sold_val is not None:
-                current_month_sealed_sold_quantity += int(quantity_sold_val)
-
-    # Convert historical monthly defaultdict to a sorted list of dictionaries
-    historical_monthly_sales_summary = []
-    for (year, month), data in historical_monthly_summary_temp.items():
-        historical_monthly_sales_summary.append({
-            'year': year,
-            'month': month,
-            'month_name': datetime.date(year, month, 1).strftime('%B %Y'), # e.g., "May 2024"
-            'profit_loss': data['profit_loss'],
-            'sales_count': data['sales_count'],
-            'single_cards_sold': data['single_cards_sold'],
-            'sealed_products_sold': data['sealed_products_sold']
-        })
-    # Sort by year and month, most recent first
-    historical_monthly_sales_summary.sort(key=lambda x: (x['year'], x['month']), reverse=True)
-
-
+    # --- Process all inventory items (cards and sealed) into a single list ---
+    # This is the same processing as before to create `all_combined_inventory_items`
+    # This full list will be used for global summaries and for extracting unique filter options.
     processed_inventory_cards = []
     total_inventory_market_value_cards = 0
     total_buy_cost_of_inventory_cards = 0
@@ -202,14 +141,11 @@ def index():
             if item['buy_price'] > 0:
                 percentage_diff = ((current_market_price - item['buy_price']) / item['buy_price']) * 100
                 item['market_vs_buy_percentage_display'] = percentage_diff
-            elif item['buy_price'] == 0 and current_market_price > 0:
-                item['market_vs_buy_percentage_display'] = "Infinite"
-            elif item['buy_price'] == 0 and current_market_price == 0:
-                 item['market_vs_buy_percentage_display'] = 0.0
+            elif item['buy_price'] == 0 and current_market_price > 0: item['market_vs_buy_percentage_display'] = "Infinite"
+            elif item['buy_price'] == 0 and current_market_price == 0: item['market_vs_buy_percentage_display'] = 0.0
         item['potential_pl_at_asking_price_display'] = "N/A (No asking price)"
         if item.get('sell_price') is not None:
-            asking_value = item['quantity'] * item['sell_price']
-            potential_pl = asking_value - item['total_buy_cost']
+            potential_pl = (item['quantity'] * item['sell_price']) - item['total_buy_cost']
             item['potential_pl_at_asking_price_display'] = potential_pl
         processed_inventory_cards.append(item)
 
@@ -240,19 +176,168 @@ def index():
         item['market_vs_buy_percentage_display'] = "N/A (Manual Price)"
         item['potential_pl_at_asking_price_display'] = "N/A (No asking price)"
         if item.get('sell_price') is not None:
-            asking_value = item['quantity'] * item['sell_price']
-            potential_pl = asking_value - item['total_buy_cost']
+            potential_pl = (item['quantity'] * item['sell_price']) - item['total_buy_cost']
             item['potential_pl_at_asking_price_display'] = potential_pl
         processed_sealed_products.append(item)
+    
+    all_combined_inventory_items_unfiltered = processed_inventory_cards + processed_sealed_products
+    # --- End Process all inventory items ---
 
-    combined_inventory_items = processed_inventory_cards + processed_sealed_products
+    # --- Populate filter dropdown options from FULL unfiltered dataset ---
+    all_locations = sorted(list(set(item.get('location') for item in all_combined_inventory_items_unfiltered if item.get('location'))))
+    all_sets_identifiers = sorted(list(set(
+        (item.get('set_code') or item.get('set_name')) if item.get('type') == 'single_card' else item.get('set_name')
+        for item in all_combined_inventory_items_unfiltered if (item.get('set_code') or item.get('set_name'))
+    )))
+    all_rarities = sorted(list(set(item.get('rarity') for item in all_combined_inventory_items_unfiltered if item.get('type') == 'single_card' and item.get('rarity'))))
+    all_card_languages = sorted(list(set(item.get('language') for item in all_combined_inventory_items_unfiltered if item.get('type') == 'single_card' and item.get('language'))))
+    all_sealed_languages = sorted(list(set(item.get('language') for item in all_combined_inventory_items_unfiltered if item.get('type') == 'sealed_product' and item.get('language'))))
+    # --- End populating filter dropdown options ---
+
+    # --- Apply Filters to all_combined_inventory_items_unfiltered ---
+    filtered_inventory_items = all_combined_inventory_items_unfiltered
+    if query_filter_text:
+        filtered_inventory_items = [
+            item for item in filtered_inventory_items if
+            query_filter_text in str(item.get('display_name', '')).lower() or \
+            query_filter_text in str(item.get('set_code', '')).lower() or \
+            query_filter_text in str(item.get('set_name', '')).lower() or \
+            query_filter_text in str(item.get('location', '')).lower() or \
+            (item.get('type') == 'single_card' and query_filter_text in str(item.get('collector_number', '')).lower()) or \
+            (item.get('type') == 'single_card' and query_filter_text in str(item.get('rarity', '')).lower()) or \
+            query_filter_text in str(item.get('language', '')).lower() or \
+            (item.get('type') == 'sealed_product' and query_filter_text in str(item.get('product_type', '')).lower())
+        ]
+
+    if query_filter_type != 'all':
+        filtered_inventory_items = [item for item in filtered_inventory_items if item.get('type') == query_filter_type]
+    if query_filter_location != 'all':
+        filtered_inventory_items = [item for item in filtered_inventory_items if item.get('location') == query_filter_location]
+    if query_filter_set != 'all':
+        filtered_inventory_items = [
+            item for item in filtered_inventory_items if
+            (item.get('type') == 'single_card' and (str(item.get('set_code','')) == query_filter_set or str(item.get('set_name','')) == query_filter_set)) or \
+            (item.get('type') == 'sealed_product' and str(item.get('set_name','')) == query_filter_set)
+        ]
+    
+    # Card-specific filters (apply only if type is card or all)
+    if query_filter_type == 'all' or query_filter_type == 'single_card':
+        temp_filtered_cards = []
+        for item in filtered_inventory_items:
+            if item.get('type') == 'single_card':
+                keep = True
+                if query_filter_foil != 'all' and item.get('is_foil') != (query_filter_foil == 'yes'):
+                    keep = False
+                if query_filter_rarity != 'all' and item.get('rarity') != query_filter_rarity:
+                    keep = False
+                if query_filter_card_lang != 'all' and item.get('language') != query_filter_card_lang:
+                    keep = False
+                if keep:
+                    temp_filtered_cards.append(item)
+            elif query_filter_type == 'all': # Keep non-card items if filter_type is 'all'
+                temp_filtered_cards.append(item)
+        filtered_inventory_items = temp_filtered_cards
+        
+    # Sealed-specific filters (apply only if type is sealed or all)
+    if query_filter_type == 'all' or query_filter_type == 'sealed_product':
+        temp_filtered_sealed = []
+        for item in filtered_inventory_items:
+            if item.get('type') == 'sealed_product':
+                keep = True
+                if query_filter_collector != 'all' and item.get('is_collectors_item') != (query_filter_collector == 'yes'):
+                    keep = False
+                if query_filter_sealed_lang != 'all' and item.get('language') != query_filter_sealed_lang:
+                    keep = False
+                if keep:
+                    temp_filtered_sealed.append(item)
+            elif query_filter_type == 'all': # Keep non-sealed items if filter_type is 'all'
+                temp_filtered_sealed.append(item)
+        filtered_inventory_items = temp_filtered_sealed
+    # --- End Apply Filters ---
+
+    # --- Apply Sorting to filtered_inventory_items ---
+    def get_sort_value(item, key):
+        if key == 'set_name_sort':
+            val_str = (str(item.get('set_code','')) or str(item.get('set_name', ''))) if item.get('type') == 'single_card' else str(item.get('set_name', ''))
+            return val_str.lower()
+        
+        val = item.get(key)
+        if isinstance(val, bool): return int(val) # Sort booleans as 0/1
+        if isinstance(val, (int, float)): return val if val is not None else -float('inf') # Handle None for numbers
+        return str(val if val is not None else '').lower() # Default to string lower
+
+    reverse_sort = query_sort_direction == 'desc'
+    try:
+        filtered_inventory_items.sort(key=lambda item: (get_sort_value(item, query_sort_key), get_sort_value(item, 'display_name')), reverse=reverse_sort)
+    except TypeError as e:
+        print(f"Sorting TypeError for key '{query_sort_key}': {e}. Falling back to display_name sort.")
+        filtered_inventory_items.sort(key=lambda item: get_sort_value(item, 'display_name'), reverse=reverse_sort)
+    # --- End Apply Sorting ---
+
+    # --- Pagination Logic (applied to filtered_and_sorted_inventory_items) ---
+    total_filtered_item_count = len(filtered_inventory_items)
+    total_pages = (total_filtered_item_count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE if total_filtered_item_count > 0 else 1
+    page = max(1, min(page, total_pages)) 
+    offset = (page - 1) * ITEMS_PER_PAGE
+    paginated_inventory_items_for_display = filtered_inventory_items[offset : offset + ITEMS_PER_PAGE]
+    # --- End Pagination Logic ---
+
+    inventory_items_json = json.dumps(paginated_inventory_items_for_display)
+    
+    # --- Financial Summaries (calculated on full UNFILTERED data) ---
     total_buy_cost_of_inventory = total_buy_cost_of_inventory_cards + total_buy_cost_of_inventory_sealed
     total_inventory_market_value = total_inventory_market_value_cards + total_inventory_market_value_sealed
-    overall_realized_pl = sum(float(s.get('profit_loss', 0.0)) for s in sales_history_data_for_json if s.get('profit_loss') is not None) # Use data_for_json here
+    num_unique_card_inventory_entries = len(processed_inventory_cards) 
+    # --- End Financial Summaries ---
 
+    # --- Sales History and related summaries (no change in their calculation logic) ---
+    sales_history_data_for_json = []
+    for raw_sale_row in sales_history_raw:
+        # ... (existing processing) ...
+        sale_item = dict(raw_sale_row)
+        for key_s, value_s in sale_item.items(): # Renamed to avoid conflict
+            if isinstance(value_s, datetime.datetime): sale_item[key_s] = value_s.isoformat()
+            elif isinstance(value_s, datetime.date): sale_item[key_s] = value_s.isoformat()
+        sales_history_data_for_json.append(sale_item)
+
+    current_month_sales_count = 0; current_month_sealed_sold_quantity = 0
+    current_month_single_cards_sold_quantity = 0; current_month_profit_loss = 0.0
+    today_date_obj = datetime.date.today(); current_month_val = today_date_obj.month; current_year_val = today_date_obj.year
+    historical_monthly_summary_temp = defaultdict(lambda: {'profit_loss': 0.0, 'sales_count': 0, 'single_cards_sold': 0, 'sealed_products_sold': 0})
+    for sale_row in sales_history_raw:
+        # ... (existing processing) ...
+        sale_dict = dict(sale_row)
+        sale_date_obj = sale_dict.get('sale_date')
+        if isinstance(sale_date_obj, str):
+            try: sale_date_obj = datetime.date.fromisoformat(sale_date_obj)
+            except ValueError: continue
+        if not isinstance(sale_date_obj, datetime.date): continue
+        year_month_key = (sale_date_obj.year, sale_date_obj.month)
+        profit_loss_val = sale_dict.get('profit_loss', 0.0)
+        quantity_sold_val = sale_dict.get('quantity_sold', 0)
+        item_type_val = sale_dict.get('item_type')
+        if profit_loss_val is not None: historical_monthly_summary_temp[year_month_key]['profit_loss'] += float(profit_loss_val)
+        historical_monthly_summary_temp[year_month_key]['sales_count'] += 1
+        if item_type_val == 'single_card' and quantity_sold_val is not None: historical_monthly_summary_temp[year_month_key]['single_cards_sold'] += int(quantity_sold_val)
+        elif item_type_val == 'sealed_product' and quantity_sold_val is not None: historical_monthly_summary_temp[year_month_key]['sealed_products_sold'] += int(quantity_sold_val)
+        if sale_date_obj.month == current_month_val and sale_date_obj.year == current_year_val:
+            if profit_loss_val is not None: current_month_profit_loss += float(profit_loss_val)
+            current_month_sales_count += 1
+            if item_type_val == 'single_card' and quantity_sold_val is not None: current_month_single_cards_sold_quantity += int(quantity_sold_val)
+            elif item_type_val == 'sealed_product' and quantity_sold_val is not None: current_month_sealed_sold_quantity += int(quantity_sold_val)
+    historical_monthly_sales_summary = []
+    for (year, month), data in historical_monthly_summary_temp.items():
+        historical_monthly_sales_summary.append({'year': year, 'month': month, 'month_name': datetime.date(year, month, 1).strftime('%B %Y'), **data})
+    historical_monthly_sales_summary.sort(key=lambda x: (x['year'], x['month']), reverse=True)
+    overall_realized_pl = sum(float(s.get('profit_loss', 0.0)) for s in sales_history_data_for_json if s.get('profit_loss') is not None)
+    sales_history_json = json.dumps(sales_history_data_for_json)
+    # --- End Sales History ---
+
+    # --- Sale Inventory Options (uses full unfiltered, but sorted list) ---
     sale_inventory_options = []
-    temp_sorted_for_sale_options = sorted(combined_inventory_items, key=lambda x: x.get('display_name', '').lower())
+    temp_sorted_for_sale_options = sorted(all_combined_inventory_items_unfiltered, key=lambda x: x.get('display_name', '').lower())
     for item in temp_sorted_for_sale_options:
+        # ... (existing processing for sale_inventory_options) ...
         display_text = "";
         if item['type'] == 'single_card':
             rarity_display = item.get('rarity','N/A') if item.get('rarity') else 'N/A'
@@ -264,10 +349,8 @@ def index():
             buy_price_formatted = format_currency_with_commas(item.get('buy_price'))
             display_text = f"{item['display_name']} ({item.get('set_name','N/A')} / {item.get('product_type','N/A')}){' (Collector)' if item.get('is_collectors_item') else ''} (L: {language_display.upper()}, BP: {buy_price_formatted}) - Qty: {item['quantity']} - Loc: {item.get('location', 'N/A')}"
         sale_inventory_options.append({"id": f"{item['type']}-{item['original_id']}", "display": display_text, "type": item['type']})
-
-    inventory_items_json = json.dumps(combined_inventory_items)
-    sales_history_json = json.dumps(sales_history_data_for_json) 
     sale_inventory_options_json = json.dumps(sale_inventory_options)
+    # --- End Sale Inventory Options ---
 
     return render_template('index.html',
                            inventory_items_json=inventory_items_json,
@@ -276,18 +359,39 @@ def index():
                            total_inventory_market_value=total_inventory_market_value,
                            total_buy_cost_of_inventory=total_buy_cost_of_inventory,
                            overall_realized_pl=overall_realized_pl,
-                           # Current month stats for Inventory Tab
+                           num_unique_card_inventory_entries=num_unique_card_inventory_entries,
                            current_month_sales_count=current_month_sales_count,
                            current_month_sealed_sold_quantity=current_month_sealed_sold_quantity,
                            current_month_single_cards_sold_quantity=current_month_single_cards_sold_quantity,
                            current_month_profit_loss=current_month_profit_loss,
-                           current_month_name=today_date_obj.strftime("%B"), 
-                           # Historical monthly summary for Sales History Tab
+                           current_month_name=today_date_obj.strftime("%B"),
                            historical_monthly_sales_summary=historical_monthly_sales_summary,
                            active_tab=active_tab,
                            current_date=datetime.date.today().isoformat(),
                            suggested_buy_price=suggested_buy_price,
-                           from_pack_details=from_pack_details)
+                           from_pack_details=from_pack_details,
+                           current_page=page, 
+                           total_pages=total_pages,
+                           # Pass filter values back to template
+                           filter_text=query_filter_text,
+                           filter_type=query_filter_type,
+                           filter_location=query_filter_location,
+                           filter_set=query_filter_set,
+                           filter_foil=query_filter_foil,
+                           filter_rarity=query_filter_rarity,
+                           filter_card_lang=query_filter_card_lang,
+                           filter_collector=query_filter_collector,
+                           filter_sealed_lang=query_filter_sealed_lang,
+                           sort_key=query_sort_key,
+                           sort_dir=query_sort_direction,
+                           # Pass lists for populating dropdowns
+                           all_locations=all_locations,
+                           all_sets_identifiers=all_sets_identifiers,
+                           all_rarities=all_rarities,
+                           all_card_languages=all_card_languages,
+                           all_sealed_languages=all_sealed_languages
+                           )
+
 
 @app.route('/initiate_open_sealed/<int:product_id>', methods=['POST'])
 def initiate_open_sealed_route(product_id):
@@ -636,10 +740,21 @@ def import_csv_route():
                 flash(msg, 'error'); print(f"CSV Import Error: {msg}")
                 return redirect(url_for('index', tab='importCsvTab'))
 
+            # Define variant patterns for parsing from card name
+            variant_patterns = {
+                "borderless": r"\s\(borderless\)",
+                "extendedart": r"\s\(extended art\)",
+                "showcase": r"\s\(showcase\)",
+                "retro": r"\s\(retro frame\)",
+                "innocent traveler": r"\s-\sinnocent traveler", # For specific DFC like "Lucy Westenra - Innocent Traveler"
+                "olivia, crimson bride": r"\s-\solivia, crimson bride" # For specific DFC like "Sisters of the Undead - Olivia, Crimson Bride"
+            }
+
             for row_num, row_raw in enumerate(csv_reader, start=1):
                 row = {k: v.strip() if isinstance(v, str) else v for k, v in row_raw.items()}
                 print(f"\n--- Processing CSV Row {row_num} ---"); print(f"Raw row data: {row}")
-                card_name = row.get(expected_headers['name'].lower())
+                
+                card_name_from_csv = row.get(expected_headers['name'].lower())
                 set_code_from_csv = row.get(expected_headers['set_code_csv'].lower())
                 collector_number_from_csv = row.get(expected_headers['collector_number_csv'].lower())
                 quantity_str = row.get(expected_headers['quantity'].lower())
@@ -649,9 +764,26 @@ def import_csv_route():
                 language_from_csv = row.get(expected_headers['language_csv'].lower(), default_language_csv).lower()
                 current_row_buy_price = default_buy_price
 
-                print(f"Extracted - Name: '{card_name}', SetCode: '{set_code_from_csv}', SetName: '{set_name_from_csv}', CN: '{collector_number_from_csv}', Qty: '{quantity_str}', Printing: '{printing_csv}', Rarity: '{rarity_from_csv}', Lang: '{language_from_csv}', BuyPrice: {current_row_buy_price}")
-                if not all([card_name, (set_code_from_csv or set_name_from_csv), collector_number_from_csv, quantity_str]):
-                    err_msg = f"Row {row_num}: Missing essential data. Skipping."; errors_list.append(err_msg); print(err_msg); skipped_count += 1; continue
+                parsed_variant_info = None
+                scryfall_lookup_name = card_name_from_csv
+
+                if scryfall_lookup_name:
+                    for variant_key, pattern in variant_patterns.items():
+                        match = re.search(pattern, scryfall_lookup_name, re.IGNORECASE)
+                        if match:
+                            parsed_variant_info = variant_key
+                            # For DFCs where the variant is part of a secondary name, we might not want to strip it entirely
+                            # or ensure Scryfall can find the base name.
+                            # For now, this simple strip is okay for frame effects.
+                            if not ("innocent traveler" in variant_key or "olivia, crimson bride" in variant_key) : # Avoid stripping essential name parts for specific DFCs
+                                scryfall_lookup_name = re.sub(pattern, "", scryfall_lookup_name, flags=re.IGNORECASE).strip()
+                            print(f"Parsed variant: '{parsed_variant_info}' from '{card_name_from_csv}', using name for lookup: '{scryfall_lookup_name}'")
+                            break
+                
+                print(f"Extracted - Name: '{card_name_from_csv}' (Lookup Name: '{scryfall_lookup_name}'), SetCode: '{set_code_from_csv}', SetName: '{set_name_from_csv}', CN: '{collector_number_from_csv}', Qty: '{quantity_str}', Printing: '{printing_csv}', Rarity: '{rarity_from_csv}', Lang: '{language_from_csv}', Variant: '{parsed_variant_info}', BuyPrice: {current_row_buy_price}")
+
+                if not all([scryfall_lookup_name, (set_code_from_csv or set_name_from_csv), collector_number_from_csv, quantity_str]):
+                    err_msg = f"Row {row_num}: Missing essential data (Name, Set/SetCode, CN, Qty). Skipping."; errors_list.append(err_msg); print(err_msg); skipped_count += 1; continue
                 try:
                     quantity = int(quantity_str)
                     if quantity <= 0: err_msg = f"Row {row_num}: Invalid quantity '{quantity_str}'. Skipping."; errors_list.append(err_msg); print(err_msg); skipped_count +=1; continue
@@ -660,17 +792,34 @@ def import_csv_route():
                 is_foil = False;
                 if not assume_non_foil and 'foil' in printing_csv: is_foil = True
                 print(f"Determined is_foil: {is_foil}")
-                card_details = None; lang_for_scryfall_lookup = language_from_csv if language_from_csv and language_from_csv != "" and language_from_csv != default_language_csv else None
-                print(f"Attempting Scryfall lookup for: Name='{card_name}', SetCode='{set_code_from_csv}', CN='{collector_number_from_csv}', Lang='{lang_for_scryfall_lookup}'")
+                
+                card_details = None; 
+                lang_for_scryfall_lookup = language_from_csv if language_from_csv and language_from_csv != "" and language_from_csv != default_language_csv else None
+                
+                # Scryfall Lookup attempts (passing cleaned name and variant info)
+                if set_code_from_csv and collector_number_from_csv:
+                    print(f"Attempt Scryfall (Set+CN): Name='{scryfall_lookup_name}', Set='{set_code_from_csv}', CN='{collector_number_from_csv}', Variant='{parsed_variant_info}'")
+                    card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
 
-                if set_code_from_csv and set_code_from_csv.upper() == "LIST": card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
-                if not card_details and set_code_from_csv : card_details = scryfall.get_card_details(card_name=card_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
-                if not card_details and set_name_from_csv: card_details = scryfall.get_card_details(card_name=card_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup) 
-                if not card_details: card_details = scryfall.get_card_details(card_name=card_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup)
+                if not card_details and scryfall_lookup_name and set_code_from_csv:
+                    print(f"Attempt Scryfall (Name+Set): Name='{scryfall_lookup_name}', Set='{set_code_from_csv}', CN='{collector_number_from_csv}', Variant='{parsed_variant_info}'")
+                    card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
+                
+                if not card_details and scryfall_lookup_name and set_name_from_csv:
+                    print(f"Attempt Scryfall (Name+SetName): Name='{scryfall_lookup_name}', SetName='{set_name_from_csv}', CN='{collector_number_from_csv}', Variant='{parsed_variant_info}'")
+                    card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
+
+                if not card_details and scryfall_lookup_name and collector_number_from_csv:
+                    print(f"Attempt Scryfall (Name+CN): Name='{scryfall_lookup_name}', CN='{collector_number_from_csv}', Variant='{parsed_variant_info}'")
+                    card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
+
+                if not card_details and scryfall_lookup_name: # Last resort
+                    print(f"Attempt Scryfall (Name Only): Name='{scryfall_lookup_name}', Variant='{parsed_variant_info}'")
+                    card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
 
 
                 if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
-                    print(f"Scryfall success for '{card_name}': Set='{card_details['set_code']}', CN='{card_details['collector_number']}', Rarity='{card_details.get('rarity')}', Lang='{card_details.get('language')}'")
+                    print(f"Scryfall success for '{card_name_from_csv}': API Name='{card_details['name']}', Set='{card_details['set_code']}', CN='{card_details['collector_number']}', Rarity='{card_details.get('rarity')}', Lang='{card_details.get('language')}'")
                     final_set_code = card_details['set_code']; final_collector_number = card_details['collector_number']; scryfall_uuid = card_details.get('id')
                     final_rarity = card_details.get('rarity', rarity_from_csv if rarity_from_csv else 'unknown').lower()
                     final_language = card_details.get('language', language_from_csv if language_from_csv else default_language_csv).lower()
@@ -682,7 +831,7 @@ def import_csv_route():
                     if card_id: print(f"DB Success: Card '{card_details['name']}' (ID: {card_id}) added/updated."); imported_count += 1
                     else: err_msg = f"Row {row_num}: Failed to add/update '{card_details['name']}' (R: {final_rarity.capitalize()}, L: {final_language.upper()}, BP: {current_row_buy_price}) in DB."; errors_list.append(err_msg); print(err_msg); failed_count += 1
                 else:
-                    err_msg = f"Row {row_num}: Scryfall lookup failed for '{card_name}'. Skipping."; errors_list.append(err_msg); print(err_msg); failed_count += 1
+                    err_msg = f"Row {row_num}: Scryfall lookup failed for '{card_name_from_csv}'. Skipping."; errors_list.append(err_msg); print(err_msg); failed_count += 1
             summary_message = f"CSV Import Finished: {imported_count} processed."; print(f"\n--- CSV Import Summary ---"); print(summary_message)
             if failed_count > 0: summary_message += f" {failed_count} failed."
             if skipped_count > 0: summary_message += f" {skipped_count} skipped."

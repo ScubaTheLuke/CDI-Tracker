@@ -481,3 +481,11 @@ table td span.profit {
 .profit, .loss {
     font-weight: bold;
 }
+/* In your style.css */
+.tab-content > .tab-pane {
+    display: none; /* Hide inactive tab panes */
+}
+.tab-content > .tab-pane.active, 
+.tab-content > .tab-pane.active.show { /* Handle .show if used for transitions */
+    display: block; /* Show the active tab pane */
+}
