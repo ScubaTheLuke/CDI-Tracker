@@ -5,14 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Confirm Product Opening - CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Minor page-specific styling can go here or be moved to style.css */
+        .confirm-container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 25px;
+            background-color: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        .confirm-container h1 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+        }
+        .confirm-container p {
+            color: var(--text-secondary);
+            line-height: 1.6;
+            margin-bottom: 15px;
+        }
+        .confirm-container ul {
+            list-style-type: disc;
+            margin-left: 20px;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+        }
+        .confirm-container ul li strong {
+            color: var(--mtg-gold-accent);
+        }
+        .confirm-container .form-actions {
+            margin-top: 25px;
+            display: flex;
+            gap: 10px; /* For spacing between buttons */
+        }
+        /* Ensure the form doesn't add extra borders if card-form is used elsewhere with them */
+        .confirm-container .card-form {
+            border: none;
+            box-shadow: none;
+            padding: 0;
+        }
+    </style>
 </head>
 <body>
-    <div class="container" style="max-width: 600px; margin: 40px auto; padding: 20px; background-color: var(--bg-secondary); border-radius: 8px; border: 1px solid var(--border-color);">
+    <div class="confirm-container">
         <h1>Confirm Product Opening</h1>
 
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <ul class="flashes">
+                <ul class="flashes" style="padding-left: 0; list-style-type: none;">
                 {% for category, message in messages %}
                     <li class="{{ category }}">{{ message }}</li>
                 {% endfor %}
@@ -20,28 +61,29 @@
             {% endif %}
         {% endwith %}
 
-        <p style="color: var(--text-secondary);">You are about to process the opening of:</p>
-        <ul style="list-style-type: disc; margin-left: 20px; color: var(--text-primary);">
+        <p>You are about to process the opening of the following sealed product(s):</p>
+        <ul>
             <li><strong>Product:</strong> {{ product_name }}</li>
-            <li><strong>Quantity Opened:</strong> {{ quantity_opened }}</li>
-            <li><strong>Total Cost of Opened Item(s):</strong> {{ total_cost_opened | currency_commas }}</li>
+            <li><strong>Quantity Being Opened:</strong> {{ quantity_opened }}</li>
+            <li><strong>Total Original Cost of Opened Item(s):</strong> {{ total_cost_opened | currency_commas }}</li>
         </ul>
 
-        <form action="{{ url_for('finalize_open_sealed_route') }}" method="post" class="card-form" style="border: none; box-shadow: none; padding:0; margin-top:20px;">
+        <form action="{{ url_for('finalize_open_sealed_route') }}" method="post" class="card-form">
+            {# These hidden fields pass necessary data to the next step #}
             <input type="hidden" name="product_id" value="{{ product_id }}">
             <input type="hidden" name="quantity_opened" value="{{ quantity_opened }}">
             <input type="hidden" name="total_cost_opened" value="{{ total_cost_opened }}">
             <input type="hidden" name="product_name" value="{{ product_name }}">
 
             <div>
-                <label for="num_singles_to_add">How many individual cards (singles) from these opened items will you be adding to your inventory?</label>
-                <input type="number" id="num_singles_to_add" name="num_singles_to_add" min="1" required style="margin-top:5px; margin-bottom: 5px;">
-                <p style="font-size:0.9em; color: var(--text-secondary);">This will be used to calculate a suggested average buy price for each single.</p>
+                <label for="num_singles_to_add">How many individual cards (singles) obtained from these opened items will you be adding to your inventory?</label>
+                <input type="number" id="num_singles_to_add" name="num_singles_to_add" min="1" required class="form-input" style="margin-top:8px; margin-bottom: 8px; width: 100%; padding: 10px;">
+                <p style="font-size:0.9em; color: var(--text-secondary);">This number will be used to calculate a suggested average buy price for each single card added.</p>
             </div>
 
-            <div style="margin-top: 20px;">
-                <button type="submit">Calculate Average Cost & Proceed to Add Singles</button>
-                <a href="{{ url_for('index', tab='inventoryTab') }}" class="button delete-button" style="margin-left: 10px; text-decoration:none; display: inline-block; padding: 10px 18px;">Cancel</a>
+            <div class="form-actions">
+                <button type="submit" class="button">Calculate Average Cost & Proceed to Add Singles</button>
+                <a href="{{ url_for('index', tab='inventoryTab') }}" class="button delete-button" style="text-decoration:none;">Cancel & Return to Inventory</a>
             </div>
         </form>
     </div>
