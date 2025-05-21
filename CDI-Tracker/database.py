@@ -1,17 +1,19 @@
 import sqlite3
 import datetime
+# No 'import sys' needed at the top level for the fix
 
 DATABASE_NAME = 'cdi_tracker.db'
 
 def get_db_connection():
     conn = sqlite3.connect(DATABASE_NAME, detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA busy_timeout = 5000") 
     return conn
 
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
-
+    cursor.execute("DROP TABLE IF EXISTS sales") 
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,7 +36,6 @@ def init_db():
             UNIQUE(set_code, collector_number, is_foil, location, rarity, language, buy_price)
         )
     ''')
-
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sealed_products (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -54,37 +55,36 @@ def init_db():
             UNIQUE(product_name, set_name, product_type, language, location, is_collectors_item, buy_price)
         )
     ''')
-
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sales (
+        CREATE TABLE IF NOT EXISTS sale_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            inventory_item_id INTEGER,
-            item_type TEXT NOT NULL,
+            sale_date DATE NOT NULL,
+            total_shipping_cost REAL DEFAULT 0.0,
+            notes TEXT,
+            total_profit_loss REAL, 
+            date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sale_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            sale_event_id INTEGER NOT NULL,
+            inventory_item_id INTEGER, 
+            item_type TEXT NOT NULL, 
             original_item_name TEXT,
             original_item_details TEXT,
             quantity_sold INTEGER NOT NULL,
             sell_price_per_item REAL NOT NULL,
             buy_price_per_item REAL NOT NULL,
-            shipping_cost REAL DEFAULT 0.0,
-            profit_loss REAL NOT NULL,
-            sale_date DATE NOT NULL,
-            notes TEXT,
-            date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            item_profit_loss REAL NOT NULL, 
+            FOREIGN KEY (sale_event_id) REFERENCES sale_events (id)
         )
     ''')
-
     _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'rarity', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
     _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
-    _check_and_add_column(cursor, 'sales', 'item_type', 'TEXT')
-    _check_and_add_column(cursor, 'sales', 'inventory_item_id', 'INTEGER')
-    _check_and_add_column(cursor, 'sales', 'original_item_name', 'TEXT')
-    _check_and_add_column(cursor, 'sales', 'original_item_details', 'TEXT')
-    _check_and_add_column(cursor, 'sales', 'notes', 'TEXT')
-    _check_and_add_column(cursor, 'sales', 'shipping_cost', 'REAL DEFAULT 0.0')
-
     conn.commit()
     conn.close()
 
@@ -99,122 +99,81 @@ def _check_and_add_column(cursor, table_name, column_name, column_type_with_defa
         print(f"Error checking/adding column '{column_name}' to '{table_name}': {e}")
 
 def get_item_by_id(item_type, item_id):
-    if item_type == 'single_card': return get_card_by_id(item_id)
-    elif item_type == 'sealed_product': return get_sealed_product_by_id(item_id)
-    return None
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    item = None
+    if item_type == 'single_card':
+        cursor.execute("SELECT * FROM cards WHERE id = ?", (item_id,))
+        item = cursor.fetchone()
+    elif item_type == 'sealed_product':
+        cursor.execute("SELECT * FROM sealed_products WHERE id = ?", (item_id,))
+        item = cursor.fetchone()
+    conn.close()
+    return item
 
-def add_card(set_code, collector_number, name, quantity, buy_price, is_foil,
-             market_price_usd, foil_market_price_usd, image_uri, sell_price, location,
-             scryfall_id, rarity, language):
+def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id, rarity, language):
     conn = get_db_connection()
     cursor = conn.cursor()
     timestamp = datetime.datetime.now()
     is_foil_int = 1 if is_foil else 0
-    try:
+    try: 
         current_buy_price = float(buy_price)
-    except (ValueError, TypeError):
-        print(f"DB Error: Invalid buy_price format '{buy_price}' for card '{name}'. Cannot process.")
+    except (ValueError, TypeError): 
+        print(f"DB Error: Invalid buy_price format '{buy_price}' for card '{name}'.")
         conn.close()
-        return None
-
+        return None 
     try:
-        cursor.execute('''SELECT id, quantity FROM cards
-                          WHERE set_code = ? AND collector_number = ? AND is_foil = ? AND location = ?
-                          AND rarity = ? AND language = ? AND buy_price = ?''',
-                       (set_code, collector_number, is_foil_int, location, rarity, language, current_buy_price))
-        existing_card_with_same_buy_price = cursor.fetchone()
-
-        if existing_card_with_same_buy_price:
-            card_id = existing_card_with_same_buy_price['id']
-            new_quantity = existing_card_with_same_buy_price['quantity'] + quantity
-            cursor.execute('''UPDATE cards
-                              SET quantity = ?, market_price_usd = ?, foil_market_price_usd = ?,
-                                  image_uri = ?, sell_price = ?, last_updated = ?, name = ?, scryfall_id = ?
-                              WHERE id = ?''', 
-                           (new_quantity, market_price_usd, foil_market_price_usd,
-                            image_uri, sell_price, timestamp, name, scryfall_id, card_id))
+        cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = ? AND collector_number = ? AND is_foil = ? AND location = ? AND rarity = ? AND language = ? AND buy_price = ?''', (set_code, collector_number, is_foil_int, location, rarity, language, current_buy_price))
+        existing = cursor.fetchone()
+        if existing: 
+            card_id, new_qty = existing['id'], existing['quantity'] + quantity
+            cursor.execute('''UPDATE cards SET quantity = ?, market_price_usd = ?, foil_market_price_usd = ?, image_uri = ?, sell_price = ?, last_updated = ?, name = ?, scryfall_id = ? WHERE id = ?''', (new_qty, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, name, scryfall_id, card_id))
             conn.commit()
-            print(f"DB: Updated quantity for existing card ID {card_id} ('{name}', Buy: ${current_buy_price:.2f}) at '{location}' to {new_quantity}.")
             return card_id
-        else:
-            cursor.execute('''INSERT INTO cards
-                              (set_code, collector_number, name, quantity, buy_price, is_foil,
-                               market_price_usd, foil_market_price_usd, image_uri, sell_price, location,
-                               date_added, last_updated, scryfall_id, rarity, language)
-                              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                           (set_code, collector_number, name, quantity, current_buy_price, is_foil_int,
-                            market_price_usd, foil_market_price_usd, image_uri, sell_price, location,
-                            timestamp, timestamp, scryfall_id, rarity, language))
+        else: 
+            cursor.execute('''INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id, rarity, language) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (set_code, collector_number, name, quantity, current_buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id, rarity, language))
             conn.commit()
-            new_card_id = cursor.lastrowid
-            print(f"DB: Inserted new card ID {new_card_id} ('{name}', Buy: ${current_buy_price:.2f}) at '{location}'.")
-            return new_card_id
+            return cursor.lastrowid
     except sqlite3.IntegrityError as ie:
-        print(f"DB IntegrityError in add_card for {name} ({set_code}-{collector_number}, Buy: ${current_buy_price:.2f}) at '{location}': {ie}")
+        print(f"DB IntegrityError in add_card for {name}: {ie}")
         conn.rollback()
         return None
-    except sqlite3.Error as e:
-        print(f"DB error in add_card for {name} ({set_code}-{collector_number}, Buy: ${current_buy_price:.2f}) at '{location}': {e}")
+    except sqlite3.Error as e: 
+        print(f"DB error add_card for {name}: {e}")
         conn.rollback()
         return None
-    finally:
-        if conn: conn.close()
+    finally: 
+        conn.close()
 
-def get_all_cards():
-    conn = get_db_connection(); cursor = conn.cursor()
-    cursor.execute("SELECT * FROM cards WHERE quantity > 0 ORDER BY name, set_code, collector_number, location, buy_price, rarity, language")
-    cards = cursor.fetchall(); conn.close(); return cards
+def get_all_cards(): 
+    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("SELECT * FROM cards WHERE quantity > 0 ORDER BY name, set_code, collector_number, location, buy_price, rarity, language"); cards = cursor.fetchall(); conn.close(); return cards
 
-def get_card_by_id(card_id):
-    conn = get_db_connection(); cursor = conn.cursor()
-    cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,)); card = cursor.fetchone(); conn.close(); return card
+def get_card_by_id(card_id): 
+    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("SELECT * FROM cards WHERE id = ?", (card_id,)); card = cursor.fetchone(); conn.close(); return card
 
-def update_card_quantity(card_id, quantity_change):
-    conn = get_db_connection(); cursor = conn.cursor()
-    try:
-        cursor.execute("SELECT quantity FROM cards WHERE id = ?", (card_id,)); result = cursor.fetchone()
-        if not result: return False, "Card not found."
-        current_quantity = result['quantity']; new_quantity = current_quantity + quantity_change
-        if new_quantity < 0: return False, "Not enough quantity."
-        cursor.execute("UPDATE cards SET quantity = ?, last_updated = ? WHERE id = ?", (new_quantity, datetime.datetime.now(), card_id)); conn.commit()
-        return True, "Quantity updated."
-    except sqlite3.Error as e: print(f"Error update_card_quantity ID {card_id}: {e}"); return False, f"DB error: {e}"
-    finally:
-         if conn and not getattr(conn, 'closed', True): conn.close()
+def delete_card(card_id): 
+    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("DELETE FROM cards WHERE id = ?", (card_id,)); conn.commit(); deleted = cursor.rowcount > 0; conn.close(); return deleted
 
-def delete_card(card_id):
-    conn = get_db_connection(); cursor = conn.cursor()
-    try: cursor.execute("DELETE FROM cards WHERE id = ?", (card_id,)); conn.commit(); return cursor.rowcount > 0
-    except sqlite3.Error as e: print(f"Error deleting card ID {card_id}: {e}"); return False
-    finally: conn.close()
-
-def update_card_prices_and_image(card_id, market_price_usd, foil_market_price_usd, image_uri):
-    conn = get_db_connection(); cursor = conn.cursor()
-    try: cursor.execute(''' UPDATE cards SET market_price_usd = ?, foil_market_price_usd = ?, image_uri = ?, last_updated = ? WHERE id = ? ''', (market_price_usd, foil_market_price_usd, image_uri, datetime.datetime.now(), card_id)); conn.commit(); return cursor.rowcount > 0
-    except sqlite3.Error as e: print(f"Error updating market data card ID {card_id}: {e}"); return False
-    finally: conn.close()
+def update_card_prices_and_image(card_id, market_price_usd, foil_market_price_usd, image_uri): 
+    conn = get_db_connection(); cursor = conn.cursor(); cursor.execute(''' UPDATE cards SET market_price_usd = ?, foil_market_price_usd = ?, image_uri = ?, last_updated = ? WHERE id = ? ''', (market_price_usd, foil_market_price_usd, image_uri, datetime.datetime.now(), card_id)); conn.commit(); updated = cursor.rowcount > 0; conn.close(); return updated
 
 def update_card_fields(card_id, data_to_update):
-    conn = get_db_connection(); cursor = conn.cursor()
+    conn = get_db_connection()
+    cursor = conn.cursor()
     allowed_fields = {'quantity', 'buy_price', 'sell_price', 'location'}
-    fields_to_update_sql = []; values_for_sql = [];
+    fields_to_update_sql = []
+    values_for_sql = []
 
-    if not data_to_update: # Should be caught by app.py
+    if not data_to_update:
         conn.close()
-        return False, "No changes were submitted to update_card_fields."
+        return False, "No changes were submitted."
 
     for key, value_from_app in data_to_update.items():
         if key not in allowed_fields:
             print(f"DB Warning: Field '{key}' is not allowed for update in update_card_fields. Skipping.")
             continue
         
-        sql_value = value_from_app # Assumes app.py sent correct type (int, float, str, or None for sell_price)
-
-        # sell_price can be None if cleared
-        if key == 'sell_price' and value_from_app is None:
-            sql_value = None 
-        # For other fields, app.py should ensure they are not None if they are required (like location, quantity, buy_price)
-        
+        sql_value = value_from_app 
         fields_to_update_sql.append(f"{key} = ?")
         values_for_sql.append(sql_value)
 
@@ -230,155 +189,78 @@ def update_card_fields(card_id, data_to_update):
 
     sql = f"UPDATE cards SET {sql_set_clause} WHERE id = ?"
     try:
-        cursor.execute(sql, final_sql_values); conn.commit(); updated_rows = cursor.rowcount
-        if updated_rows == 0: return False, "Card not found or no data changed."
-        return True, "Card updated."
+        cursor.execute(sql, final_sql_values)
+        conn.commit()
+        updated_rows = cursor.rowcount
+        if updated_rows == 0:
+            return False, "Card not found or no data changed that would result in an update."
+        return True, "Card updated successfully."
     except sqlite3.IntegrityError as e:
-        print(f"Integrity error update card {card_id}: {e}. This might happen if changing buy_price creates a duplicate entry based on the unique key (set,cn,foil,loc,rarity,lang,buy_price).");
-        return False, f"Update failed: Buy price change creates a duplicate? ({e})"
-    except sqlite3.Error as e: print(f"DB error update card {card_id}: {e}"); return False, f"DB error: {e}"
-    finally:
-        if conn: conn.close()
-
-def add_sealed_product(product_name, set_name, product_type, language, is_collectors_item,
-                       quantity, buy_price, manual_market_price, sell_price, image_uri, location):
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    timestamp = datetime.datetime.now()
-    is_collectors_item_int = 1 if is_collectors_item else 0
-    try:
-        current_buy_price = float(buy_price)
-    except (ValueError, TypeError):
-        print(f"DB Error: Invalid buy_price format '{buy_price}' for sealed product '{product_name}'. Cannot process.")
-        conn.close()
-        return None
-
-    try:
-        cursor.execute('''
-            SELECT id, quantity FROM sealed_products
-            WHERE product_name = ? AND set_name = ? AND product_type = ? AND language = ? AND location = ? AND is_collectors_item = ? AND buy_price = ?
-        ''', (product_name, set_name, product_type, language, location, is_collectors_item_int, current_buy_price))
-        existing_product = cursor.fetchone()
-
-        if existing_product:
-            product_id = existing_product['id']
-            new_quantity = existing_product['quantity'] + quantity
-            # Note: buy_price is part of the match, so it's not updated here for an existing lot.
-            # If buy_price changes, it should ideally become a new lot or be handled by update_sealed_product_fields.
-            cursor.execute('''UPDATE sealed_products 
-                              SET quantity = ?, manual_market_price = ?, sell_price = ?, image_uri = ?, last_updated = ?
-                              WHERE id = ?''',
-                           (new_quantity, manual_market_price, sell_price, image_uri, timestamp, product_id))
-            conn.commit()
-            print(f"DB: Updated quantity for existing sealed product ID {product_id} at '{location}' to {new_quantity}.")
-            return product_id
-        else:
-            cursor.execute('''
-                INSERT INTO sealed_products (product_name, set_name, product_type, language, is_collectors_item,
-                                           quantity, buy_price, manual_market_price, sell_price, image_uri, location,
-                                           date_added, last_updated)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (product_name, set_name, product_type, language, is_collectors_item_int,
-                  quantity, current_buy_price, manual_market_price, sell_price, image_uri, location,
-                  timestamp, timestamp))
-            conn.commit()
-            new_product_id = cursor.lastrowid
-            print(f"DB: Inserted new sealed product ID {new_product_id} (Buy: ${current_buy_price:.2f}) at '{location}'.")
-            return new_product_id
-    except sqlite3.IntegrityError as ie:
-        print(f"DB IntegrityError adding sealed product '{product_name}' (Buy: ${current_buy_price:.2f}) at '{location}': {ie}")
+        print(f"Integrity error updating card {card_id}: {e}.")
         conn.rollback()
-        return None
+        return False, f"Update failed due to integrity constraint (e.g., buy price change creates duplicate): {e}"
     except sqlite3.Error as e:
-        print(f"Database error adding sealed product: {e}")
+        print(f"DB error updating card {card_id}: {e}")
         conn.rollback()
-        return None
+        return False, f"DB error: {e}"
     finally:
-        if conn: conn.close()
+        if conn:
+            conn.close()
 
-def get_all_sealed_products():
-    conn = get_db_connection(); cursor = conn.cursor()
-    cursor.execute("SELECT * FROM sealed_products WHERE quantity > 0 ORDER BY product_name, set_name, location, buy_price")
-    products = cursor.fetchall(); conn.close(); return products
-
-def get_sealed_product_by_id(product_id):
-    conn = get_db_connection(); cursor = conn.cursor()
-    cursor.execute("SELECT * FROM sealed_products WHERE id = ?", (product_id,)); product = cursor.fetchone(); conn.close(); return product
-
-def update_sealed_product_quantity(product_id, quantity_change):
-    conn = get_db_connection(); cursor = conn.cursor()
+def add_sealed_product(product_name, set_name, product_type, language, is_collectors_item, quantity, buy_price, manual_market_price, sell_price, image_uri, location):
+    conn = get_db_connection(); cursor = conn.cursor(); timestamp = datetime.datetime.now(); is_collectors_int = 1 if is_collectors_item else 0
+    try: current_buy_price = float(buy_price)
+    except (ValueError, TypeError): conn.close(); return None
     try:
-        cursor.execute("SELECT quantity FROM sealed_products WHERE id = ?", (product_id,)); result = cursor.fetchone()
-        if not result: return False, "Sealed product not found."
-        current_quantity = result['quantity']; new_quantity = current_quantity + quantity_change
-        if new_quantity < 0: return False, "Not enough quantity."
-        cursor.execute("UPDATE sealed_products SET quantity = ?, last_updated = ? WHERE id = ?", (new_quantity, datetime.datetime.now(), product_id)); conn.commit()
-        return True, "Quantity updated."
-    except sqlite3.Error as e: print(f"Error update_sealed_product_quantity ID {product_id}: {e}"); return False, f"DB error: {e}"
-    finally:
-        if conn: conn.close()
-
-def delete_sealed_product(product_id):
-    conn = get_db_connection(); cursor = conn.cursor()
-    try: cursor.execute("DELETE FROM sealed_products WHERE id = ?", (product_id,)); conn.commit(); return cursor.rowcount > 0
-    except sqlite3.Error as e: print(f"Error deleting sealed product ID {product_id}: {e}"); return False
+        cursor.execute('''SELECT id, quantity FROM sealed_products WHERE product_name = ? AND set_name = ? AND product_type = ? AND language = ? AND location = ? AND is_collectors_item = ? AND buy_price = ?''', (product_name, set_name, product_type, language, location, is_collectors_int, current_buy_price))
+        existing = cursor.fetchone()
+        if existing: 
+            prod_id, new_qty = existing['id'], existing['quantity'] + quantity
+            cursor.execute('''UPDATE sealed_products SET quantity = ?, manual_market_price = ?, sell_price = ?, image_uri = ?, last_updated = ? WHERE id = ?''', (new_qty, manual_market_price, sell_price, image_uri, timestamp, prod_id))
+            conn.commit(); return prod_id
+        else: 
+            cursor.execute('''INSERT INTO sealed_products (product_name, set_name, product_type, language, is_collectors_item, quantity, buy_price, manual_market_price, sell_price, image_uri, location, date_added, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''', (product_name, set_name, product_type, language, is_collectors_int, quantity, current_buy_price, manual_market_price, sell_price, image_uri, location, timestamp, timestamp))
+            conn.commit(); return cursor.lastrowid
+    except sqlite3.IntegrityError as ie: print(f"DB IntegrityError add_sealed: {ie}"); conn.rollback(); return None
+    except sqlite3.Error as e: print(f"DB error add_sealed: {e}"); conn.rollback(); return None
     finally: conn.close()
+
+def get_all_sealed_products(): conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("SELECT * FROM sealed_products WHERE quantity > 0 ORDER BY product_name, set_name, location, buy_price"); prods = cursor.fetchall(); conn.close(); return prods
+
+def get_sealed_product_by_id(product_id): conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("SELECT * FROM sealed_products WHERE id = ?", (product_id,)); prod = cursor.fetchone(); conn.close(); return prod
+
+def delete_sealed_product(product_id): conn = get_db_connection(); cursor = conn.cursor(); cursor.execute("DELETE FROM sealed_products WHERE id = ?", (product_id,)); conn.commit(); deleted = cursor.rowcount > 0; conn.close(); return deleted
 
 def update_sealed_product_fields(product_id, data_to_update_from_app):
     conn = get_db_connection()
     cursor = conn.cursor()
-    
-    # These are the fields that app.py is expected to send if they are changed.
-    # product_name, set_name, product_type are part of the unique key (with lang, loc, collector, buy_price)
-    # and generally shouldn't be changed via this update mechanism as it might imply a new item/lot.
-    # If they were to be updatable, they'd need careful handling regarding the UNIQUE constraint.
-    allowed_fields_for_update = {
-        'quantity', 'buy_price', 'manual_market_price', 
-        'sell_price', 'location', 'image_uri', 'language', 'is_collectors_item'
-    }
-
+    allowed_fields_for_update = {'quantity', 'buy_price', 'manual_market_price', 'sell_price', 'location', 'image_uri', 'language', 'is_collectors_item'}
     fields_to_set_in_sql = []
     values_for_sql_query = []
 
-    # This check should ideally be handled by app.py before calling this DB function.
     if not data_to_update_from_app:
         conn.close()
-        # This message indicates app.py called with an empty dict, which it shouldn't.
-        return False, "No changes were submitted to the database function."
+        return False, "No changes were submitted."
 
     for field_key, new_value in data_to_update_from_app.items():
         if field_key not in allowed_fields_for_update:
             print(f"DB Warning: Field '{field_key}' is not an allowed field for updating sealed products. Skipping.")
             continue
-
-        current_sql_value = new_value # new_value from app.py should be of the correct Python type (int, float, str, bool, or None for clearable fields)
-
-        # Convert Python bool to SQLite integer for 'is_collectors_item'
+        current_sql_value = new_value
         if field_key == 'is_collectors_item':
             current_sql_value = 1 if new_value else 0
-        
-        # Add the field and its value to our lists for building the SQL query
         fields_to_set_in_sql.append(f"{field_key} = ?")
         values_for_sql_query.append(current_sql_value)
 
-    # If data_to_update_from_app was not empty, but all fields were skipped (e.g., not in allowed_fields_for_update),
-    # then fields_to_set_in_sql will be empty.
     if not fields_to_set_in_sql:
         conn.close()
-        # This is the error message the user is seeing. It means app.py sent data,
-        # but this loop didn't find any of it to be valid for updating.
         return False, "No valid data fields provided for update."
 
-    # Always update the 'last_updated' timestamp when any other valid field is being updated.
     fields_to_set_in_sql.append("last_updated = ?")
-    values_for_sql_query.append(datetime.datetime.now()) # SQLite Python driver handles datetime objects
-
-    # Construct the SET part of the SQL query
-    sql_set_clause = ", ".join(fields_to_set_in_sql)
+    values_for_sql_query.append(datetime.datetime.now())
     
-    # Add the product_id for the WHERE clause to the end of the values list
+    sql_set_clause = ", ".join(fields_to_set_in_sql)
     final_sql_values_tuple = tuple(values_for_sql_query + [product_id])
-
     sql_query_string = f"UPDATE sealed_products SET {sql_set_clause} WHERE id = ?"
     
     try:
@@ -386,93 +268,145 @@ def update_sealed_product_fields(product_id, data_to_update_from_app):
         conn.commit()
         updated_rows = cursor.rowcount
         if updated_rows == 0:
-            # This could happen if product_id is incorrect or if, by some chance,
-            # all submitted values were identical to DB values (though app.py tries to prevent this).
-            return False, "Sealed product not found or data was identical, resulting in no actual change in the database."
+            return False, "Sealed product not found or data was identical."
         return True, "Sealed product updated successfully."
     except sqlite3.IntegrityError as e:
-        # This typically occurs if changing buy_price (or other unique-constrained fields)
-        # creates a conflict with an existing record.
         print(f"DB IntegrityError on updating sealed_product ID {product_id}: {e}")
-        return False, f"Update failed. This might be due to a conflict with an existing item (e.g., changing buy price to one that already exists for this item's other attributes). Error: {e}"
+        conn.rollback()
+        return False, f"Update failed due to integrity constraint: {e}"
     except sqlite3.Error as e:
         print(f"DB general error on updating sealed_product ID {product_id}: {e}")
+        conn.rollback()
         return False, f"A database error occurred: {e}"
     finally:
-        if conn:
-            conn.close()
+        if conn: conn.close()
 
+def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quantity_change):
+    table_name = 'cards' if item_type == 'single_card' else 'sealed_products'
+    try:
+        cursor.execute(f"SELECT quantity FROM {table_name} WHERE id = ?", (item_id,))
+        result = cursor.fetchone()
+        if not result: return False, f"{item_type.replace('_', ' ').capitalize()} not found."
+        new_quantity = result['quantity'] + quantity_change
+        if new_quantity < 0: return False, "Not enough stock to sell/remove."
+        cursor.execute(f"UPDATE {table_name} SET quantity = ?, last_updated = ? WHERE id = ?", (new_quantity, datetime.datetime.now(), item_id))
+        print(f"DB (cursor op): Updated {table_name} ID {item_id} quantity to {new_quantity}")
+        return True, f"{item_type.replace('_', ' ').capitalize()} quantity updated."
+    except sqlite3.Error as e: print(f"DB error in _update_inventory_item_quantity_with_cursor for {table_name} ID {item_id}: {e}"); return False, f"DB error during quantity update: {e}"
 
-def record_sale(inventory_item_id, item_type, original_item_name, original_item_details,
-                quantity_sold, sell_price_per_item, buy_price_per_item, sale_date_str, shipping_cost=0.0, notes=""):
+def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app):
     conn = get_db_connection()
     cursor = conn.cursor()
-    if item_type not in ['single_card', 'sealed_product']:
-        conn.close(); return None, "Invalid item type."
-    try: ship_cost_float = float(shipping_cost if shipping_cost is not None else 0.0)
-    except ValueError: conn.close(); return None, "Invalid shipping cost."
-    try: buy_price_per_item_float = float(buy_price_per_item)
-    except (ValueError, TypeError): conn.close(); return None, "Invalid buy price for item sold."
-
-    gross_profit = (sell_price_per_item - buy_price_per_item_float) * quantity_sold
-    net_profit_loss = gross_profit - ship_cost_float
-    try: sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date() # Store as date object
-    except ValueError: conn.close(); return None, "Invalid sale date format."
-
+    sale_event_id = None
+    total_event_profit_loss_calculated = 0.0
     try:
-        cursor.execute('''
-            INSERT INTO sales (inventory_item_id, item_type, original_item_name, original_item_details,
-                               quantity_sold, sell_price_per_item, buy_price_per_item, shipping_cost, profit_loss, sale_date, notes)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', (inventory_item_id, item_type, original_item_name, original_item_details,
-              quantity_sold, sell_price_per_item, buy_price_per_item_float, ship_cost_float, net_profit_loss, sale_date_obj, notes))
-        sale_id = cursor.lastrowid
+        sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
+        total_shipping_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
+    except ValueError as e: 
+        print(f"DB Error: Invalid date or shipping cost format: {e}")
+        conn.close()
+        return None, f"Invalid date or shipping cost format: {e}"
+    try:
+        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes) VALUES (?, ?, ?)''', (sale_date_obj, total_shipping_cost, overall_notes))
+        sale_event_id = cursor.lastrowid
+        print(f"DB: Created sale_event ID {sale_event_id}")
+        
+        for item_data in items_data_from_app:
+            inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix')
+            quantity_sold_str = item_data.get('quantity_sold')
+            sell_price_per_item_str = item_data.get('sell_price_per_item')
+            
+            item_type = None # Initialize item_type to None for each item in the loop
+            inventory_item_id_int = None
+
+            if inventory_id_with_prefix and '-' in inventory_id_with_prefix:
+                parts = inventory_id_with_prefix.split('-', 1)
+                item_type_prefix = parts[0]
+                try: 
+                    inventory_item_id_int = int(parts[1])
+                    if item_type_prefix == 'single_card':
+                        item_type = 'single_card'
+                    elif item_type_prefix == 'sealed_product':
+                        item_type = 'sealed_product'
+                    # Removed the problematic setattr lines
+                except ValueError: 
+                    raise ValueError(f"Invalid inventory item ID format: {inventory_id_with_prefix}")
+            
+            if not all([item_type, inventory_item_id_int is not None]): 
+                raise ValueError(f"Missing or invalid item identifier: {inventory_id_with_prefix}")
+            
+            quantity_sold = int(quantity_sold_str)
+            sell_price_per_item = float(sell_price_per_item_str)
+            
+            if quantity_sold <= 0 or sell_price_per_item < 0: 
+                raise ValueError("Quantity/Sell Price invalid.")
+            
+            original_item_db_row = get_item_by_id(item_type, inventory_item_id_int) 
+            if not original_item_db_row: 
+                raise ValueError(f"Inventory item not found: type {item_type}, id {inventory_item_id_int}")
+            if quantity_sold > original_item_db_row['quantity']: 
+                name_key = 'name' if item_type == 'single_card' else 'product_name'
+                raise ValueError(f"Not enough stock for {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}")
+            
+            buy_price_per_item = float(original_item_db_row['buy_price'])
+            item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
+            total_event_profit_loss_calculated += item_profit_loss
+            
+            original_item_name_snapshot = ""
+            original_item_details_snapshot = ""
+            if item_type == 'single_card':
+                original_item_name_snapshot = original_item_db_row['name']
+                rarity_str = (original_item_db_row['rarity'] if 'rarity' in original_item_db_row.keys() and original_item_db_row['rarity'] is not None else 'N/A')
+                lang_str = (original_item_db_row['language'] if 'language' in original_item_db_row.keys() and original_item_db_row['language'] is not None else 'N/A')
+                original_item_details_snapshot = f"{original_item_db_row['set_code']}-{original_item_db_row['collector_number']} {'(Foil)' if original_item_db_row['is_foil'] else ''} (R: {rarity_str.capitalize()}, L: {lang_str.upper()})"
+            elif item_type == 'sealed_product':
+                original_item_name_snapshot = original_item_db_row['product_name']
+                lang_str_sealed = (original_item_db_row['language'] if 'language' in original_item_db_row.keys() and original_item_db_row['language'] is not None else 'N/A')
+                original_item_details_snapshot = f"{original_item_db_row['set_name']} - {original_item_db_row['product_type']} {'(Collector)' if original_item_db_row['is_collectors_item'] else ''} (L: {lang_str_sealed.upper()})"
+            
+            cursor.execute('''INSERT INTO sale_items (sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
+            
+            success_inv_update, msg_inv_update = _update_inventory_item_quantity_with_cursor(cursor, item_type, inventory_item_id_int, -quantity_sold)
+            if not success_inv_update: 
+                raise Exception(f"Inv update failed: {msg_inv_update}")
+        
+        final_event_profit_loss = total_event_profit_loss_calculated - total_shipping_cost
+        cursor.execute('''UPDATE sale_events SET total_profit_loss = ? WHERE id = ?''', (final_event_profit_loss, sale_event_id))
         conn.commit()
-        
-        success_inventory_update = False
-        inventory_message = "Inventory update not attempted for this item type."
+        print(f"DB: Committed sale_event ID {sale_event_id}")
+        return sale_event_id, "Sale event recorded successfully."
+    except Exception as e: 
+        print(f"DB Error in record_multi_item_sale: {e}")
+        if conn: conn.rollback()
+        return None, str(e)
+    finally: 
+        if conn: conn.close()
 
-        if item_type == 'single_card': 
-            success_inventory_update, inventory_message = update_card_quantity(inventory_item_id, -quantity_sold)
-        elif item_type == 'sealed_product': 
-            success_inventory_update, inventory_message = update_sealed_product_quantity(inventory_item_id, -quantity_sold)
-        
-        if not success_inventory_update:
-            # Critical: Sale recorded but inventory update failed. Attempt to roll back sale.
-            print(f"CRITICAL WARNING: Sale ID {sale_id} recorded, but inventory update FAILED for {item_type} ID {inventory_item_id}: {inventory_message}")
-            try:
-                # Re-establish connection for rollback if needed, or use existing if transactionally sound
-                # For simplicity here, assume a new connection for the delete operation if the original conn was closed by update_x_quantity
-                conn_del = get_db_connection(); cursor_del = conn_del.cursor()
-                cursor_del.execute("DELETE FROM sales WHERE id = ?", (sale_id,)); conn_del.commit(); conn_del.close()
-                print(f"Sale record {sale_id} has been rolled back due to inventory update failure.")
-                return None, f"Sale rolled back. Reason: Inventory update failed: {inventory_message}"
-            except sqlite3.Error as e_del:
-                print(f"CRITICAL ERROR: Failed to delete sale record {sale_id} after inventory update failure: {e_del}. MANUAL INTERVENTION REQUIRED.")
-                # Return sale_id but with a critical warning, as sale is in DB but inventory is not updated.
-                return sale_id, f"Sale recorded (ID: {sale_id}), but CRITICAL: Inventory update failed: {inventory_message}. Manual correction needed!"
-        
-        return sale_id, f"Inventory updated: {inventory_message}"
-    except sqlite3.Error as e:
-        print(f"Database error during sale record: {e}"); conn.rollback() # Rollback if insert into sales failed
-        return None, f"Database error: {e}"
-    finally:
-         if conn and not getattr(conn, 'closed', True): conn.close()
-
-
-def get_all_sales():
-    conn = get_db_connection(); cursor = conn.cursor()
-    # Fetches sales, ensuring date types are handled by PARSE_DECLTYPES
-    cursor.execute('''
-        SELECT s.id, s.inventory_item_id, s.item_type,
-               s.original_item_name, s.original_item_details,
-               s.quantity_sold, s.sell_price_per_item, s.buy_price_per_item,
-               s.shipping_cost, s.profit_loss, s.sale_date, s.notes, s.date_recorded
-        FROM sales s
-        ORDER BY s.sale_date DESC, s.date_recorded DESC ''')
-    sales = cursor.fetchall(); conn.close(); return sales
+def get_all_sale_events_with_items():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    sale_events_processed = []
+    try:
+        cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded FROM sale_events ORDER BY sale_date DESC, id DESC''')
+        events = cursor.fetchall()
+        for event_row in events:
+            event_dict = dict(event_row)
+            cursor.execute('''SELECT id, sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss FROM sale_items WHERE sale_event_id = ? ORDER BY id ASC''', (event_dict['id'],))
+            items_raw = cursor.fetchall()
+            event_dict['items'] = [dict(item_row) for item_row in items_raw]
+            if isinstance(event_dict['sale_date'], str): 
+                event_dict['sale_date'] = datetime.datetime.strptime(event_dict['sale_date'], '%Y-%m-%d').date()
+            if isinstance(event_dict['date_recorded'], str): 
+                event_dict['date_recorded'] = datetime.datetime.fromisoformat(event_dict['date_recorded']) # or strptime if format is fixed
+            sale_events_processed.append(event_dict)
+    except sqlite3.Error as e: 
+        print(f"DB Error get_all_sale_events: {e}")
+    finally: 
+        if conn: conn.close()
+    return sale_events_processed
 
 if __name__ == '__main__':
+    # Removed 'import sys' from here as it's no longer needed for the hack
     print("Initializing database...")
     init_db()
     print("Database initialization complete.")
