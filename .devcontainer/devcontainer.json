@@ -1,0 +1,13 @@
+{
+    "name": "Basic Python Environment",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+
+    // This ensures you are logged in as 'vscode' and have sudo
+    "remoteUser": "vscode",
+    "features": {
+        "ghcr.io/devcontainers/features/common-utils:2": {
+            "username": "vscode",
+            "configureSudo": "true"
+        }
+    }
+}

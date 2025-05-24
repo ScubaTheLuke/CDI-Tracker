@@ -28,9 +28,8 @@ def format_currency_with_commas(value):
     except (ValueError, TypeError): return str(value)
 app.jinja_env.filters['currency_commas'] = format_currency_with_commas
 
-@app.before_request
-def initialize_database():
-    database.init_db()
+# The @app.before_request decorator that called database.init_db() has been removed.
+# Database initialization should be done manually once.
 
 @app.route('/api/all_sets_info')
 def api_all_sets_info():
@@ -723,3 +722,4 @@ import os
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))  # 10000 is the Render default
     app.run(host='0.0.0.0', port=port)
+
