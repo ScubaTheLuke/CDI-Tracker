@@ -1,0 +1,16 @@
+{
+    "name": "Flask and PostgreSQL",
+    "image": "mcr.microsoft.com/devcontainers/python:3.11",
+
+    "features": {
+        "ghcr.io/devcontainers/features/postgres:1": {
+            "version": "latest",
+            "password": "your_postgres_password"
+        }
+    },
+
+    "postCreateCommand": "pip3 install -r requirements.txt",
+
+    "forwardPorts": [5000, 5432],
+    "remoteUser": "vscode"
+}
