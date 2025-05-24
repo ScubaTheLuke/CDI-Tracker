@@ -718,5 +718,8 @@ def import_csv_route():
     else: flash('Invalid file type. Please upload a CSV file.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
 
 
+import os
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000)
+    port = int(os.environ.get('PORT', 10000))  # 10000 is the Render default
+    app.run(host='0.0.0.0', port=port)

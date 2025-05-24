@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: cdi-tracker
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python CDI-Tracker/app.py
+    autoDeploy: true
