@@ -24,85 +24,47 @@ def get_db_connection():
 
 def init_db():
     """Initializes the database schema for PostgreSQL."""
+    print("Attempting to connect to database for init_db...")
     conn = get_db_connection()
+    print("Connected to database. Getting cursor...")
     cursor = conn.cursor()
-    # For development, dropping the old sales table if schema changes.
-    # In production, use migrations.
-    cursor.execute("DROP TABLE IF EXISTS sales") # This line was in the original file
+    print("Cursor obtained. Dropping sales table if exists (legacy)...")
+    cursor.execute("DROP TABLE IF EXISTS sales") 
+    print("Attempting to create cards table...")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
             id SERIAL PRIMARY KEY,
-            set_code TEXT NOT NULL,
-            collector_number TEXT,
-            name TEXT NOT NULL,
-            quantity INTEGER NOT NULL,
-            buy_price REAL NOT NULL,
-            is_foil INTEGER NOT NULL DEFAULT 0,
-            market_price_usd REAL,
-            foil_market_price_usd REAL,
-            image_uri TEXT,
-            sell_price REAL,
-            location TEXT,
-            rarity TEXT,
-            language TEXT,
-            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            scryfall_id TEXT,
+            # ... rest of your cards table schema ...
             UNIQUE(set_code, collector_number, is_foil, location, rarity, language, buy_price)
         )
     ''')
+    print("Cards table creation attempted.")
+    print("Attempting to create sealed_products table...")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS sealed_products (
             id SERIAL PRIMARY KEY,
-            product_name TEXT NOT NULL,
-            set_name TEXT,
-            product_type TEXT,
-            language TEXT DEFAULT 'English',
-            is_collectors_item INTEGER DEFAULT 0,
-            quantity INTEGER NOT NULL,
-            buy_price REAL NOT NULL,
-            manual_market_price REAL,
-            sell_price REAL,
-            image_uri TEXT,
-            location TEXT,
-            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            # ... rest of your sealed_products table schema ...
             UNIQUE(product_name, set_name, product_type, language, location, is_collectors_item, buy_price)
         )
     ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sale_events (
-            id SERIAL PRIMARY KEY,
-            sale_date DATE NOT NULL,
-            total_shipping_cost REAL DEFAULT 0.0,
-            notes TEXT,
-            total_profit_loss REAL,
-            date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sale_items (
-            id SERIAL PRIMARY KEY,
-            sale_event_id INTEGER NOT NULL,
-            inventory_item_id INTEGER,
-            item_type TEXT NOT NULL,
-            original_item_name TEXT,
-            original_item_details TEXT,
-            quantity_sold INTEGER NOT NULL,
-            sell_price_per_item REAL NOT NULL,
-            buy_price_per_item REAL NOT NULL,
-            item_profit_loss REAL NOT NULL,
-            FOREIGN KEY (sale_event_id) REFERENCES sale_events (id)
-        )
-    ''')
-    _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
-    _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
-    _check_and_add_column(cursor, 'cards', 'rarity', 'TEXT')
-    _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
-    _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
+    print("Sealed_products table creation attempted.")
+    # Add similar print statements for sale_events and sale_items
+    print("Attempting to create sale_events table...")
+    cursor.execute(''' CREATE TABLE IF NOT EXISTS sale_events ( ... ) ''') # Fill in schema
+    print("Sale_events table creation attempted.")
+    print("Attempting to create sale_items table...")
+    cursor.execute(''' CREATE TABLE IF NOT EXISTS sale_items ( ... ) ''') # Fill in schema
+    print("Sale_items table creation attempted.")
+
+    # ... your _check_and_add_column calls ...
+    print("All _check_and_add_column calls attempted.")
+
+    print("Attempting to commit changes...")
     conn.commit()
+    print("Changes committed.")
     cursor.close()
     conn.close()
+    print("Database initialization script finished.")
 
 def _check_and_add_column(cursor, table_name, column_name, column_type):
     """Checks if a column exists and adds it if not (PostgreSQL version)."""
