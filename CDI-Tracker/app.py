@@ -19,7 +19,22 @@ ROBOFLOW_API_KEY = os.environ.get("ROBOFLOW_API_KEY", "YOUR_ROBOFLOW_API_KEY_HER
 ROBOFLOW_MODEL_ENDPOINT = os.environ.get("ROBOFLOW_MODEL_ENDPOINT", "YOUR_ROBOFLOW_MODEL_INFERENCE_URL_HERE")
 
 ITEMS_PER_PAGE = 50 
+# # aslkdfj;alskdfja;slkdfjas;lkdfjasl;kdfja;slkdfj
 
+# las;dkfja;slkdfjasl;dkfja
+# sdfas
+# dfas
+# df
+# asdf
+# asdf
+# as
+# dfas
+# df
+# asdf
+# as
+# dfs
+# dff
+# s
 def format_currency_with_commas(value):
     if value is None: return "$0.00"
     try:
