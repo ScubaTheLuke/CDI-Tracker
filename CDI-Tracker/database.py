@@ -5,12 +5,11 @@ import os # Recommended for handling connection details securely
 
 # --- PostgreSQL Connection Details ---
 # It is recommended to use environment variables for security.
-DB_USER = os.environ.get('DB_USER', 'vscode')
+DB_USER = os.environ.get('DB_USER', 'your_postgres_user')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', 'your_postgres_password')
 DB_HOST = os.environ.get('DB_HOST', 'localhost')
 DB_PORT = os.environ.get('DB_PORT', '5432')
-# The database name will be the same as the username by default
-DB_NAME = os.environ.get('DB_NAME', DB_USER)
+DB_NAME = os.environ.get('DB_NAME', 'cdi_tracker')
 
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
@@ -118,15 +117,23 @@ def _check_and_add_column(cursor, table_name, column_name, column_type):
     except psycopg2.Error as e:
         print(f"Error checking/adding column '{column_name}' to '{table_name}': {e}")
         # Rollback in case of error within a larger transaction
-        cursor.connection.rollback()
+        if cursor.connection: # Check if connection attribute exists
+            cursor.connection.rollback()
 
 
 def get_item_by_id(item_type, item_id):
     conn = get_db_connection()
-    # Use DictCursor to get results as dictionaries
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     item = None
-    table_name = 'cards' if item_type == 'single_card' else 'sealed_products'
+    table_name = None
+    if item_type == 'single_card':
+        table_name = 'cards'
+    elif item_type == 'sealed_product':
+        table_name = 'sealed_products'
+    else:
+        conn.close()
+        return None # Invalid item_type
+
     try:
         cursor.execute(f"SELECT * FROM {table_name} WHERE id = %s", (item_id,))
         item = cursor.fetchone()
@@ -142,63 +149,89 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
     cursor = conn.cursor()
     timestamp = datetime.datetime.now()
     is_foil_int = 1 if is_foil else 0
+    card_id = None # Define card_id to ensure it's always available for return
     try:
         current_buy_price = float(buy_price)
     except (ValueError, TypeError):
         print(f"DB Error: Invalid buy_price format '{buy_price}' for card '{name}'.")
-        conn.close(); return None
-    
-    card_id = None
+        if conn: conn.close()
+        return None
+
     try:
-        # Use DictCursor for this specific query to read by name
+        # Use DictCursor for fetching existing item to access by column name
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as check_cursor:
-             check_cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s AND rarity = %s AND language = %s AND buy_price = %s''', (set_code, collector_number, is_foil_int, location, rarity, language, current_buy_price))
-             existing = check_cursor.fetchone()
+            check_cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s AND rarity = %s AND language = %s AND buy_price = %s''',
+                                (set_code, collector_number, is_foil_int, location, rarity, language, current_buy_price))
+            existing = check_cursor.fetchone()
 
         if existing:
             card_id, new_qty = existing['id'], existing['quantity'] + quantity
-            cursor.execute('''UPDATE cards SET quantity = %s, market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s, sell_price = %s, last_updated = %s, name = %s, scryfall_id = %s WHERE id = %s''', (new_qty, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, name, scryfall_id, card_id))
+            cursor.execute('''UPDATE cards SET quantity = %s, market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s, sell_price = %s, last_updated = %s, name = %s, scryfall_id = %s WHERE id = %s''',
+                           (new_qty, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, name, scryfall_id, card_id))
         else:
-            cursor.execute('''INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id, rarity, language) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''', (set_code, collector_number, name, quantity, current_buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id, rarity, language))
-            card_id = cursor.fetchone()[0]
+            cursor.execute('''INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id, rarity, language)
+                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
+                           (set_code, collector_number, name, quantity, current_buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id, rarity, language))
+            result = cursor.fetchone()
+            if result: card_id = result[0]
         conn.commit()
-        return card_id
-    except psycopg2.IntegrityError as ie: print(f"DB IntegrityError in add_card for {name}: {ie}"); conn.rollback(); return None
-    except psycopg2.Error as e: print(f"DB error add_card for {name}: {e}"); conn.rollback(); return None
-    finally: cursor.close(); conn.close()
+    except psycopg2.IntegrityError as ie:
+        print(f"DB IntegrityError in add_card for {name}: {ie}")
+        if conn: conn.rollback()
+        card_id = None # Ensure card_id is None on error
+    except psycopg2.Error as e:
+        print(f"DB error add_card for {name}: {e}")
+        if conn: conn.rollback()
+        card_id = None # Ensure card_id is None on error
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+    return card_id
 
-# The remaining functions would be converted in a similar pattern.
-# Below are a few key examples.
 
 def get_all_cards():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cards = []
     try:
         cursor.execute("SELECT * FROM cards WHERE quantity > 0 ORDER BY name, set_code, collector_number, location, buy_price, rarity, language")
         cards = cursor.fetchall()
-        return cards
     except psycopg2.Error as e:
         print(f"DB error in get_all_cards: {e}")
-        return []
     finally:
         cursor.close()
         conn.close()
+    return cards
+
+def get_card_by_id(card_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    card = None
+    try:
+        cursor.execute("SELECT * FROM cards WHERE id = %s", (card_id,))
+        card = cursor.fetchone()
+    except psycopg2.Error as e:
+        print(f"DB error in get_card_by_id for ID {card_id}: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return card
 
 def update_card_quantity(card_id, quantity_change):
     conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Use DictCursor to access 'quantity'
     try:
         cursor.execute("SELECT quantity FROM cards WHERE id = %s", (card_id,))
         result = cursor.fetchone()
         if not result:
             return False, "Card not found."
-        
+
         current_quantity = result['quantity']
         new_quantity = current_quantity + quantity_change
         if new_quantity < 0:
             return False, "Not enough quantity in stock to remove."
-        
-        cursor.execute("UPDATE cards SET quantity = %s, last_updated = %s WHERE id = %s", 
+
+        cursor.execute("UPDATE cards SET quantity = %s, last_updated = %s WHERE id = %s",
                        (new_quantity, datetime.datetime.now(), card_id))
         conn.commit()
         return True, f"Card quantity updated to {new_quantity}."
@@ -207,11 +240,282 @@ def update_card_quantity(card_id, quantity_change):
         if conn: conn.rollback()
         return False, f"Database error during quantity update: {e}"
     finally:
-        if conn: cursor.close(); conn.close()
+        if conn:
+            cursor.close()
+            conn.close()
+
+def delete_card(card_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    deleted = False
+    try:
+        cursor.execute("DELETE FROM cards WHERE id = %s", (card_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB error in delete_card for ID {card_id}: {e}")
+        if conn: conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+    return deleted
+
+def update_card_prices_and_image(card_id, market_price_usd, foil_market_price_usd, image_uri):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updated = False
+    try:
+        cursor.execute(''' UPDATE cards SET market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s, last_updated = %s WHERE id = %s ''',
+                       (market_price_usd, foil_market_price_usd, image_uri, datetime.datetime.now(), card_id))
+        conn.commit()
+        updated = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB error in update_card_prices_and_image for ID {card_id}: {e}")
+        if conn: conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+    return updated
+
+def update_card_fields(card_id, data_to_update):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    allowed_fields = {'quantity', 'buy_price', 'sell_price', 'location'}
+    fields_to_update_sql = []
+    values_for_sql = []
+
+    if not data_to_update:
+        conn.close()
+        return False, "No changes were submitted."
+
+    for key, value_from_app in data_to_update.items():
+        if key not in allowed_fields:
+            print(f"DB Warning: Field '{key}' not allowed in update_card_fields.")
+            continue
+        fields_to_update_sql.append(f"{key} = %s")
+        values_for_sql.append(value_from_app)
+
+    if not fields_to_update_sql:
+        conn.close()
+        return False, "No valid data fields for card update."
+
+    fields_to_update_sql.append("last_updated = %s")
+    values_for_sql.append(datetime.datetime.now())
+    sql_set_clause = ", ".join(fields_to_update_sql)
+    final_sql_values = tuple(values_for_sql + [card_id])
+    sql = f"UPDATE cards SET {sql_set_clause} WHERE id = %s"
+
+    try:
+        cursor.execute(sql, final_sql_values)
+        conn.commit()
+        updated_rows = cursor.rowcount
+        return (True, "Card updated successfully.") if updated_rows > 0 else (False, "Card not found or no data changed.")
+    except psycopg2.IntegrityError as e:
+        print(f"Integrity error update card {card_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"Update failed (integrity): {e}"
+    except psycopg2.Error as e:
+        print(f"DB error update card {card_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"DB error: {e}"
+    finally:
+        cursor.close()
+        conn.close()
+
+def add_sealed_product(product_name, set_name, product_type, language, is_collectors_item, quantity, buy_price, manual_market_price, sell_price, image_uri, location):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    timestamp = datetime.datetime.now()
+    is_collectors_int = 1 if is_collectors_item else 0
+    prod_id = None # Define prod_id
+    try:
+        current_buy_price = float(buy_price)
+    except (ValueError, TypeError):
+        print(f"DB Error: Invalid buy_price format '{buy_price}' for sealed product '{product_name}'.")
+        if conn: conn.close()
+        return None
+
+    try:
+        # Use DictCursor for fetching existing item
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as check_cursor:
+            check_cursor.execute('''SELECT id, quantity FROM sealed_products WHERE product_name = %s AND set_name = %s AND product_type = %s AND language = %s AND location = %s AND is_collectors_item = %s AND buy_price = %s''',
+                                (product_name, set_name, product_type, language, location, is_collectors_int, current_buy_price))
+            existing = check_cursor.fetchone()
+
+        if existing:
+            prod_id, new_qty = existing['id'], existing['quantity'] + quantity
+            cursor.execute('''UPDATE sealed_products SET quantity = %s, manual_market_price = %s, sell_price = %s, image_uri = %s, last_updated = %s WHERE id = %s''',
+                           (new_qty, manual_market_price, sell_price, image_uri, timestamp, prod_id))
+        else:
+            cursor.execute('''INSERT INTO sealed_products (product_name, set_name, product_type, language, is_collectors_item, quantity, buy_price, manual_market_price, sell_price, image_uri, location, date_added, last_updated)
+                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
+                           (product_name, set_name, product_type, language, is_collectors_int, quantity, current_buy_price, manual_market_price, sell_price, image_uri, location, timestamp, timestamp))
+            result = cursor.fetchone()
+            if result: prod_id = result[0]
+        conn.commit()
+    except psycopg2.IntegrityError as ie:
+        print(f"DB IntegrityError add_sealed for {product_name}: {ie}")
+        if conn: conn.rollback()
+        prod_id = None
+    except psycopg2.Error as e:
+        print(f"DB error add_sealed for {product_name}: {e}")
+        if conn: conn.rollback()
+        prod_id = None
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+    return prod_id
+
+def get_all_sealed_products():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    prods = []
+    try:
+        cursor.execute("SELECT * FROM sealed_products WHERE quantity > 0 ORDER BY product_name, set_name, location, buy_price")
+        prods = cursor.fetchall()
+    except psycopg2.Error as e:
+        print(f"DB error in get_all_sealed_products: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return prods
+
+def get_sealed_product_by_id(product_id):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    prod = None
+    try:
+        cursor.execute("SELECT * FROM sealed_products WHERE id = %s", (product_id,))
+        prod = cursor.fetchone()
+    except psycopg2.Error as e:
+        print(f"DB error in get_sealed_product_by_id for ID {product_id}: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return prod
+
+def update_sealed_product_quantity(product_id, quantity_change):
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Use DictCursor
+    try:
+        cursor.execute("SELECT quantity FROM sealed_products WHERE id = %s", (product_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False, "Sealed product not found."
+
+        current_quantity = result['quantity']
+        new_quantity = current_quantity + quantity_change
+        if new_quantity < 0:
+            return False, "Not enough quantity in stock to remove."
+
+        cursor.execute("UPDATE sealed_products SET quantity = %s, last_updated = %s WHERE id = %s",
+                       (new_quantity, datetime.datetime.now(), product_id))
+        conn.commit()
+        return True, f"Sealed product quantity updated to {new_quantity}."
+    except psycopg2.Error as e:
+        print(f"DB error in update_sealed_product_quantity for ID {product_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"Database error during quantity update: {e}"
+    finally:
+        if conn:
+            cursor.close()
+            conn.close()
+
+def delete_sealed_product(product_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    deleted = False
+    try:
+        cursor.execute("DELETE FROM sealed_products WHERE id = %s", (product_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB error in delete_sealed_product for ID {product_id}: {e}")
+        if conn: conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+    return deleted
+
+def update_sealed_product_fields(product_id, data_to_update_from_app):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    allowed_fields_for_update = {'quantity', 'buy_price', 'manual_market_price', 'sell_price', 'location', 'image_uri', 'language', 'is_collectors_item'}
+    fields_to_set_in_sql = []
+    values_for_sql_query = []
+
+    if not data_to_update_from_app:
+        conn.close()
+        return False, "No changes were submitted."
+
+    for field_key, new_value in data_to_update_from_app.items():
+        if field_key not in allowed_fields_for_update:
+            print(f"DB Warning: Field '{field_key}' not allowed for update.")
+            continue
+        # Handle boolean conversion for is_collectors_item specifically
+        current_sql_value = new_value
+        if field_key == 'is_collectors_item':
+             current_sql_value = 1 if new_value else 0
+
+        fields_to_set_in_sql.append(f"{field_key} = %s")
+        values_for_sql_query.append(current_sql_value)
+
+    if not fields_to_set_in_sql:
+        conn.close()
+        return False, "No valid data fields for update."
+
+    fields_to_set_in_sql.append("last_updated = %s")
+    values_for_sql_query.append(datetime.datetime.now())
+    sql_set_clause = ", ".join(fields_to_set_in_sql)
+    # Add product_id to the end of the values list for the WHERE clause
+    final_sql_values_tuple = tuple(values_for_sql_query + [product_id])
+    sql_query_string = f"UPDATE sealed_products SET {sql_set_clause} WHERE id = %s"
+
+    try:
+        cursor.execute(sql_query_string, final_sql_values_tuple)
+        conn.commit()
+        updated_rows = cursor.rowcount
+        return (True, "Sealed product updated successfully.") if updated_rows > 0 else (False, "Sealed product not found or data identical.")
+    except psycopg2.IntegrityError as e:
+        print(f"DB IntegrityError update sealed_product {product_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"Update failed (integrity): {e}"
+    except psycopg2.Error as e:
+        print(f"DB error update sealed_product {product_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"DB error: {e}"
+    finally:
+        cursor.close()
+        conn.close()
+
+def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quantity_change):
+    table_name = 'cards' if item_type == 'single_card' else 'sealed_products'
+    try:
+        # Ensure cursor used here can fetch by column name if needed, though direct index access is fine too
+        # For consistency, if DictCursor is preferred elsewhere for reads, consider it or adapt
+        cursor.execute(f"SELECT quantity FROM {table_name} WHERE id = %s", (item_id,))
+        result = cursor.fetchone()
+        if not result:
+            return False, f"{item_type.replace('_', ' ').capitalize()} not found."
+
+        # Assuming result is a tuple if not DictCursor, or dict if DictCursor
+        current_quantity = result[0] if isinstance(result, tuple) else result['quantity']
+        new_quantity = current_quantity + quantity_change
+
+        if new_quantity < 0:
+            return False, "Not enough stock to sell/remove."
+
+        cursor.execute(f"UPDATE {table_name} SET quantity = %s, last_updated = %s WHERE id = %s",
+                       (new_quantity, datetime.datetime.now(), item_id))
+        print(f"DB (cursor op): Updated {table_name} ID {item_id} quantity to {new_quantity}")
+        return True, f"{item_type.replace('_', ' ').capitalize()} quantity updated."
+    except psycopg2.Error as e:
+        print(f"DB error in _update_inventory_item_quantity_with_cursor for {table_name} ID {item_id}: {e}")
+        return False, f"DB error during quantity update: {e}"
 
 def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor() # Main cursor for writes
     sale_event_id = None
     total_event_profit_loss_calculated = 0.0
 
@@ -219,76 +523,125 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
         sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
         total_shipping_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
     except ValueError as e:
-        print(f"DB Error: Invalid date/shipping format: {e}"); conn.close(); return None, f"Invalid date/shipping: {e}"
+        print(f"DB Error: Invalid date/shipping format: {e}")
+        if conn: conn.close()
+        return None, f"Invalid date/shipping: {e}"
 
     try:
-        # Start transaction
-        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes) VALUES (%s, %s, %s) RETURNING id''', (sale_date_obj, total_shipping_cost, overall_notes))
-        sale_event_id = cursor.fetchone()[0]
+        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes) VALUES (%s, %s, %s) RETURNING id''',
+                       (sale_date_obj, total_shipping_cost, overall_notes))
+        result = cursor.fetchone()
+        if result: sale_event_id = result[0]
         print(f"DB: Created sale_event ID {sale_event_id}")
 
-        # Use a DictCursor for reading item data within the transaction
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as item_cursor:
+        # Use a separate DictCursor for reads within the transaction to ensure column name access
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as item_read_cursor:
             for item_data in items_data_from_app:
-                # ... (parsing logic remains the same)
-                inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix'); quantity_sold_str = item_data.get('quantity_sold'); sell_price_per_item_str = item_data.get('sell_price_per_item'); item_type = None; inventory_item_id_int = None
+                inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix')
+                quantity_sold_str = item_data.get('quantity_sold')
+                sell_price_per_item_str = item_data.get('sell_price_per_item')
+                item_type = None
+                inventory_item_id_int = None
+
                 if inventory_id_with_prefix and '-' in inventory_id_with_prefix:
-                    parts = inventory_id_with_prefix.split('-', 1); item_type_prefix = parts[0]
-                    try: 
+                    parts = inventory_id_with_prefix.split('-', 1)
+                    item_type_prefix = parts[0]
+                    try:
                         inventory_item_id_int = int(parts[1])
                         if item_type_prefix == 'single_card': item_type = 'single_card'
                         elif item_type_prefix == 'sealed_product': item_type = 'sealed_product'
-                    except ValueError: raise ValueError(f"Invalid inv item ID format: {inventory_id_with_prefix}")
-                if not all([item_type, inventory_item_id_int is not None]): raise ValueError(f"Missing/invalid item identifier: {inventory_id_with_prefix}")
-                quantity_sold = int(quantity_sold_str); sell_price_per_item = float(sell_price_per_item_str)
-                if quantity_sold <= 0 or sell_price_per_item < 0: raise ValueError("Qty/Sell Price invalid.")
-                
-                # Fetch original item within the same transaction
-                table_name = 'cards' if item_type == 'single_card' else 'sealed_products'
-                item_cursor.execute(f"SELECT * FROM {table_name} WHERE id = %s", (inventory_item_id_int,))
-                original_item_db_row = item_cursor.fetchone()
+                    except ValueError:
+                        raise ValueError(f"Invalid inv item ID format: {inventory_id_with_prefix}")
 
-                if not original_item_db_row: raise ValueError(f"Inv item not found: {item_type} id {inventory_item_id_int}")
-                if quantity_sold > original_item_db_row['quantity']: name_key = 'name' if item_type == 'single_card' else 'product_name'; raise ValueError(f"Not enough stock for {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}")
-                
-                buy_price_per_item = float(original_item_db_row['buy_price']); item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold; total_event_profit_loss_calculated += item_profit_loss
-                
-                # ... (snapshot logic remains the same)
-                original_item_name_snapshot = ""; original_item_details_snapshot = ""
+                if not all([item_type, inventory_item_id_int is not None]):
+                    raise ValueError(f"Missing/invalid item identifier: {inventory_id_with_prefix}")
+
+                quantity_sold = int(quantity_sold_str)
+                sell_price_per_item = float(sell_price_per_item_str)
+                if quantity_sold <= 0 or sell_price_per_item < 0:
+                    raise ValueError("Qty/Sell Price invalid.")
+
+                # Fetch original item using the DictCursor for reliable column access
+                table_name_for_read = 'cards' if item_type == 'single_card' else 'sealed_products'
+                item_read_cursor.execute(f"SELECT * FROM {table_name_for_read} WHERE id = %s", (inventory_item_id_int,))
+                original_item_db_row = item_read_cursor.fetchone()
+
+
+                if not original_item_db_row:
+                    raise ValueError(f"Inv item not found: {item_type} id {inventory_item_id_int}")
+                if quantity_sold > original_item_db_row['quantity']:
+                    name_key = 'name' if item_type == 'single_card' else 'product_name'
+                    raise ValueError(f"Not enough stock for {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}")
+
+                buy_price_per_item = float(original_item_db_row['buy_price'])
+                item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
+                total_event_profit_loss_calculated += item_profit_loss
+
+                original_item_name_snapshot = ""
+                original_item_details_snapshot = ""
                 if item_type == 'single_card':
                     original_item_name_snapshot = original_item_db_row['name']
-                    rarity_str = (original_item_db_row['rarity'] if 'rarity' in original_item_db_row.keys() and original_item_db_row['rarity'] is not None else 'N/A')
-                    lang_str = (original_item_db_row['language'] if 'language' in original_item_db_row.keys() and original_item_db_row['language'] is not None else 'N/A')
+                    rarity_str = (original_item_db_row.get('rarity') if original_item_db_row.get('rarity') is not None else 'N/A')
+                    lang_str = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
                     original_item_details_snapshot = f"{original_item_db_row['set_code']}-{original_item_db_row['collector_number']} {'(Foil)' if original_item_db_row['is_foil'] else ''} (R: {rarity_str.capitalize()}, L: {lang_str.upper()})"
                 elif item_type == 'sealed_product':
                     original_item_name_snapshot = original_item_db_row['product_name']
-                    lang_str_sealed = (original_item_db_row['language'] if 'language' in original_item_db_row.keys() and original_item_db_row['language'] is not None else 'N/A')
+                    lang_str_sealed = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
                     original_item_details_snapshot = f"{original_item_db_row['set_name']} - {original_item_db_row['product_type']} {'(Collector)' if original_item_db_row['is_collectors_item'] else ''} (L: {lang_str_sealed.upper()})"
-
-                # Use the main cursor for writes
-                cursor.execute('''INSERT INTO sale_items (sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''', (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
                 
-                # Update quantity within the same transaction
-                new_quantity = original_item_db_row['quantity'] - quantity_sold
-                cursor.execute(f"UPDATE {table_name} SET quantity = %s, last_updated = %s WHERE id = %s", (new_quantity, datetime.datetime.now(), inventory_item_id_int))
+                # Use the main cursor (non-DictCursor) for this INSERT
+                cursor.execute('''INSERT INTO sale_items (sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss)
+                                  VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                               (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
+
+                # Update quantity using the main cursor
+                success_inv_update, msg_inv_update = _update_inventory_item_quantity_with_cursor(cursor, item_type, inventory_item_id_int, -quantity_sold)
+                if not success_inv_update:
+                    raise Exception(f"Inv update failed: {msg_inv_update}")
 
         final_event_profit_loss = total_event_profit_loss_calculated - total_shipping_cost
         cursor.execute('''UPDATE sale_events SET total_profit_loss = %s WHERE id = %s''', (final_event_profit_loss, sale_event_id))
-        
-        conn.commit() # Commit transaction
+        conn.commit()
         print(f"DB: Committed sale_event ID {sale_event_id}")
         return sale_event_id, "Sale event recorded successfully."
     except Exception as e:
         print(f"DB Error in record_multi_item_sale: {e}")
-        conn.rollback() # Rollback on any error
+        if conn: conn.rollback()
         return None, str(e)
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+def get_all_sale_events_with_items():
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Use DictCursor for easy dict access
+    sale_events_processed = []
+    try:
+        cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded
+                          FROM sale_events ORDER BY sale_date DESC, id DESC''')
+        events = cursor.fetchall()
+        for event_row in events:
+            event_dict = dict(event_row) # Already a dict due to DictCursor
+            # Ensure date/timestamp objects are correctly formatted if they were strings (psycopg2 usually returns them as objects)
+            if isinstance(event_dict.get('sale_date'), str):
+                event_dict['sale_date'] = datetime.datetime.strptime(event_dict['sale_date'], '%Y-%m-%d').date()
+            if isinstance(event_dict.get('date_recorded'), str):
+                 event_dict['date_recorded'] = datetime.datetime.fromisoformat(event_dict['date_recorded'])
+
+
+            cursor.execute('''SELECT id, sale_event_id, inventory_item_id, item_type, original_item_name,
+                                     original_item_details, quantity_sold, sell_price_per_item,
+                                     buy_price_per_item, item_profit_loss
+                              FROM sale_items WHERE sale_event_id = %s ORDER BY id ASC''', (event_dict['id'],))
+            items_raw = cursor.fetchall()
+            event_dict['items'] = [dict(item_row) for item_row in items_raw] # Already dicts
+            sale_events_processed.append(event_dict)
+    except psycopg2.Error as e:
+        print(f"DB Error get_all_sale_events: {e}")
     finally:
         cursor.close()
         conn.close()
-
-# The remaining functions for 'sealed_products' and 'sale_events' would follow the same conversion logic.
-# Ensure all '?' are replaced with '%s', `cursor.lastrowid` is replaced with `RETURNING id`,
-# and error handling uses `psycopg2.Error`.
+    return sale_events_processed
 
 if __name__ == '__main__':
     print("Initializing PostgreSQL database...")
