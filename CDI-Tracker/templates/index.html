@@ -67,7 +67,9 @@
         {% if messages %} <ul class="flashes"> {% for category, message in messages %} <li class="{{ category }}">{{ message }}</li> {% endfor %} </ul> {% endif %}
     {% endwith %}
 
-    <div class="tab-nav">
+    <button id="hamburgerBtn" aria-label="Open navigation menu" aria-expanded="false" type="button">&#9776;</button> 
+
+    <div class="tab-nav" id="mainTabNav"> 
         <button id="addCardTabNav" class="tab-button" onclick="openTab(event, 'addCardTab')">Add Single Card</button>
         <button id="addSealedProductTabNav" class="tab-button" onclick="openTab(event, 'addSealedProductTab')">Add Sealed Product</button>
         <button id="enterSaleTabNav" class="tab-button" onclick="openTab(event, 'enterSaleTab')">Enter Sale</button>
@@ -188,6 +190,8 @@
             <strong>Total Sealed Products Sold (Units, {{ current_month_name }}):</strong> {{ current_month_sealed_sold_quantity }}
         </p>
         
+        <button id="toggleInventoryFiltersBtn" class="button" type="button">Show Filters</button>
+
         <div class="filter-controls">
              <div>
                 <label for="inventoryFilterInput">Text Search:</label>
@@ -323,7 +327,12 @@
             <p style="font-size: 0.9em; color: var(--text-secondary);">
                 Upload a CSV file. Expected columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing', 'Rarity', 'Language'.
             </p>
-            <div><label for="csv_file">CSV File:</label><input type="file" id="csv_file" name="csv_file" accept=".csv" required></div>
+            
+            <div id="csvDropZone" class="custom-file-drop-zone">
+                <input type="file" id="csv_file" name="csv_file" accept=".csv" required> <p class="drop-zone-text">Drag & drop your CSV file here, or</p>
+                <label for="csv_file" class="button file-upload-button">Click to Choose File</label>
+                <span id="fileNameDisplay" class="file-name-display">No file chosen</span>
+            </div>
             <div class="form-grid" style="margin-top: 15px;">
                 <div><label for="default_buy_price_csv">Default Buy Price:</label><input type="number" id="default_buy_price_csv" name="default_buy_price" step="0.01" min="0" value="0.00" required placeholder="$0.00"></div>
                 <div><label for="default_location_csv">Default Location:</label><input type="text" id="default_location_csv" name="default_location" required value="Imported Batch"></div>
@@ -344,35 +353,39 @@
         <h2>Sales History</h2>
         {% if historical_monthly_sales_summary %}
         <h3>Monthly Sales Summaries</h3>
-        <table class="monthly-summary-table">
-            <thead><tr><th>Month</th><th>Total P/L</th><th>Sales Events</th><th>Single Cards Sold (Units)</th><th>Sealed Products Sold (Units)</th></tr></thead>
-            <tbody>
-                {% for summary in historical_monthly_sales_summary %}
-                <tr>
-                    <td>{{ summary.month_name }}</td>
-                    <td><span class="{{ 'profit' if summary.profit_loss >= 0 else 'loss' }}">{{ summary.profit_loss | currency_commas }}</span></td>
-                    <td>{{ summary.sales_count }}</td><td>{{ summary.single_cards_sold }}</td><td>{{ summary.sealed_products_sold }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+        <div class="table-responsive-wrapper"> 
+            <table class="monthly-summary-table">
+                <thead><tr><th>Month</th><th>Total P/L</th><th>Sales Events</th><th>Single Cards Sold (Units)</th><th>Sealed Products Sold (Units)</th></tr></thead>
+                <tbody>
+                    {% for summary in historical_monthly_sales_summary %}
+                    <tr>
+                        <td>{{ summary.month_name }}</td>
+                        <td><span class="{{ 'profit' if summary.profit_loss >= 0 else 'loss' }}">{{ summary.profit_loss | currency_commas }}</span></td>
+                        <td>{{ summary.sales_count }}</td><td>{{ summary.single_cards_sold }}</td><td>{{ summary.sealed_products_sold }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div> 
         {% endif %}
         <h3>All Sales Events</h3>
-        <table class="sales-event-table">
-            <thead>
-                <tr>
-                    <th>Sale Date</th>
-                    <th>Items Summary / Details</th>
-                    <th>Total Items Qty</th>
-                    <th>Total Shipping</th>
-                    <th>Net P/L for Event</th>
-                    <th>Event Notes</th>
-                </tr>
-            </thead>
-            <tbody id="salesHistoryTableBody">
-                {# Sales history (events and items) will be populated by JavaScript #}
-            </tbody>
-        </table>
+        <div class="table-responsive-wrapper"> 
+            <table class="sales-event-table">
+                <thead>
+                    <tr>
+                        <th>Sale Date</th>
+                        <th>Items Summary / Details</th>
+                        <th>Total Items Qty</th>
+                        <th>Total Shipping</th>
+                        <th>Net P/L for Event</th>
+                        <th>Event Notes</th>
+                    </tr>
+                </thead>
+                <tbody id="salesHistoryTableBody">
+                    {# Sales history (events and items) will be populated by JavaScript #}
+                </tbody>
+            </table>
+        </div> 
         <p id="noSalesResults" style="display: none;">No sales recorded yet.</p>
     </div>
 
@@ -490,7 +503,7 @@
             const salesEvents = rawSalesHistoryData; 
             const hasSales = salesEvents && salesEvents.length > 0;
             noSalesMsg.style.display = hasSales ? 'none' : 'block';
-            const monthlySummaryTable = document.querySelector('.monthly-summary-table'); const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3:first-of-type'); // Target first h3 for monthly
+            const monthlySummaryTable = document.querySelector('.monthly-summary-table'); const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3:first-of-type'); 
             if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none'; 
             if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
 
@@ -513,8 +526,8 @@
                     detailsRow.id = `event-details-${event.id}`;
                     detailsRow.style.display = 'none'; 
                     const detailsCell = detailsRow.insertCell();
-                    detailsCell.colSpan = 6; // Adjusted colspan
-                    let detailsHTML = '<table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
+                    detailsCell.colSpan = 6; 
+                    let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>'; 
                     event.items.forEach(item => {
                         detailsHTML += `<tr>
                             <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
@@ -523,13 +536,13 @@
                             <td><span class="${getNum(item, 'item_profit_loss',0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
                         </tr>`;
                     });
-                    detailsHTML += '</tbody></table>';
+                    detailsHTML += '</tbody></table></div>'; 
                     detailsCell.innerHTML = detailsHTML;
                 });
 
                 tableBody.querySelectorAll('.details-btn').forEach(button => {
                     button.addEventListener('click', function() {
-                        const detailRowId = this.dataset.eventId; // e.g., "event-details-1"
+                        const detailRowId = this.dataset.eventId; 
                         const detailRow = document.getElementById(detailRowId);
                         if (detailRow) {
                             detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
@@ -666,10 +679,115 @@
                 if (sortAscBtn) sortAscBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
                 if (sortDescBtn) sortDescBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
                 
-                // Add one item row by default if the enterSaleTab is active and no items are present
                 if (document.getElementById('enterSaleTab').style.display === 'block' && saleItemsContainer && saleItemsContainer.children.length === 0) {
                     createSaleItemRow(); 
                 }
+
+                // --- Collapsible Filters Logic ---
+                const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
+                const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls'); 
+
+                if (toggleInventoryFiltersBtn && filterControlsDiv) {
+                    if (window.innerWidth <= 768) {
+                        toggleInventoryFiltersBtn.textContent = 'Show Filters';
+                    }
+
+                    toggleInventoryFiltersBtn.addEventListener('click', function() {
+                        const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
+                        if (isCurrentlyExpanded) {
+                            this.textContent = 'Hide Filters';
+                        } else {
+                            this.textContent = 'Show Filters';
+                        }
+                    });
+                }
+                // --- End Collapsible Filters Logic ---
+
+                // --- Hamburger Menu Logic ---
+                const hamburgerBtn = document.getElementById('hamburgerBtn');
+                const mainTabNav = document.getElementById('mainTabNav'); 
+
+                if (hamburgerBtn && mainTabNav) {
+                    const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
+
+                    hamburgerBtn.addEventListener('click', function() {
+                        const isOpen = mainTabNav.classList.toggle('open');
+                        hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
+                        if (isOpen) {
+                            hamburgerBtn.innerHTML = '&times;'; 
+                        } else {
+                            hamburgerBtn.innerHTML = '&#9776;'; 
+                        }
+                    });
+
+                    tabButtonsInMenu.forEach(button => {
+                        button.addEventListener('click', function() {
+                            if (mainTabNav.classList.contains('open')) {
+                                mainTabNav.classList.remove('open');
+                                hamburgerBtn.setAttribute('aria-expanded', 'false');
+                                hamburgerBtn.innerHTML = '&#9776;';
+                            }
+                        });
+                    });
+                }
+                // --- End Hamburger Menu Logic ---
+
+                // --- Enhanced Custom File Input & Drag-Drop Logic ---
+                const csvDropZone = document.getElementById('csvDropZone');
+                const actualCsvFileInput = document.getElementById('csv_file'); 
+                const csvFileNameDisplay = document.getElementById('fileNameDisplay'); 
+
+                if (actualCsvFileInput && csvFileNameDisplay) {
+                    actualCsvFileInput.addEventListener('change', function() {
+                        if (this.files && this.files.length > 0) {
+                            csvFileNameDisplay.textContent = this.files[0].name;
+                        } else {
+                            csvFileNameDisplay.textContent = 'No file chosen';
+                        }
+                    });
+                }
+
+                if (csvDropZone && actualCsvFileInput) {
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, preventDefaults, false);
+                        document.body.addEventListener(eventName, preventDefaults, false); 
+                    });
+
+                    function preventDefaults(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+
+                    ['dragenter', 'dragover'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, highlight, false);
+                    });
+
+                    ['dragleave', 'drop'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, unhighlight, false);
+                    });
+
+                    function highlight(e) {
+                        csvDropZone.classList.add('dragover');
+                    }
+
+                    function unhighlight(e) {
+                        csvDropZone.classList.remove('dragover');
+                    }
+
+                    csvDropZone.addEventListener('drop', handleDrop, false);
+
+                    function handleDrop(e) {
+                        let dt = e.dataTransfer;
+                        let files = dt.files;
+
+                        if (files.length > 0) {
+                            actualCsvFileInput.files = files;
+                            const event = new Event('change', { bubbles: true });
+                            actualCsvFileInput.dispatchEvent(event);
+                        }
+                    }
+                }
+                // --- End Enhanced Custom File Input & Drag-Drop Logic ---
 
                 renderInventory(); 
                 renderSalesHistory();
