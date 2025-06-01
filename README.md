@@ -1,96 +1,67 @@
-# CDI-Tracker: Magic: The Gathering Inventory & Sales Manager
+# CDI-Tracker: Magic: The Gathering Inventory & Business Manager
 
-CDI-Tracker is a web-based application built with Python and Flask, designed to help you manage your Magic: The Gathering collection, including both single cards and sealed products. It allows you to track your inventory, differentiate lots by buy price and other attributes, fetch current market values for singles via Scryfall, record sales and shipping costs, and analyze overall profitability with detailed monthly and all-time financial summaries.
+CDI-Tracker is a web-based application built with Python, Flask, and a PostgreSQL backend. It's designed to help you comprehensively manage your Magic: The Gathering collection and associated business finances. It allows you to track inventory (single cards and sealed products), fetch market values via Scryfall, record multi-item sales, manage other income/expenses, and analyze overall profitability with detailed financial summaries. This application is designed for deployment on cloud platforms.
 
 ## Key Features
 
-* **Dual Inventory System:**
-    * Manage both individual Magic cards and sealed products.
-    * Each item acquired with a unique combination of identifying attributes (including `buy_price`, `location`, `language`, `rarity` for cards; `buy_price`, `location`, `language`, `product_type`, `is_collectors_item` for sealed) is treated as a distinct lot in the inventory.
+* **Data Management & Deployment:**
+    * Uses a robust **PostgreSQL** database for data storage, suitable for larger collections and scalable deployments.
+    * Designed for cloud hosting, with configuration for environment variables for secure database connections.
+    * Key item attributes (like `buy_price`, `location`, `language`, `rarity`) are part of `UNIQUE` constraints, allowing different lots of the same card/product if acquired or stored differently.
 
-* **Single Card Management:**
-    * **Flexible Card Addition:**
-        * Set Code + Collector Number
-        * Set Code + Card Name
-        * Card Name + Collector Number (Scryfall determines the set)
-        * Card Name only (Scryfall determines the most likely printing)
-    * **Scryfall API Integration:** Automatically fetches card details such as name, collector number, set code, market prices (USD for non-foil and foil), card image URI, rarity, and language.
-    * **Detailed Tracking:** Track quantity, buy price (per lot), user-defined asking price, physical location, language (dropdown), rarity, and foil status.
-    * **"Find Set by Symbol" Modal:** A visual tool utilizing Scryfall's set icon SVGs to easily look up set codes.
-    * **Data Refresh:** Allows refreshing market prices and image URI from Scryfall for existing cards in the inventory.
-    * **Updates:** Modify card details including quantity, buy price, asking price, and location. Changing attributes that are part of the unique key (like `buy_price`) may result in a new lot if it doesn't conflict with an existing one.
+* **Dashboard Overview (New):**
+    * Provides an at-a-glance summary of your business's financial health.
+    * Displays key metrics: Total Inventory Buy Cost & Market Value, Realized P/L from Sales (All Time), Net Business P/L (All Time), and Current Month's financial performance.
 
-* **Sealed Product Management:**
-    * **Manual Entry:** Input details for sealed products: Product Name, Set Name, Product Type (Booster Pack, Box, Bundle, Precon, etc.), Language (dropdown).
-    * **Detailed Tracking:** Track quantity, buy price (per lot), user-defined asking price, manually entered market price, physical location, image URL, and an optional "Collector's Item" status.
-    * **Updates:** Modify sealed product details including quantity, buy price, market price, asking price, location, image URL, language, and collector's item status.
+* **Comprehensive Inventory Management (`Inventory` Tab - Revised):**
+    * **Dual System:** Manage both individual Magic cards and sealed products.
+    * **Detailed View:** Displays all inventory items in a unified, filterable, and sortable grid.
+    * **Server-Side Power:** Filtering, sorting, and pagination are handled server-side for efficient performance with large collections.
+    * **Single Card Details:** Fetches card details (name, prices, image, rarity, language) via Scryfall API. Includes tracking for quantity, buy price, asking price, location, foil status.
+    * **Sealed Product Details:** Manual entry for product name, set, type, language, quantity, buy price, asking price, manual market price, location, image URL, and collector's status.
+    * **Management Actions:** Inline updates to item details, deletion of items, and market data refresh for single cards.
+    * **"Open Sealed Product" Workflow:** Designate a sealed product lot as "opened," calculate suggested average buy price for resulting singles, and pre-fill the "Add Single Card" form.
 
-* **"Open Sealed Product" Workflow:**
-    * Designate a specific lot of sealed products from your inventory as "opened."
-    * Specify the number of single cards you will add from the opened product(s).
-    * The system calculates a suggested average buy price for these singles based on the original cost of the specific sealed product lot.
-    * The "Add Single Card" form is then pre-filled with this suggested average buy price and details of the opened pack.
+* **Streamlined Item Addition (`Add to Inventory` Tab - New):**
+    * Consolidates all methods for adding items into one dedicated tab.
+    * **Add Single Card Form:** Flexible card lookup (Set & CN, Set & Name, Name & CN, Name only).
+    * **"Find Set by Symbol" Modal:** Visual tool using Scryfall set icons to look up set codes.
+    * **Add Sealed Product Form:** For manual entry of sealed items.
+    * **CSV Import:** Bulk import single cards with user-defined defaults for buy price, location, etc., using a drag-and-drop interface.
 
-* **Sales Tracking & Profitability:**
-    * Record sales for specific lots of both single cards and sealed products.
-    * Input quantity sold, sell price per item, sale date, notes, and shipping cost.
-    * Automatically calculates Net Profit/Loss for each sale, factoring in the specific lot's buy price and the shipping cost.
-    * Reduces inventory quantity upon sale.
+* **Sales Tracking & History (`Sales & History` Tab - Revised):**
+    * **Enter New Sale:** Record multi-item sales events, including sale date, multiple items (cards/sealed) with quantities and sell prices, total shipping cost, and overall notes.
+    * **Profit/Loss Calculation:** Automatically calculates Net P/L for each sale event based on specific lot buy prices and shipping.
+    * **Inventory Adjustment:** Reduces inventory quantities automatically upon sale.
+    * **View Sales History:**
+        * **Historical Monthly Summaries:** Table summarizing P/L, sales count, and units sold for each past month.
+        * **Detailed Event Log:** Expandable list of all individual sale events, showing items sold, prices, and P/L for each item within the event.
+    * **Delete Sale Events (New):** Ability to delete entire sale events, which also attempts to revert inventory quantities by adding sold items back to stock.
 
-* **CSV Import for Single Cards:**
-    * Bulk import single card collections from a CSV file.
-    * **Expected columns (case-insensitive):** 'Quantity', 'Name', 'Set' (Set Name), 'Card Number' (Collector Number), 'Set Code', 'Printing' (e.g., "Foil", "Normal"), 'Rarity', 'Language' (2-letter code).
-    * Uses a user-specified default `buy_price` for the entire import batch.
-    * Allows setting default location, asking price, and language for imported cards.
-    * Scryfall is used to fetch full card details based on the provided CSV data.
-
-* **Comprehensive Inventory View (`View Inventory` Tab):**
-    * Displays all inventory items (singles and sealed, including distinct lots) in a unified grid.
-    * **Client-Side Filtering:** Advanced filtering by text search (name, set, location, collector number, rarity, language, product type), item type, location, set, foil status (cards), rarity (cards), language (cards/sealed), and collector's item status (sealed).
-    * **Client-Side Sorting:** Sort inventory by Name, Set, Location, Quantity, Buy Price, Market Price, Rarity (Cards), Language, Collector Number (Cards), Product Type (Sealed) in ascending or descending order.
-    * **Financial Summary:** Displays key metrics:
-        * Total Inventory Buy Cost.
-        * Total Inventory Market Value (Scryfall for singles, manual for sealed).
-        * Overall Realized Net Profit/Loss (All Time).
-        * Current Month's Realized Profit/Loss.
-        * Current Month's Total Sales Transactions.
-        * Current Month's Total Single Cards Sold (Units).
-        * Current Month's Total Sealed Products Sold (Units).
-    * Allows inline updates to item details and deletion of items.
-
-* **Sales History View (`View Sales History` Tab):**
-    * **Historical Monthly Summaries:** A table summarizing for each past month:
-        * Total Profit/Loss for the month.
-        * Total Sales Transactions for the month.
-        * Total Single Cards Sold (Units) for the month.
-        * Total Sealed Products Sold (Units) for the month.
-    * **Detailed Sales Log:** Lists all individual sales transactions with details including item name, specifics, quantities, prices, shipping, and net P/L.
+* **Business Ledger (`Business Ledger` Tab - New/Renamed "Finances"):**
+    * Track general business income and expenses not directly related to inventory sales (e.g., platform fees, shipping supplies, software subscriptions).
+    * Form to add new financial entries (date, description, category, type (income/expense), amount, notes).
+    * Table displaying all recorded ledger entries with delete functionality.
 
 * **User Interface:**
-    * Tabbed interface for: Add Single Card, Add Sealed Product, Enter Sale, View Inventory, View Sales History, Import CSV.
+    * Responsive, mobile-first design with a hamburger menu for navigation on smaller screens.
+    * Collapsible filter section on the inventory tab for better space management on mobile.
     * Dark mode theme inspired by Magic: The Gathering colors.
-    * Language input fields are dropdowns for common MTG languages.
-    * Responsive search bar for selecting items from inventory when recording a sale.
-    * Monetary values formatted with dollar signs and commas (e.g., $1,234.56).
-    * Positive Profit/Loss and percentage values colored green; negative values red.
-
-* **Data Management:**
-    * Uses an SQLite database (`cdi_tracker.db`) for local data storage.
-    * Key item attributes (like `buy_price`, `location`, `language`, `rarity`, `is_foil` for cards) are part of the `UNIQUE` constraints in the database, allowing different lots of the same card/product if acquired or stored differently.
+    * Tabbed interface for clear separation of functionalities: Dashboard, Inventory, Add to Inventory, Sales & History, Business Ledger.
 
 ## Project Layout
 
 CDI-Tracker/
 ├── app.py                     # Main Flask application
-├── database.py                # Database logic (SQLite)
+├── database.py                # Database logic (PostgreSQL)
 ├── scryfall.py                # Scryfall API interaction
-├── requirements.txt           # Python dependencies (User needs to create this)
+├── requirements.txt           # Python dependencies
+├── render.yaml                # Configuration for deployment on Render (example)
 ├── static/
 │   └── style.css              # CSS for styling
 ├── templates/
 │   ├── index.html             # Main HTML template for the application
-│   └── confirm_open_sealed.html # Template for confirming pack opening details
-├── cdi_tracker.db             # SQLite database file (auto-created on first run or via database.py)
+│   └── confirm_open_sealed.html # Template for confirming pack opening
 └── README.md                  # This file
 
 
@@ -99,72 +70,80 @@ CDI-Tracker/
 ### Prerequisites
 
 * Python 3.7+
-* `pip` (Python package installer, usually comes with Python)
+* `pip` (Python package installer)
+* A running PostgreSQL server.
 
 ### Installation Steps
 
 1.  **Get the Code:**
-    * Download or clone the project files into a directory named `CDI-Tracker`.
-    * Navigate to the `CDI-Tracker/` root directory in your terminal.
+    * Download or clone the project files.
+    * Navigate to the project's root directory in your terminal.
 
 2.  **Create and Activate a Virtual Environment (Highly Recommended):**
     ```bash
     python -m venv venv
-    ```
-    Activate:
-    * Windows: `venv\Scripts\activate`
-    * macOS/Linux: `source venv/bin/activate`
-
-3.  **Create `requirements.txt` file:**
-    In the project root (`CDI-Tracker/`), create a file named `requirements.txt` with the following content:
-    ```
-    Flask
-    requests
+    # Windows: venv\Scripts\activate
+    # macOS/Linux: source venv/bin/activate
     ```
 
-4.  **Install Dependencies:**
-    With the virtual environment activated:
+3.  **Install Dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
+    (Ensure `requirements.txt` includes `Flask`, `requests`, `psycopg2-binary`, `python-dotenv`).
 
-5.  **Initialize/Update the Database:**
-    The application uses an SQLite database (`cdi_tracker.db`).
-    * The application will attempt to initialize the database schema on its first run if the `cdi_tracker.db` file is missing.
-    * Alternatively, you can manually create/update the `cdi_tracker.db` file with the latest schema by running:
+4.  **Configure Environment Variables:**
+    Create a `.env` file in the project root for local development. For production (e.g., on Render), set these in the service's environment settings.
+    ```dotenv
+    # .env file (Example for local development - use your actual testing DB credentials)
+    DB_USER=your_testing_db_user
+    DB_PASSWORD=your_testing_db_password
+    DB_HOST=your_testing_db_host 
+    DB_PORT=5432
+    DB_NAME=your_testing_db_name
+    FLASK_SECRET_KEY=a_very_long_random_and_secret_string_for_security
+    # For Roboflow (Optional)
+    # ROBOFLOW_API_KEY=your_roboflow_api_key
+    # ROBOFLOW_MODEL_ENDPOINT=your_roboflow_model_inference_url
+    ```
+    Remember to add `.env` to your `.gitignore` file.
+
+5.  **Initialize the Database:**
+    * Ensure your PostgreSQL server is running and you have created databases for testing and production as needed.
+    * Make sure your `.env` file (for local) or Render environment variables (for production) are correctly set.
+    * Run the initialization script. This will create all necessary tables if they don't exist.
         ```bash
         python database.py
         ```
-    * **Important:** If you are updating from a version with a different database schema (e.g., changes to `UNIQUE` constraints), it's often simplest to backup your existing `cdi_tracker.db` (if it has data you want to save/migrate manually) and then delete it to allow `database.py` or the app to create a fresh one with the new schema.
 
-## Running the Application
+## Running the Application (Local Development)
 
-1.  Ensure your virtual environment is activated.
-2.  Navigate to the project's root directory (`CDI-Tracker/`).
-3.  Run the Flask application:
+1.  Ensure your virtual environment is activated and your `.env` file is configured for your local/testing database.
+2.  Run the Flask application:
     ```bash
     python app.py
     ```
-4.  Open your web browser and go to: `http://127.0.0.1:5000/`
+3.  Open your web browser and go to: `http://127.0.0.1:10000` (or the port specified in `app.py`).
 
-## Usage Overview
+## Usage Overview (New Tab Structure)
 
-The application is organized into tabs:
-
-* **Add Single Card:** Add individual cards. Scryfall API fetches details. Unique lots are created based on attributes like buy price, location, language, rarity, and foil status.
-* **Add Sealed Product:** Manually input details for sealed items. Unique lots are created based on attributes like buy price, location, language, product type, and collector's status.
-* **Enter Sale:** Record sales of specific items/lots from your inventory using a searchable dropdown.
-* **View Inventory:** View, filter, and sort all inventory. Update item details or delete items. This tab also shows key financial summaries.
-* **View Sales History:** Review past sales with monthly summaries and a detailed log of all transactions.
-* **Import CSV:** Bulk import single cards from a CSV file.
+* **Dashboard:** View your main financial summaries and key performance indicators.
+* **Inventory:** Browse, filter, sort, update, and manage your existing single cards and sealed products. Initiate opening sealed products from here.
+* **Add to Inventory:** Use the forms here to add new single cards, sealed products, or bulk import cards via CSV.
+* **Sales & History:** Record new multi-item sales transactions and review detailed history of all past sales, including monthly summaries. Delete sale events if needed.
+* **Business Ledger:** Add and track other business-related income and expenses (like fees, supplies, etc.) not directly tied to inventory sales.
 
 ## Notes
 
-* The Scryfall API is used for fetching single card data. Please be mindful of their API usage guidelines and rate limits (the app includes a small delay between calls).
-* Market prices for sealed products are entered and updated manually.
-* The `cdi_tracker.db` file contains all your inventory and sales data. Back it up regularly if it contains important information. Consider adding this file to your `.gitignore` if you are using Git and don't want to commit personal data to a repository.
-* The integrated camera scanning feature using Roboflow (mentioned in `app.py`) is present in the Python code but requires Roboflow API key configuration and model endpoint setup. Its reliability would depend on the model and configuration.
+* The Scryfall API is used for fetching single card data. Be mindful of their API usage guidelines.
+* For local development, ensure your `.env` file points to your testing database. For production on Render, ensure your Render environment variables point to your official/production database.
+* The integrated camera scanning feature using Roboflow (mentioned in `app.py`) requires Roboflow API key configuration and model endpoint setup as environment variables.
+* Deleting sale events attempts to restock inventory but may have limitations if original inventory items have been significantly altered or deleted since the sale.
 
-## Features to Add
+## Features to Add / Future Enhancements
 
-* Add sort by print with combos available using checkboxes
+* Add sort by print finish (e.g., Etched, Gilded) with combo checkboxes in inventory filters.
+* More robust error handling and user feedback for inventory restocking during sale event deletion.
+* Charts and visualizations on the Dashboard for financial trends.
+* User accounts and authentication.
+* More detailed reporting features.
