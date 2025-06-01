@@ -3,3 +3,4 @@ requests
 Flask-RQ2
 redis
 psycopg2-binary
+python-dotenv
