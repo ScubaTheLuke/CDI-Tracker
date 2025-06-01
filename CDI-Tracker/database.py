@@ -2,6 +2,8 @@ import psycopg2
 import psycopg2.extras
 import datetime
 import os # Recommended for handling connection details securely
+from dotenv import load_dotenv 
+load_dotenv() 
 
 # --- PostgreSQL Connection Details ---
 # It is recommended to use environment variables for security.
@@ -18,7 +20,8 @@ def get_db_connection():
         user=DB_USER,
         password=DB_PASSWORD,
         host=DB_HOST,
-        port=DB_PORT
+        port=DB_PORT,
+        sslmode='require'
     )
     return conn
 
@@ -110,6 +113,22 @@ def init_db():
         )
     ''')
     print("Sale_items table creation attempted.")
+
+    print("Attempting to create financial_entries table...")
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS financial_entries (
+        id SERIAL PRIMARY KEY,
+        entry_date DATE NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT,
+        entry_type TEXT NOT NULL CHECK (entry_type IN ('expense', 'income')),
+        amount REAL NOT NULL,
+        notes TEXT,
+        date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    print("Financial_entries table creation attempted.")
+
 
     _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
@@ -206,6 +225,94 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
         if cursor: cursor.close()
         if conn: conn.close()
     return card_id
+
+
+
+def delete_sale_event(sale_event_id):
+    """
+    Deletes a sale event and its associated items.
+    Attempts to add the sold quantities back to the inventory.
+    All operations are performed in a single transaction.
+    Returns a tuple: (success_boolean, message_string)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Use DictCursor for easier item access
+
+    try:
+        # Start a transaction
+        # In PostgreSQL, a transaction is implicitly started with the first command.
+        # We will explicitly commit or rollback.
+
+        # 1. Get all items from the sale event
+        cursor.execute("""
+            SELECT inventory_item_id, item_type, quantity_sold, original_item_name
+            FROM sale_items 
+            WHERE sale_event_id = %s
+        """, (sale_event_id,))
+        items_sold = cursor.fetchall()
+
+        if not items_sold:
+            # If there are no items (e.g., an empty sale was somehow recorded),
+            # we can just delete the event.
+            cursor.execute("DELETE FROM sale_events WHERE id = %s", (sale_event_id,))
+            if cursor.rowcount == 0:
+                conn.rollback() # Should not happen if items_sold was truly empty for a valid event_id
+                return False, f"Sale event ID {sale_event_id} not found."
+            conn.commit()
+            return True, f"Sale event ID {sale_event_id} (which had no items) deleted."
+
+        # 2. Attempt to restock inventory for each item
+        restocking_messages = []
+        for item in items_sold:
+            inventory_id = item['inventory_item_id']
+            item_type = item['item_type']
+            quantity_to_restock = item['quantity_sold']
+            item_name_for_msg = item['original_item_name']
+
+            if inventory_id is None: # Should not happen if data is clean
+                restocking_messages.append(f"Warning: Sold item '{item_name_for_msg}' had no inventory ID linked; cannot restock.")
+                continue
+
+            # Use the existing helper, ensuring it's suitable for positive quantity_change
+            # _update_inventory_item_quantity_with_cursor adds quantity_change
+            success_restock, msg_restock = _update_inventory_item_quantity_with_cursor(
+                cursor, item_type, inventory_id, quantity_to_restock 
+            )
+            if not success_restock:
+                # If restocking a specific item fails, we'll roll back the whole transaction.
+                # This is a strict approach. Alternatively, you could log failures and continue.
+                conn.rollback()
+                return False, f"Failed to restock '{item_name_for_msg}' (Inv ID: {inventory_id}): {msg_restock}. Sale event not deleted."
+            restocking_messages.append(f"Restocked {quantity_to_restock} of '{item_name_for_msg}'.")
+
+        # 3. Delete the sale items records for this event
+        cursor.execute("DELETE FROM sale_items WHERE sale_event_id = %s", (sale_event_id,))
+
+        # 4. Delete the sale event record
+        cursor.execute("DELETE FROM sale_events WHERE id = %s", (sale_event_id,))
+        if cursor.rowcount == 0: # Should have been caught earlier if items_sold was empty due to invalid event_id
+            conn.rollback()
+            return False, f"Sale event ID {sale_event_id} could not be deleted (was it already deleted?)"
+
+        conn.commit()
+        final_message = f"Sale event ID {sale_event_id} deleted. " + " ".join(restocking_messages)
+        return True, final_message
+
+    except psycopg2.Error as e:
+        if conn:
+            conn.rollback()
+        print(f"DB error in delete_sale_event for event ID {sale_event_id}: {e}")
+        return False, f"Database error during sale event deletion: {e}"
+    except Exception as e: # Catch any other unexpected errors
+        if conn:
+            conn.rollback()
+        print(f"Unexpected error in delete_sale_event for event ID {sale_event_id}: {e}")
+        return False, f"An unexpected error occurred: {e}"
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def get_all_cards():
@@ -652,6 +759,60 @@ def get_all_sale_events_with_items():
         cursor.close()
         conn.close()
     return sale_events_processed
+
+
+def add_financial_entry(entry_date, description, category, entry_type, amount, notes):
+    """Adds a new financial entry (expense or income) to the database."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO financial_entries (entry_date, description, category, entry_type, amount, notes)
+            VALUES (%s, %s, %s, %s, %s, %s) RETURNING id
+        """, (entry_date, description, category, entry_type, amount, notes))
+        new_id = cursor.fetchone()[0]
+        conn.commit()
+        return new_id
+    except psycopg2.Error as e:
+        print(f"DB error in add_financial_entry: {e}")
+        if conn: conn.rollback()
+        return None
+    finally:
+        cursor.close()
+        conn.close()
+
+def get_all_financial_entries():
+    """Retrieves all financial entries, ordered by date."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    entries = []
+    try:
+        cursor.execute("SELECT * FROM financial_entries ORDER BY entry_date DESC, id DESC")
+        entries = cursor.fetchall()
+    except psycopg2.Error as e:
+        print(f"DB error in get_all_financial_entries: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return entries
+
+def delete_financial_entry(entry_id):
+    """Deletes a financial entry by its ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    deleted = False
+    try:
+        cursor.execute("DELETE FROM financial_entries WHERE id = %s", (entry_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB error in delete_financial_entry for ID {entry_id}: {e}")
+        if conn: conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+    return deleted
+
 
 if __name__ == '__main__':
     print("Initializing PostgreSQL database...")

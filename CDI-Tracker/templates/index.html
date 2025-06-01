@@ -7,197 +7,359 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         /* Styles for filter area */
-        .filter-controls { background-color: var(--bg-secondary); padding: 15px; margin-bottom: 10px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end; }
-        .filter-controls > div { display: flex; flex-direction: column; }
-        .filter-controls label { margin-bottom: 4px; font-size: 0.85em; color: var(--text-secondary); }
-        .filter-controls input[type="text"], .filter-controls select { padding: 8px 10px; width: auto; min-width: 150px; font-size: 0.9em; }
-        .filter-controls button { padding: 8px 15px; font-size: 0.9em; margin-bottom: 0; align-self: flex-end; }
+        .filter-controls {
+            background-color: var(--bg-secondary);
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+        }
+
+            .filter-controls > div {
+                display: flex;
+                flex-direction: column;
+            }
+
+            .filter-controls label {
+                margin-bottom: 4px;
+                font-size: 0.85em;
+                color: var(--text-secondary);
+            }
+
+            .filter-controls input[type="text"], .filter-controls select {
+                padding: 8px 10px;
+                width: auto;
+                min-width: 150px;
+                font-size: 0.9em;
+            }
+
+            .filter-controls button {
+                padding: 8px 15px;
+                font-size: 0.9em;
+                margin-bottom: 0;
+                align-self: flex-end;
+            }
 
         /* Styles for Sort Controls */
-        .sort-controls { background-color: var(--bg-secondary); padding: 10px 15px; margin-bottom: 20px; border-radius: 8px; border: 1px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
-        .sort-controls label { font-size: 0.9em; color: var(--text-secondary); margin-right: 5px;}
-        .sort-controls select { padding: 8px 10px; font-size: 0.9em; }
-        .sort-controls .direction-toggle button { padding: 8px 12px; font-size: 0.9em; background-color: var(--bg-tertiary); border: 1px solid var(--border-color); color: var(--text-primary); cursor:pointer; }
-        .sort-controls .direction-toggle button.active { background-color: var(--mtg-gold-accent); color: var(--bg-primary); border-color: var(--mtg-gold-accent); }
+        .sort-controls {
+            background-color: var(--bg-secondary);
+            padding: 10px 15px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+            .sort-controls label {
+                font-size: 0.9em;
+                color: var(--text-secondary);
+                margin-right: 5px;
+            }
+
+            .sort-controls select {
+                padding: 8px 10px;
+                font-size: 0.9em;
+            }
+
+            .sort-controls .direction-toggle button {
+                padding: 8px 12px;
+                font-size: 0.9em;
+                background-color: var(--bg-tertiary);
+                border: 1px solid var(--border-color);
+                color: var(--text-primary);
+                cursor: pointer;
+            }
+
+                .sort-controls .direction-toggle button.active {
+                    background-color: var(--mtg-gold-accent);
+                    color: var(--bg-primary);
+                    border-color: var(--mtg-gold-accent);
+                }
 
         /* Pagination Styles */
-        .pagination { display: flex; justify-content: center; padding: 20px 0; list-style: none; }
-        .pagination li { margin: 0 5px; }
-        .pagination li a { display: block; padding: 8px 12px; text-decoration: none; background-color: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 4px; transition: background-color 0.3s; }
-        .pagination li a:hover { background-color: var(--mtg-black-accent); }
-        .pagination li.active a { background-color: var(--mtg-gold-accent); color: var(--bg-primary); border-color: var(--mtg-gold-accent); }
-        .pagination li.disabled a { color: var(--text-secondary); background-color: var(--bg-secondary); pointer-events: none; border-color: var(--bg-tertiary); }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            padding: 20px 0;
+            list-style: none;
+        }
 
-        .info-box { background-color: var(--bg-tertiary); padding: 10px 15px; margin-bottom: 15px; border-radius: 4px; border: 1px solid var(--border-color); }
-        .info-box p { margin:0; color: var(--text-secondary); line-height: 1.4; }
-        .info-box strong { color: var(--text-primary); }
+            .pagination li {
+                margin: 0 5px;
+            }
 
-        .modal { display: none; position: fixed; z-index: 1001; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.7); }
-        .modal-content { background-color: var(--bg-secondary); margin: 5% auto; padding: 25px; border: 1px solid var(--border-color); border-radius: 8px; width: 90%; max-width: 800px; box-shadow: 0 5px 15px rgba(0,0,0,0.3); color: var(--text-primary); position: relative; }
-        .modal-close-button { color: var(--text-secondary); float: right; font-size: 32px; font-weight: bold; line-height: 1; }
-        .modal-close-button:hover, .modal-close-button:focus { color: var(--text-primary); text-decoration: none; cursor: pointer; }
-        #setSymbolSearchInput { width: calc(100% - 24px); padding: 10px; margin-bottom: 15px; border: 1px solid var(--border-color); background-color: var(--bg-tertiary); color: var(--text-primary); border-radius: 4px; }
-        .set-symbol-list { max-height: 450px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 15px; padding-right: 10px; }
-        .set-symbol-item { display: flex; align-items: center; padding: 10px; border: 1px solid var(--bg-tertiary); border-radius: 6px; cursor: pointer; transition: background-color 0.2s, border-color 0.2s; }
-        .set-symbol-item:hover { background-color: var(--bg-tertiary); border-color: var(--mtg-gold-accent); }
-        .set-symbol-item img { width: 32px;  height: 32px; margin-right: 12px; filter: brightness(0) invert(1); object-fit: contain; }
-        .set-symbol-item .set-details { font-size: 0.95em; display: flex; flex-direction: column; }
-        .set-symbol-item .set-name { display: block; font-weight: bold; color: var(--text-primary); }
-        .set-symbol-item .set-code { font-size: 0.9em; color: var(--text-secondary); }
-        
-        .monthly-summary-table, .sales-event-table { width: 100%; border-collapse: collapse; margin-bottom: 30px; font-size: 0.95em; }
-        .monthly-summary-table th, .monthly-summary-table td, .sales-event-table th, .sales-event-table td { border: 1px solid var(--border-color); padding: 10px 12px; text-align: left; }
-        .monthly-summary-table th, .sales-event-table th { background-color: var(--bg-tertiary); color: var(--text-primary); font-weight: bold; }
-        .monthly-summary-table tr:nth-child(even), .sales-event-table tr:nth-child(even) { background-color: var(--bg-secondary); }
-        .monthly-summary-table tr:hover, .sales-event-table tr:hover { background-color: #383740; }
-        .sales-event-table .nested-items-table { width: 95%; margin: 10px auto; border: 1px dashed var(--border-color); }
-        .sales-event-table .nested-items-table th, .sales-event-table .nested-items-table td { padding: 6px 8px; font-size: 0.9em; }
+                .pagination li a {
+                    display: block;
+                    padding: 8px 12px;
+                    text-decoration: none;
+                    background-color: var(--bg-tertiary);
+                    color: var(--text-primary);
+                    border: 1px solid var(--border-color);
+                    border-radius: 4px;
+                    transition: background-color 0.3s;
+                }
+
+                    .pagination li a:hover {
+                        background-color: var(--mtg-black-accent);
+                    }
+
+                .pagination li.active a {
+                    background-color: var(--mtg-gold-accent);
+                    color: var(--bg-primary);
+                    border-color: var(--mtg-gold-accent);
+                }
+
+                .pagination li.disabled a {
+                    color: var(--text-secondary);
+                    background-color: var(--bg-secondary);
+                    pointer-events: none;
+                    border-color: var(--bg-tertiary);
+                }
+
+        .info-box {
+            background-color: var(--bg-tertiary);
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+        }
+
+            .info-box p {
+                margin: 0;
+                color: var(--text-secondary);
+                line-height: 1.4;
+            }
+
+            .info-box strong {
+                color: var(--text-primary);
+            }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1001;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+        }
+
+        .modal-content {
+            background-color: var(--bg-secondary);
+            margin: 5% auto;
+            padding: 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            color: var(--text-primary);
+            position: relative;
+        }
+
+        .modal-close-button {
+            color: var(--text-secondary);
+            float: right;
+            font-size: 32px;
+            font-weight: bold;
+            line-height: 1;
+        }
+
+            .modal-close-button:hover, .modal-close-button:focus {
+                color: var(--text-primary);
+                text-decoration: none;
+                cursor: pointer;
+            }
+
+        #setSymbolSearchInput {
+            width: calc(100% - 24px);
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-radius: 4px;
+        }
+
+        .set-symbol-list {
+            max-height: 450px;
+            overflow-y: auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+            gap: 15px;
+            padding-right: 10px;
+        }
+
+        .set-symbol-item {
+            display: flex;
+            align-items: center;
+            padding: 10px;
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, border-color 0.2s;
+        }
+
+            .set-symbol-item:hover {
+                background-color: var(--bg-tertiary);
+                border-color: var(--mtg-gold-accent);
+            }
+
+            .set-symbol-item img {
+                width: 32px;
+                height: 32px;
+                margin-right: 12px;
+                filter: brightness(0) invert(1);
+                object-fit: contain;
+            }
+
+            .set-symbol-item .set-details {
+                font-size: 0.95em;
+                display: flex;
+                flex-direction: column;
+            }
+
+            .set-symbol-item .set-name {
+                display: block;
+                font-weight: bold;
+                color: var(--text-primary);
+            }
+
+            .set-symbol-item .set-code {
+                font-size: 0.9em;
+                color: var(--text-secondary);
+            }
+
+        .monthly-summary-table, .sales-event-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+
+            .monthly-summary-table th, .monthly-summary-table td, .sales-event-table th, .sales-event-table td {
+                border: 1px solid var(--border-color);
+                padding: 10px 12px;
+                text-align: left;
+            }
+
+            .monthly-summary-table th, .sales-event-table th {
+                background-color: var(--bg-tertiary);
+                color: var(--text-primary);
+                font-weight: bold;
+            }
+
+            .monthly-summary-table tr:nth-child(even), .sales-event-table tr:nth-child(even) {
+                background-color: var(--bg-secondary);
+            }
+
+            .monthly-summary-table tr:hover, .sales-event-table tr:hover {
+                background-color: #383740;
+            }
+
+            .sales-event-table .nested-items-table {
+                width: 95%;
+                margin: 10px auto;
+                border: 1px dashed var(--border-color);
+            }
+
+                .sales-event-table .nested-items-table th, .sales-event-table .nested-items-table td {
+                    padding: 6px 8px;
+                    font-size: 0.9em;
+                }
+
+        #addItemsTab .card-form {
+            margin-bottom: 30px;
+        }
+        /* Space between forms in Add Items tab */
+        #addItemsTab h3 {
+            margin-top: 10px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 8px;
+        }
 
         /* Enter Sale Tab - Multi Item */
-        #enterSaleTab .search-input-container input[type="text"] { min-width: 250px; font-size: 1em; }
-        #enterSaleTab .search-input-container label { margin-bottom: 6px; font-size: 1em; }
-        .sale-item-row { border: 1px solid var(--bg-tertiary); border-radius: 6px; margin-bottom:15px; padding:15px; background-color: var(--bg-tertiary); }
-        .sale-item-row h4 { margin-top:0; color: var(--mtg-gold-accent); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;}
+        #salesHistoryTab .search-input-container input[type="text"] {
+            min-width: 250px;
+            font-size: 1em;
+        }
+        /* Scoped to new Sales & History Tab */
+        #salesHistoryTab .search-input-container label {
+            margin-bottom: 6px;
+            font-size: 1em;
+        }
+        /* Scoped */
+        .sale-item-row {
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: var(--bg-tertiary);
+        }
+
+            .sale-item-row h4 {
+                margin-top: 0;
+                color: var(--mtg-gold-accent);
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 5px;
+            }
     </style>
 </head>
 <body>
     <h1>CDI Card Tracker</h1>
 
     {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %} <ul class="flashes"> {% for category, message in messages %} <li class="{{ category }}">{{ message }}</li> {% endfor %} </ul> {% endif %}
+    {% if messages %} <ul class="flashes"> {% for category, message in messages %} <li class="{{ category }}">{{ message }}</li> {% endfor %} </ul> {% endif %}
     {% endwith %}
 
-    <button id="hamburgerBtn" aria-label="Open navigation menu" aria-expanded="false" type="button">&#9776;</button> 
+    <button id="hamburgerBtn" aria-label="Open navigation menu" aria-expanded="false" type="button">&#9776;</button>
 
-    <div class="tab-nav" id="mainTabNav"> 
-        <button id="addCardTabNav" class="tab-button" onclick="openTab(event, 'addCardTab')">Add Single Card</button>
-        <button id="addSealedProductTabNav" class="tab-button" onclick="openTab(event, 'addSealedProductTab')">Add Sealed Product</button>
-        <button id="enterSaleTabNav" class="tab-button" onclick="openTab(event, 'enterSaleTab')">Enter Sale</button>
-        <button id="inventoryTabNav" class="tab-button" onclick="openTab(event, 'inventoryTab')">View Inventory</button>
-        <button id="salesHistoryTabNav" class="tab-button" onclick="openTab(event, 'salesHistoryTab')">View Sales History</button>
-        <button id="importCsvTabNav" class="tab-button" onclick="openTab(event, 'importCsvTab')">Import CSV</button>
+    <div class="tab-nav" id="mainTabNav">
+        <button id="dashboardTabNav" class="tab-button" onclick="openTab(event, 'dashboardTab')">Dashboard</button>
+        <button id="inventoryTabNav" class="tab-button" onclick="openTab(event, 'inventoryTab')">Inventory</button>
+        <button id="addItemsTabNav" class="tab-button" onclick="openTab(event, 'addItemsTab')">Add to Inventory</button>
+        <button id="salesHistoryTabNav" class="tab-button" onclick="openTab(event, 'salesHistoryTab')">Sales & History</button>
+        <button id="businessLedgerTabNav" class="tab-button" onclick="openTab(event, 'businessLedgerTab')">Business Ledger</button>
     </div>
 
-    <div id="addCardTab" class="tab-content">
-        <h2>Add Single Card to Inventory</h2>
-        {% if from_pack_details and suggested_buy_price is not none %}
-        <div class="info-box">
-            <p>Opened <strong>{{ from_pack_details.qty_opened }} x {{ from_pack_details.name }}</strong> (Cost: {{ from_pack_details.cost | currency_commas }}).<br>
-                Suggested avg. buy price for singles: <strong>{{ suggested_buy_price | currency_commas }}</strong>.
-            </p>
-        </div>
-        {% endif %}
-        <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
-            <div class="form-grid">
-                <div>
-                    <label for="set_code_add">Set Code (e.g., LEA, MH2):</label>
-                    <div style="display:flex; gap: 5px;">
-                        <input type="text" id="set_code_add" name="set_code" style="flex-grow:1;">
-                        <button type="button" id="findSetBySymbolBtn" class="refresh-button" style="padding: 8px 12px; font-size:0.9em;">Find Symbol</button>
-                    </div>
-                </div>
-                <div><label for="card_name_add">Card Name:</label><input type="text" id="card_name_add" name="card_name"></div>
-                <div><label for="collector_number_add">Collector Number:</label><input type="text" id="collector_number_add" name="collector_number"></div>
-                <div>
-                    <label for="rarity_add">Rarity:</label>
-                    <input type="text" id="rarity_add" name="rarity" placeholder="e.g., common, mythic">
-                </div>
-                <div>
-                    <label for="language_add">Language:</label>
-                    <select id="language_add" name="language">
-                        <option value="en" selected>English (en)</option><option value="es">Spanish (es)</option><option value="fr">French (fr)</option><option value="de">German (de)</option><option value="it">Italian (it)</option><option value="pt">Portuguese (pt)</option><option value="ja">Japanese (ja)</option><option value="ko">Korean (ko)</option><option value="ru">Russian (ru)</option><option value="zhs">Simplified Chinese (zhs)</option><option value="zht">Traditional Chinese (zht)</option><option value="ph">Phyrexian (ph)</option><option value="">Other</option>
-                    </select>
-                </div>
-                <div><label for="quantity_add">Quantity:</label><input type="number" id="quantity_add" name="quantity" min="1" value="1" required></div>
-                <div>
-                    <label for="buy_price_add">Buy Price (each):</label>
-                    <input type="number" id="buy_price_add" name="buy_price" value="{{ '%.2f'|format(suggested_buy_price) if suggested_buy_price is not none else '' }}" step="0.01" min="0" required placeholder="$0.00">
-                </div>
-                <div><label for="asking_price_add">Asking Price (each, opt.):</label><input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
-                <div><label for="location_add">Location:</label><input type="text" id="location_add" name="location" required></div>
-            </div>
-            <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;"><label for="is_foil_add">Foil</label></div>
-            <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
-        </form>
-        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required. Rarity/Language will be auto-filled by Scryfall if found, or use your input.</em></p>
-    </div>
-
-    <div id="addSealedProductTab" class="tab-content">
-         <h2>Add Sealed Product to Inventory</h2>
-         <form action="{{ url_for('add_sealed_product_route') }}" method="post" class="card-form">
-            <div class="form-grid">
-                <div><label for="product_name_sealed">Product Name:</label><input type="text" id="product_name_sealed" name="product_name" required placeholder="e.g., MOM Draft Pack"></div>
-                <div><label for="set_name_sealed">Set Name:</label><input type="text" id="set_name_sealed" name="set_name" required placeholder="e.g., March of the Machine"></div>
-                <div><label for="product_type_sealed">Product Type:</label><select id="product_type_sealed" name="product_type" required><option value="">-- Select --</option><option>Draft Booster Pack</option><option>Set Booster Pack</option><option>Collector Booster Pack</option><option>Play Booster Pack</option><option>Draft Booster Box</option><option>Set Booster Box</option><option>Collector Booster Box</option><option>Play Booster Box</option><option>Bundle / Fat Pack</option><option>Precon Deck</option><option>Dual Deck Set</option><option>Secret Lair</option><option value="Other">Other</option></select></div>
-                <div>
-                    <label for="language_sealed">Language:</label>
-                    <select id="language_sealed" name="language">
-                        <option value="en" selected>English (en)</option><option value="es">Spanish (es)</option><option value="fr">French (fr)</option><option value="de">German (de)</option><option value="it">Italian (it)</option><option value="pt">Portuguese (pt)</option><option value="ja">Japanese (ja)</option><option value="ko">Korean (ko)</option><option value="ru">Russian (ru)</option><option value="zhs">Simplified Chinese (zhs)</option><option value="zht">Traditional Chinese (zht)</option>
-                    </select>
-                </div>
-                <div><label for="quantity_sealed">Quantity:</label><input type="number" id="quantity_sealed" name="quantity" min="1" required></div>
-                <div><label for="buy_price_sealed">Buy Price (ea):</label><input type="number" id="buy_price_sealed" name="buy_price" step="0.01" min="0" required placeholder="$0.00"></div>
-                <div><label for="manual_market_price_sealed">Market Price (ea, opt.):</label><input type="number" id="manual_market_price_sealed" name="manual_market_price" step="0.01" min="0" placeholder="$0.00"></div>
-                <div><label for="asking_price_sealed">Asking Price (ea, opt.):</label><input type="number" id="asking_price_sealed" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
-                <div><label for="location_sealed">Location:</label><input type="text" id="location_sealed" name="location" required></div>
-                <div><label for="image_uri_sealed">Image URL (opt.):</label><input type="text" id="image_uri_sealed" name="image_uri" placeholder="http://..."></div>
-            </div>
-            <div><input type="checkbox" id="is_collectors_item_sealed" name="is_collectors_item" value="true" style="margin-top:10px;"><label for="is_collectors_item_sealed">Collector's Version?</label></div>
-            <button type="submit" style="margin-top:10px;">Add Sealed Product</button>
-        </form>
-    </div>
-
-    <div id="enterSaleTab" class="tab-content">
-        <h2>Record a New Multi-Item Sale</h2>
-        <form id="multiItemSaleForm" class="card-form">
-            <div class="form-grid">
-                <div>
-                    <label for="sale_event_date">Sale Date:</label>
-                    <input type="date" id="sale_event_date" name="sale_event_date" value="{{ current_date }}" required>
-                </div>
-                <div>
-                    <label for="sale_event_shipping_cost">Total Shipping Cost:</label>
-                    <input type="number" id="sale_event_shipping_cost" name="total_shipping_cost" step="0.01" min="0" value="0.00" placeholder="$0.00">
-                </div>
-            </div>
-            <div style="margin-top:10px;">
-                <label for="sale_event_notes">Overall Sale Notes (Optional):</label>
-                <input type="text" id="sale_event_notes" name="sale_event_notes" placeholder="e.g., Sold on TCGPlayer, order #123" style="width:100%;">
-            </div>
-
-            <h3 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Items in this Sale</h3>
-            <div id="saleItemsContainer">
-                </div>
-            <button type="button" id="addItemToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Item to Sale</button>
-            
-            <hr style="margin: 20px 0; border-color: var(--border-color);">
-            <button type="submit" style="margin-top:15px; font-size: 1.1em;">Record Entire Sale Transaction</button>
-        </form>
-    </div>
-
-    <div id="inventoryTab" class="tab-content">
-        <h2>Current Inventory & Sales Summary</h2>
+    <div id="dashboardTab" class="tab-content">
+        <h2>Dashboard & Financial Overview</h2>
         <p>
             <strong>Total Inventory Buy Cost:</strong> <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span><br>
             <strong>Total Inventory Market Value:</strong> <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span><br>
-            <strong>Overall Realized P/L (All Time):</strong>
-            <span class="{{ 'profit' if overall_realized_pl >= 0 else 'loss' }}">{{ overall_realized_pl | currency_commas }}</span><br>
-            <br> 
-            <strong>{{ current_month_name }} P/L (Current Month):</strong>
+            <strong>Realized P/L from Sales (All Time):</strong>
+            <span class="{{ 'profit' if sales_pl >= 0 else 'loss' }}">{{ sales_pl | currency_commas }}</span><br>
+            <strong>Net Business P/L (All Time):</strong>
+            <span class="{{ 'profit' if net_business_pl >= 0 else 'loss' }}">{{ net_business_pl | currency_commas }}</span><br>
+            <br>
+            <strong>{{ current_month_name }} P/L from Sales (Current Month):</strong>
             <span class="{{ 'profit' if current_month_profit_loss >= 0 else 'loss' }}">{{ current_month_profit_loss | currency_commas }}</span><br>
             <strong>Total Sales Events ({{ current_month_name }}):</strong> {{ current_month_sales_count }}<br>
             <strong>Total Single Cards Sold (Units, {{ current_month_name }}):</strong> {{ current_month_single_cards_sold_quantity }}<br>
             <strong>Total Sealed Products Sold (Units, {{ current_month_name }}):</strong> {{ current_month_sealed_sold_quantity }}
         </p>
-        
+    </div>
+
+    <div id="inventoryTab" class="tab-content">
+        <h2>Current Inventory</h2>
+
         <button id="toggleInventoryFiltersBtn" class="button" type="button">Show Filters</button>
 
         <div class="filter-controls">
-             <div>
+            <div>
                 <label for="inventoryFilterInput">Text Search:</label>
                 <input type="text" id="inventoryFilterInput" placeholder="Name, Set, Loc, CN, Rarity, Lang..." value="{{ filter_text or '' }}">
             </div>
-             <div>
+            <div>
                 <label for="inventoryTypeFilter">Item Type:</label>
                 <select id="inventoryTypeFilter">
                     <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Types</option>
@@ -205,18 +367,20 @@
                     <option value="sealed_product" {% if filter_type == 'sealed_product' %}selected{% endif %}>Sealed Products</option>
                 </select>
             </div>
-             <div>
+            <div>
                 <label for="inventoryLocationFilter">Location:</label>
                 <select id="inventoryLocationFilter">
                     <option value="all" {% if filter_location == 'all' %}selected{% endif %}>All Locations</option>
-                    {% for loc in all_locations %}<option value="{{ loc }}" {% if filter_location == loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+                    {% for loc in all_locations %}
+                    <option value="{{ loc }}" {% if filter_location == loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventorySetFilter">Set:</label>
                 <select id="inventorySetFilter">
                     <option value="all" {% if filter_set == 'all' %}selected{% endif %}>All Sets</option>
-                    {% for s_id in all_sets_identifiers %}<option value="{{ s_id }}" {% if filter_set == s_id %}selected{% endif %}>{{ s_id }}</option>{% endfor %}
+                    {% for s_id in all_sets_identifiers %}
+                    <option value="{{ s_id }}" {% if filter_set == s_id %}selected{% endif %}>{{ s_id }}</option>{% endfor %}
                 </select>
             </div>
             <div>
@@ -231,14 +395,16 @@
                 <label for="inventoryRarityFilter">Rarity (Cards):</label>
                 <select id="inventoryRarityFilter">
                     <option value="all" {% if filter_rarity == 'all' %}selected{% endif %}>All Rarities</option>
-                    {% for r in all_rarities %}<option value="{{ r }}" {% if filter_rarity == r %}selected{% endif %}>{{ r.capitalize() }}</option>{% endfor %}
+                    {% for r in all_rarities %}
+                    <option value="{{ r }}" {% if filter_rarity == r %}selected{% endif %}>{{ r.capitalize() }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventoryCardLanguageFilter">Language (Cards):</label>
                 <select id="inventoryCardLanguageFilter">
                     <option value="all" {% if filter_card_lang == 'all' %}selected{% endif %}>All Languages</option>
-                    {% for lang_code in all_card_languages %}<option value="{{ lang_code }}" {% if filter_card_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
+                    {% for lang_code in all_card_languages %}
+                    <option value="{{ lang_code }}" {% if filter_card_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
                 </select>
             </div>
             <div>
@@ -253,11 +419,12 @@
                 <label for="inventorySealedLanguageFilter">Language (Sealed):</label>
                 <select id="inventorySealedLanguageFilter">
                     <option value="all" {% if filter_sealed_lang == 'all' %}selected{% endif %}>All Languages</option>
-                     {% for lang_code in all_sealed_languages %}<option value="{{ lang_code }}" {% if filter_sealed_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
+                    {% for lang_code in all_sealed_languages %}
+                    <option value="{{ lang_code }}" {% if filter_sealed_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
                 </select>
             </div>
-             <div><label>&nbsp;</label><button id="applyInventoryFiltersBtn">Apply Filters & Sort</button></div>
-             <div><label>&nbsp;</label><button type="button" onclick="clearInventoryFiltersAndSort()">Clear Filters & Sort</button></div>
+            <div><label>&nbsp;</label><button id="applyInventoryFiltersBtn">Apply Filters & Sort</button></div>
+            <div><label>&nbsp;</label><button type="button" onclick="clearInventoryFiltersAndSort()">Clear Filters & Sort</button></div>
         </div>
         <div class="sort-controls">
             <label for="inventorySortKey">Sort by:</label>
@@ -283,22 +450,22 @@
             {# Inventory items will be rendered here by JavaScript from server-processed data #}
         </div>
         <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
-        
+
         {% if total_pages > 1 %}
         <nav aria-label="Inventory Page Navigation">
             <ul class="pagination">
                 <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page-1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page > 1 else '#' }}" aria-label="Previous">&laquo; Prev</a>
                 </li>
-                {% set page_window = 2 %} 
+                {% set page_window = 2 %}
                 {% set start_page = current_page - page_window if current_page - page_window > 0 else 1 %}
                 {% set end_page = current_page + page_window if current_page + page_window < total_pages else total_pages %}
 
                 {% if start_page > 1 %}
-                    <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">1</a></li>
-                    {% if start_page > 2 %}
-                        <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
-                    {% endif %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">1</a></li>
+                {% if start_page > 2 %}
+                <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+                {% endif %}
                 {% endif %}
 
                 {% for page_num in range(start_page, end_page + 1) %}
@@ -308,10 +475,10 @@
                 {% endfor %}
 
                 {% if end_page < total_pages %}
-                    {% if end_page < total_pages - 1 %}
-                        <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
-                    {% endif %}
-                    <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=total_pages, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ total_pages }}</a></li>
+                {% if end_page < total_pages - 1 %}
+                <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
+                {% endif %}
+                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=total_pages, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ total_pages }}</a></li>
                 {% endif %}
                 <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
                     <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page+1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page < total_pages else '#' }}" aria-label="Next">Next &raquo;</a>
@@ -321,13 +488,103 @@
         {% endif %}
     </div>
 
-    <div id="importCsvTab" class="tab-content">
-        <h2>Import Collection from CSV</h2>
+    <div id="addItemsTab" class="tab-content">
+        <h2>Add Items to Inventory</h2>
+
+        <h3 style="margin-top: 0;">Add Single Card</h3>
+        {% if from_pack_details and suggested_buy_price is not none %}
+        <div class="info-box">
+            <p>
+                Opened <strong>{{ from_pack_details.qty_opened }} x {{ from_pack_details.name }}</strong> (Cost: {{ from_pack_details.cost | currency_commas }}).<br>
+                Suggested avg. buy price for singles: <strong>{{ suggested_buy_price | currency_commas }}</strong>.
+            </p>
+        </div>
+        {% endif %}
+        <form action="{{ url_for('add_card_route') }}" method="post" class="card-form">
+            <div class="form-grid">
+                <div>
+                    <label for="set_code_add">Set Code (e.g., LEA, MH2):</label>
+                    <div style="display:flex; gap: 5px;">
+                        <input type="text" id="set_code_add" name="set_code" style="flex-grow:1;" value="{{ request.form.set_code if request.method == 'POST' else '' }}">
+                        <button type="button" id="findSetBySymbolBtn" class="refresh-button" style="padding: 8px 12px; font-size:0.9em;">Find Symbol</button>
+                    </div>
+                </div>
+                <div><label for="card_name_add">Card Name:</label><input type="text" id="card_name_add" name="card_name" value="{{ request.form.card_name if request.method == 'POST' else '' }}"></div>
+                <div><label for="collector_number_add">Collector Number:</label><input type="text" id="collector_number_add" name="collector_number" value="{{ request.form.collector_number if request.method == 'POST' else '' }}"></div>
+                <div>
+                    <label for="rarity_add">Rarity:</label>
+                    <input type="text" id="rarity_add" name="rarity" placeholder="e.g., common, mythic" value="{{ request.form.rarity if request.method == 'POST' else '' }}">
+                </div>
+                <div>
+                    <label for="language_add">Language:</label>
+                    <select id="language_add" name="language">
+                        <option value="en" {% if (request.form.language if request.method == 'POST' else 'en' ) == 'en' %}selected{% endif %}>English (en)</option>
+                        <option value="es" {% if (request.form.language if request.method == 'POST' ) == 'es' %}selected{% endif %}>Spanish (es)</option>
+                        <option value="fr" {% if (request.form.language if request.method == 'POST' ) == 'fr' %}selected{% endif %}>French (fr)</option>
+                        <option value="de" {% if (request.form.language if request.method == 'POST' ) == 'de' %}selected{% endif %}>German (de)</option>
+                        <option value="it" {% if (request.form.language if request.method == 'POST' ) == 'it' %}selected{% endif %}>Italian (it)</option>
+                        <option value="pt" {% if (request.form.language if request.method == 'POST' ) == 'pt' %}selected{% endif %}>Portuguese (pt)</option>
+                        <option value="ja" {% if (request.form.language if request.method == 'POST' ) == 'ja' %}selected{% endif %}>Japanese (ja)</option>
+                        <option value="ko" {% if (request.form.language if request.method == 'POST' ) == 'ko' %}selected{% endif %}>Korean (ko)</option>
+                        <option value="ru" {% if (request.form.language if request.method == 'POST' ) == 'ru' %}selected{% endif %}>Russian (ru)</option>
+                        <option value="zhs" {% if (request.form.language if request.method == 'POST' ) == 'zhs' %}selected{% endif %}>Simplified Chinese (zhs)</option>
+                        <option value="zht" {% if (request.form.language if request.method == 'POST' ) == 'zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
+                        <option value="ph" {% if (request.form.language if request.method == 'POST' ) == 'ph' %}selected{% endif %}>Phyrexian (ph)</option>
+                        <option value="" {% if (request.form.language if request.method == 'POST' ) == '' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+                <div><label for="quantity_add">Quantity:</label><input type="number" id="quantity_add" name="quantity" min="1" value="{{ request.form.quantity if request.method == 'POST' else '1' }}" required></div>
+                <div>
+                    <label for="buy_price_add">Buy Price (each):</label>
+                    <input type="number" id="buy_price_add" name="buy_price" value="{{ '%.2f'|format(suggested_buy_price) if suggested_buy_price is not none else (request.form.buy_price if request.method == 'POST' else '') }}" step="0.01" min="0" required placeholder="$0.00">
+                </div>
+                <div><label for="asking_price_add">Asking Price (each, opt.):</label><input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00" value="{{ request.form.asking_price if request.method == 'POST' else '' }}"></div>
+                <div><label for="location_add">Location:</label><input type="text" id="location_add" name="location" required value="{{ request.form.location if request.method == 'POST' else '' }}"></div>
+            </div>
+            <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;" {% if request.method == 'POST' and request.form.get('is_foil') %}checked{% endif %}><label for="is_foil_add">Foil</label></div>
+            <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
+        </form>
+        <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required. Rarity/Language will be auto-filled by Scryfall if found, or use your input.</em></p>
+
+        <h3>Add Sealed Product</h3>
+        <form action="{{ url_for('add_sealed_product_route') }}" method="post" class="card-form">
+            <div class="form-grid">
+                <div><label for="product_name_sealed">Product Name:</label><input type="text" id="product_name_sealed" name="product_name" required placeholder="e.g., MOM Draft Pack"></div>
+                <div><label for="set_name_sealed">Set Name:</label><input type="text" id="set_name_sealed" name="set_name" required placeholder="e.g., March of the Machine"></div>
+                <div><label for="product_type_sealed">Product Type:</label><select id="product_type_sealed" name="product_type" required><option value="">-- Select --</option><option>Draft Booster Pack</option><option>Set Booster Pack</option><option>Collector Booster Pack</option><option>Play Booster Pack</option><option>Draft Booster Box</option><option>Set Booster Box</option><option>Collector Booster Box</option><option>Play Booster Box</option><option>Bundle / Fat Pack</option><option>Precon Deck</option><option>Dual Deck Set</option><option>Secret Lair</option><option value="Other">Other</option></select></div>
+                <div>
+                    <label for="language_sealed">Language:</label>
+                    <select id="language_sealed" name="language">
+                        <option value="en" selected>English (en)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="zhs">Simplified Chinese (zhs)</option>
+                        <option value="zht">Traditional Chinese (zht)</option>
+                    </select>
+                </div>
+                <div><label for="quantity_sealed">Quantity:</label><input type="number" id="quantity_sealed" name="quantity" min="1" required></div>
+                <div><label for="buy_price_sealed">Buy Price (ea):</label><input type="number" id="buy_price_sealed" name="buy_price" step="0.01" min="0" required placeholder="$0.00"></div>
+                <div><label for="manual_market_price_sealed">Market Price (ea, opt.):</label><input type="number" id="manual_market_price_sealed" name="manual_market_price" step="0.01" min="0" placeholder="$0.00"></div>
+                <div><label for="asking_price_sealed">Asking Price (ea, opt.):</label><input type="number" id="asking_price_sealed" name="asking_price" step="0.01" min="0" placeholder="$0.00"></div>
+                <div><label for="location_sealed">Location:</label><input type="text" id="location_sealed" name="location" required></div>
+                <div><label for="image_uri_sealed">Image URL (opt.):</label><input type="text" id="image_uri_sealed" name="image_uri" placeholder="http://..."></div>
+            </div>
+            <div><input type="checkbox" id="is_collectors_item_sealed" name="is_collectors_item" value="true" style="margin-top:10px;"><label for="is_collectors_item_sealed">Collector's Version?</label></div>
+            <button type="submit" style="margin-top:10px;">Add Sealed Product</button>
+        </form>
+
+        <h3>Import Collection from CSV</h3>
         <form action="{{ url_for('import_csv_route') }}" method="post" enctype="multipart/form-data" class="card-form">
             <p style="font-size: 0.9em; color: var(--text-secondary);">
                 Upload a CSV file. Expected columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing', 'Rarity', 'Language'.
             </p>
-            
+
             <div id="csvDropZone" class="custom-file-drop-zone">
                 <input type="file" id="csv_file" name="csv_file" accept=".csv" required> <p class="drop-zone-text">Drag & drop your CSV file here, or</p>
                 <label for="csv_file" class="button file-upload-button">Click to Choose File</label>
@@ -340,7 +597,18 @@
                 <div>
                     <label for="default_language_csv">Default Language:</label>
                     <select id="default_language_csv" name="default_language_csv">
-                        <option value="en" selected>English (en)</option><option value="es">Spanish (es)</option><option value="fr">French (fr)</option><option value="de">German (de)</option><option value="it">Italian (it)</option><option value="pt">Portuguese (pt)</option><option value="ja">Japanese (ja)</option><option value="ko">Korean (ko)</option><option value="ru">Russian (ru)</option><option value="zhs">Simplified Chinese (zhs)</option><option value="zht">Traditional Chinese (zht)</option><option value="ph">Phyrexian (ph)</option>
+                        <option value="en" selected>English (en)</option>
+                        <option value="es">Spanish (es)</option>
+                        <option value="fr">French (fr)</option>
+                        <option value="de">German (de)</option>
+                        <option value="it">Italian (it)</option>
+                        <option value="pt">Portuguese (pt)</option>
+                        <option value="ja">Japanese (ja)</option>
+                        <option value="ko">Korean (ko)</option>
+                        <option value="ru">Russian (ru)</option>
+                        <option value="zhs">Simplified Chinese (zhs)</option>
+                        <option value="zht">Traditional Chinese (zht)</option>
+                        <option value="ph">Phyrexian (ph)</option>
                     </select>
                 </div>
             </div>
@@ -350,10 +618,38 @@
     </div>
 
     <div id="salesHistoryTab" class="tab-content">
-        <h2>Sales History</h2>
+        <h2>Sales & History</h2>
+
+        <h3>Record a New Multi-Item Sale</h3>
+        <form id="multiItemSaleForm" class="card-form">
+            <div class="form-grid">
+                <div>
+                    <label for="sale_event_date">Sale Date:</label>
+                    <input type="date" id="sale_event_date" name="sale_event_date" value="{{ current_date }}" required>
+                </div>
+                <div>
+                    <label for="sale_event_shipping_cost">Total Shipping Cost:</label>
+                    <input type="number" id="sale_event_shipping_cost" name="total_shipping_cost" step="0.01" min="0" value="0.00" placeholder="$0.00">
+                </div>
+            </div>
+            <div style="margin-top:10px;">
+                <label for="sale_event_notes">Overall Sale Notes (Optional):</label>
+                <input type="text" id="sale_event_notes" name="sale_event_notes" placeholder="e.g., Sold on TCGPlayer, order #123" style="width:100%;">
+            </div>
+
+            <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Items in this Sale</h4>
+            <div id="saleItemsContainer">
+            </div>
+            <button type="button" id="addItemToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Item to Sale</button>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+            <button type="submit" style="margin-top:15px; font-size: 1.1em;">Record Entire Sale Transaction</button>
+        </form>
+
+        <h3 style="margin-top:30px;">Sales History</h3>
         {% if historical_monthly_sales_summary %}
-        <h3>Monthly Sales Summaries</h3>
-        <div class="table-responsive-wrapper"> 
+        <h4>Monthly Sales Summaries</h4>
+        <div class="table-responsive-wrapper">
             <table class="monthly-summary-table">
                 <thead><tr><th>Month</th><th>Total P/L</th><th>Sales Events</th><th>Single Cards Sold (Units)</th><th>Sealed Products Sold (Units)</th></tr></thead>
                 <tbody>
@@ -361,15 +657,17 @@
                     <tr>
                         <td>{{ summary.month_name }}</td>
                         <td><span class="{{ 'profit' if summary.profit_loss >= 0 else 'loss' }}">{{ summary.profit_loss | currency_commas }}</span></td>
-                        <td>{{ summary.sales_count }}</td><td>{{ summary.single_cards_sold }}</td><td>{{ summary.sealed_products_sold }}</td>
+                        <td>{{ summary.sales_count }}</td>
+                        <td>{{ summary.single_cards_sold }}</td>
+                        <td>{{ summary.sealed_products_sold }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        </div> 
+        </div>
         {% endif %}
-        <h3>All Sales Events</h3>
-        <div class="table-responsive-wrapper"> 
+        <h4 style="margin-top:20px;">All Sales Events</h4>
+        <div class="table-responsive-wrapper">
             <table class="sales-event-table">
                 <thead>
                     <tr>
@@ -379,14 +677,95 @@
                         <th>Total Shipping</th>
                         <th>Net P/L for Event</th>
                         <th>Event Notes</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody id="salesHistoryTableBody">
                     {# Sales history (events and items) will be populated by JavaScript #}
                 </tbody>
             </table>
-        </div> 
+        </div>
         <p id="noSalesResults" style="display: none;">No sales recorded yet.</p>
+    </div>
+
+    <div id="businessLedgerTab" class="tab-content">
+        <h2>Business Ledger</h2>
+        <p>Record other business income and expenses here, such as shipping supplies, platform fees, or software subscriptions.</p>
+
+        <h3 style="margin-top: 20px;">Add New Financial Entry</h3>
+        <form action="{{ url_for('add_financial_entry_route') }}" method="post" class="card-form">
+            <div class="form-grid">
+                <div>
+                    <label for="entry_date_ledger">Date:</label> <input type="date" id="entry_date_ledger" name="entry_date" value="{{ current_date }}" required>
+                </div>
+                <div>
+                    <label for="description_ledger">Description:</label>
+                    <input type="text" id="description_ledger" name="description" required placeholder="e.g., TCGPlayer Fees - April">
+                </div>
+                <div>
+                    <label for="category_ledger">Category:</label>
+                    <input type="text" id="category_ledger" name="category" placeholder="e.g., Platform Fees, Shipping Supplies">
+                </div>
+                <div>
+                    <label for="entry_type_ledger">Type:</label>
+                    <select id="entry_type_ledger" name="entry_type" required>
+                        <option value="expense">Expense</option>
+                        <option value="income">Income</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="amount_ledger">Amount:</label>
+                    <input type="number" id="amount_ledger" name="amount" step="0.01" min="0.01" required placeholder="$0.00">
+                </div>
+            </div>
+            <div style="margin-top: 15px;">
+                <label for="notes_ledger">Notes (Optional):</label>
+                <input type="text" id="notes_ledger" name="notes" placeholder="e.g., For Order #12345" style="width: 100%;">
+            </div>
+            <button type="submit" style="margin-top:20px;">Add Entry to Ledger</button>
+        </form>
+
+        <h3 style="margin-top: 30px;">Recorded Ledger Entries</h3>
+        <div class="table-responsive-wrapper">
+            <table class="sales-event-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Description</th>
+                        <th>Category</th>
+                        <th>Type</th>
+                        <th>Amount</th>
+                        <th>Notes</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for entry in financial_entries %}
+                    <tr>
+                        <td>{{ entry.entry_date.strftime('%Y-%m-%d') if entry.entry_date else 'N/A' }}</td>
+                        <td>{{ entry.description }}</td>
+                        <td>{{ entry.category or 'N/A' }}</td>
+                        <td class="{{ 'loss' if entry.entry_type == 'expense' else 'profit' }}">{{ entry.entry_type|capitalize }}</td>
+                        <td>
+                            <span class="{{ 'loss' if entry.entry_type == 'expense' else 'profit' }}">
+                                {{ (entry.amount * -1) | currency_commas if entry.entry_type == 'expense' else entry.amount | currency_commas }}
+                            </span>
+                        </td>
+                        <td>{{ entry.notes or '' }}</td>
+                        <td>
+                            <form action="{{ url_for('delete_financial_entry_route', entry_id=entry.id) }}" method="post" style="display:inline;">
+                                <button type="submit" class="delete-button" style="padding: 5px 10px; font-size: 0.8em;" onclick="return confirm('Are you sure you want to delete this financial entry?');">Delete</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" style="text-align: center; color: var(--text-secondary);">No ledger entries recorded yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div id="setSymbolModal" class="modal">
@@ -417,12 +796,16 @@
 
         // --- Tab Navigation (Updated) ---
         function openTab(evt, tabName) {
-            if (evt) { 
+            // If called by an event (button click), update URL and let Flask handle re-render
+            if (evt) {
                 const currentParams = new URLSearchParams(window.location.search);
                 currentParams.set('tab', tabName);
-                currentParams.delete('page'); 
+                // Only remove page for inventoryTab related navigations or if switching to a non-paginated tab
+                if (tabName !== 'inventoryTab' || currentParams.get('tab') === 'inventoryTab') {
+                    currentParams.delete('page');
+                }
                 window.location.search = currentParams.toString();
-            } else {
+            } else { // If called directly (e.g., on page load), just switch visibility
                 var i, tabcontent, tabbuttons;
                 tabcontent = document.getElementsByClassName("tab-content"); for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
                 tabbuttons = document.getElementsByClassName("tab-button"); for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); }
@@ -430,7 +813,7 @@
                 var activeBtn = document.getElementById(tabName + "Nav"); if (activeBtn) { activeBtn.className += " active"; }
             }
         }
-        var activeTabFromFlask = "{{ active_tab|default('inventoryTab') }}";
+        var activeTabFromFlask = "{{ active_tab|default('dashboardTab') }}"; // Default to dashboardTab
 
         // --- DOM Elements (Inventory Tab) ---
         const inventoryFilterInput = document.getElementById('inventoryFilterInput');
@@ -451,12 +834,12 @@
         // --- Render Inventory (Displays server-processed data) ---
         function renderInventory() {
             if (!inventoryGrid) { console.error("inventoryGrid not found"); return; }
-            const itemsToDisplay = rawInventoryItemsData || []; 
+            const itemsToDisplay = rawInventoryItemsData || [];
             inventoryGrid.innerHTML = '';
             if (noInventoryResultsMsg) noInventoryResultsMsg.style.display = itemsToDisplay.length === 0 ? 'block' : 'none';
 
-            itemsToDisplay.forEach(item => { // item is an inventory item for display
-                if (!item) return; 
+            itemsToDisplay.forEach(item => {
+                if (!item) return;
                 const cardEntry = document.createElement('div'); cardEntry.className = 'card-entry';
                 const displayName = getStr(item, 'display_name', 'N/A'); const imageUri = getStr(item, 'image_uri');
                 const location = getStr(item, 'location', 'N/A'); const quantity = getNum(item, 'quantity', 0);
@@ -496,15 +879,16 @@
         }
 
         // --- Render Sales History (Updated for Sale Events) ---
-        function renderSalesHistory() { 
+        function renderSalesHistory() {
             const tableBody = document.getElementById('salesHistoryTableBody'); const noSalesMsg = document.getElementById('noSalesResults');
             if (!tableBody || !noSalesMsg) { console.error("Sales history table elements not found"); return; }
-            tableBody.innerHTML = ''; 
-            const salesEvents = rawSalesHistoryData; 
+            tableBody.innerHTML = '';
+            const salesEvents = rawSalesHistoryData;
             const hasSales = salesEvents && salesEvents.length > 0;
             noSalesMsg.style.display = hasSales ? 'none' : 'block';
-            const monthlySummaryTable = document.querySelector('.monthly-summary-table'); const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3:first-of-type'); 
-            if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none'; 
+            const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
+            const monthlySummaryHeading = document.querySelector('#salesHistoryTab h4'); // Target the H4 for monthly summary
+            if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
             if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
 
             if (hasSales) {
@@ -522,27 +906,49 @@
                     profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
                     eventRow.insertCell().textContent = getStr(event, 'notes', '');
 
+                    // --- START OF ADDED/MODIFIED CODE FOR DELETE BUTTON ---
+                    const actionsCell = eventRow.insertCell();
+                    const deleteForm = document.createElement('form');
+                    // Assuming event.id from your rawSalesHistoryData is the sale_event_id
+                    deleteForm.action = `/delete_sale_event/${event.id}`;
+                    deleteForm.method = 'post';
+                    deleteForm.style.display = 'inline';
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'submit';
+                    deleteButton.className = 'delete-button'; // Use existing class for styling
+                    deleteButton.textContent = 'Delete';    // Text for the button
+                    deleteButton.style.padding = '5px 8px'; // Consistent styling
+                    deleteButton.style.fontSize = '0.8em';  // Consistent styling
+                    deleteButton.onclick = function () {
+                        return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
+                    };
+
+                    deleteForm.appendChild(deleteButton);
+                    actionsCell.appendChild(deleteForm);
+                    // --- END OF ADDED/MODIFIED CODE FOR DELETE BUTTON ---
+
                     const detailsRow = tableBody.insertRow();
                     detailsRow.id = `event-details-${event.id}`;
-                    detailsRow.style.display = 'none'; 
+                    detailsRow.style.display = 'none';
                     const detailsCell = detailsRow.insertCell();
-                    detailsCell.colSpan = 6; 
-                    let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>'; 
+                    detailsCell.colSpan = 7; // MODIFIED from 6 to 7
+                    let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
                     event.items.forEach(item => {
                         detailsHTML += `<tr>
                             <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
                             <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
                             <td>${formatCurrencyJS(getNum(item, 'sell_price_per_item'))}</td>
-                            <td><span class="${getNum(item, 'item_profit_loss',0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
+                            <td><span class="${getNum(item, 'item_profit_loss', 0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
                         </tr>`;
                     });
-                    detailsHTML += '</tbody></table></div>'; 
+                    detailsHTML += '</tbody></table></div>';
                     detailsCell.innerHTML = detailsHTML;
                 });
 
                 tableBody.querySelectorAll('.details-btn').forEach(button => {
-                    button.addEventListener('click', function() {
-                        const detailRowId = this.dataset.eventId; 
+                    button.addEventListener('click', function () {
+                        const detailRowId = this.dataset.eventId;
                         const detailRow = document.getElementById(detailRowId);
                         if (detailRow) {
                             detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
@@ -551,11 +957,11 @@
                 });
             }
         }
-        
+
         // --- Apply Filters & Sort (Server-Side) ---
         function applyFiltersAndSort() {
-            const params = new URLSearchParams(window.location.search); 
-            params.set('tab', 'inventoryTab'); 
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', 'inventoryTab');
             if (inventoryFilterInput) params.set('filter_text', inventoryFilterInput.value);
             if (inventoryTypeFilter) params.set('filter_type', inventoryTypeFilter.value);
             if (inventoryLocationFilter) params.set('filter_location', inventoryLocationFilter.value);
@@ -570,7 +976,7 @@
             if (sortDescBtn && sortDescBtn.classList.contains('active')) currentSortDir = 'desc';
             else if (sortAscBtn && sortAscBtn.classList.contains('active')) currentSortDir = 'asc';
             params.set('sort_dir', currentSortDir);
-            params.set('page', '1'); 
+            params.set('page', '1');
             window.location.search = params.toString();
         }
 
@@ -580,10 +986,10 @@
         // --- Update Sort Direction Buttons Visual State ---
         function updateSortDirectionButtonsState(clickedButton) {
             if (!sortAscBtn || !sortDescBtn) return;
-            if (clickedButton === sortAscBtn) { sortAscBtn.classList.add('active'); sortDescBtn.classList.remove('active'); } 
+            if (clickedButton === sortAscBtn) { sortAscBtn.classList.add('active'); sortDescBtn.classList.remove('active'); }
             else if (clickedButton === sortDescBtn) { sortDescBtn.classList.add('active'); sortAscBtn.classList.remove('active'); }
         }
-        
+
         // --- Multi-Item Sale Form Logic ---
         const saleItemsContainer = document.getElementById('saleItemsContainer');
         const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
@@ -593,7 +999,7 @@
         function createSaleItemRow() {
             saleItemRowCounter++;
             const itemRowDiv = document.createElement('div');
-            itemRowDiv.className = 'sale-item-row'; 
+            itemRowDiv.className = 'sale-item-row';
             itemRowDiv.dataset.rowId = saleItemRowCounter;
             itemRowDiv.innerHTML = `
                 <h4>Item ${saleItemRowCounter}</h4>
@@ -608,9 +1014,11 @@
                     <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" required placeholder="$0.00"></div>
                 </div>
                 <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
-            saleItemsContainer.appendChild(itemRowDiv);
-            attachSearchListenerToInput(itemRowDiv.querySelector('.sale-item-search-input'));
-            itemRowDiv.querySelector('.remove-sale-item-btn').addEventListener('click', function() { itemRowDiv.remove(); });
+            if(saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv); // Check if container exists
+            const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
+            if (searchInput) attachSearchListenerToInput(searchInput);
+            const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
+            if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
         }
 
         function attachSearchListenerToInput(searchInput) {
@@ -623,7 +1031,7 @@
                 if (matchedItems.length > 0) {
                     resultsDropdown.style.display = 'block';
                     matchedItems.slice(0, 10).forEach(opt => {
-                        const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = opt.display; itemDiv.dataset.itemId = opt.id; 
+                        const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = opt.display; itemDiv.dataset.itemId = opt.id;
                         itemDiv.addEventListener('click', function() { if(hiddenIdInput) hiddenIdInput.value = this.dataset.itemId; searchInput.value = this.textContent; resultsDropdown.innerHTML = ''; resultsDropdown.style.display = 'none'; });
                         resultsDropdown.appendChild(itemDiv);
                     });
@@ -637,7 +1045,7 @@
             multiItemSaleForm.addEventListener('submit', async function(event) {
                 event.preventDefault();
                 const saleData = { sale_date: document.getElementById('sale_event_date').value, total_shipping_cost: document.getElementById('sale_event_shipping_cost').value, notes: document.getElementById('sale_event_notes').value, items: [] };
-                const itemRows = saleItemsContainer.querySelectorAll('.sale-item-row');
+                const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
                 if (itemRows.length === 0) { alert("Please add at least one item to the sale."); return; }
                 let formIsValid = true;
                 itemRows.forEach(row => {
@@ -649,16 +1057,16 @@
                 try {
                     const response = await fetch("{{ url_for('record_multi_item_sale_route') }}", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saleData) });
                     const result = await response.json();
-                    if (response.ok && result.success) { window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}"; /* Flash messages will be shown by Flask on redirect */ } 
+                    if (response.ok && result.success) { window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}"; /* Flash messages will be shown by Flask on redirect */ }
                     else { alert("Error recording sale: " + (result.message || "Unknown server error.")); }
                 } catch (error) { console.error("Error submitting sale:", error); alert("An unexpected error occurred."); }
             });
         }
-        
-        // --- "Find Set by Symbol" Modal Functionality --- 
+
+        // --- "Find Set by Symbol" Modal Functionality ---
         const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
-        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } setSymbolListContainer.innerHTML = "<p>Loading...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); setSymbolListContainer.innerHTML = "<p>Error loading.</p>"; } }
-        function renderSetSymbols(setsToRender) { setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found.</p>"; return; } setsToRender.forEach(set => { if (set && set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = (getStr(set, 'name', 'Set')) + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = getStr(set, 'name', 'N/A'); const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
+        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Loading...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Error loading.</p>"; } }
+        function renderSetSymbols(setsToRender) { if(!setSymbolListContainer) return; setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found.</p>"; return; } setsToRender.forEach(set => { if (set && set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = (getStr(set, 'name', 'Set')) + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = getStr(set, 'name', 'N/A'); const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
         function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText))); renderSetSymbols(filteredSets); }
         function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) setCodeAddInput.value = setCode.toUpperCase(); closeSetSymbolModal(); }
         function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
@@ -669,28 +1077,49 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log("DOM Content Loaded. Initializing.");
             try {
-                openTab(null, activeTabFromFlask); 
+                openTab(null, activeTabFromFlask);
 
                 const applyBtn = document.getElementById('applyInventoryFiltersBtn');
                 if(applyBtn) applyBtn.addEventListener('click', applyFiltersAndSort);
 
                 if (inventoryFilterInput) { inventoryFilterInput.addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); applyFiltersAndSort(); } }); }
-                
+
                 if (sortAscBtn) sortAscBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
                 if (sortDescBtn) sortDescBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
-                
-                if (document.getElementById('enterSaleTab').style.display === 'block' && saleItemsContainer && saleItemsContainer.children.length === 0) {
-                    createSaleItemRow(); 
+
+                // Check if the Enter Sale section is active and if items container is empty
+                const salesHistoryTabDiv = document.getElementById('salesHistoryTab');
+                if (salesHistoryTabDiv && salesHistoryTabDiv.style.display === 'block' && saleItemsContainer && saleItemsContainer.children.length === 0) {
+                    createSaleItemRow();
                 }
 
                 // --- Collapsible Filters Logic ---
                 const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
-                const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls'); 
+                const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls');
 
                 if (toggleInventoryFiltersBtn && filterControlsDiv) {
-                    if (window.innerWidth <= 768) {
-                        toggleInventoryFiltersBtn.textContent = 'Show Filters';
+                     // Check if any filter is active beyond default 'all' or empty text
+                    let filtersActive = (inventoryFilterInput && inventoryFilterInput.value !== '') ||
+                                        (inventoryTypeFilter && inventoryTypeFilter.value !== 'all') ||
+                                        (inventoryLocationFilter && inventoryLocationFilter.value !== 'all') ||
+                                        (inventorySetFilter && inventorySetFilter.value !== 'all') ||
+                                        (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
+                                        (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
+                                        (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
+                                        (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
+                                        (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
+
+                    if (filtersActive) {
+                        filterControlsDiv.classList.add('expanded');
+                        toggleInventoryFiltersBtn.textContent = 'Hide Filters';
+                    } else if (window.innerWidth <= 768 && !filterControlsDiv.classList.contains('expanded')) {
+                         filterControlsDiv.classList.remove('expanded'); // Ensure it's collapsed on mobile by default
+                         toggleInventoryFiltersBtn.textContent = 'Show Filters';
+                    } else if (window.innerWidth > 768) {
+                        filterControlsDiv.classList.add('expanded'); // Expanded on desktop by default
+                        toggleInventoryFiltersBtn.style.display = 'none'; // Hide button on desktop
                     }
+
 
                     toggleInventoryFiltersBtn.addEventListener('click', function() {
                         const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
@@ -705,7 +1134,7 @@
 
                 // --- Hamburger Menu Logic ---
                 const hamburgerBtn = document.getElementById('hamburgerBtn');
-                const mainTabNav = document.getElementById('mainTabNav'); 
+                const mainTabNav = document.getElementById('mainTabNav');
 
                 if (hamburgerBtn && mainTabNav) {
                     const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
@@ -714,9 +1143,9 @@
                         const isOpen = mainTabNav.classList.toggle('open');
                         hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
                         if (isOpen) {
-                            hamburgerBtn.innerHTML = '&times;'; 
+                            hamburgerBtn.innerHTML = '&times;';
                         } else {
-                            hamburgerBtn.innerHTML = '&#9776;'; 
+                            hamburgerBtn.innerHTML = '&#9776;';
                         }
                     });
 
@@ -734,8 +1163,8 @@
 
                 // --- Enhanced Custom File Input & Drag-Drop Logic ---
                 const csvDropZone = document.getElementById('csvDropZone');
-                const actualCsvFileInput = document.getElementById('csv_file'); 
-                const csvFileNameDisplay = document.getElementById('fileNameDisplay'); 
+                const actualCsvFileInput = document.getElementById('csv_file');
+                const csvFileNameDisplay = document.getElementById('fileNameDisplay');
 
                 if (actualCsvFileInput && csvFileNameDisplay) {
                     actualCsvFileInput.addEventListener('change', function() {
@@ -750,7 +1179,7 @@
                 if (csvDropZone && actualCsvFileInput) {
                     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
                         csvDropZone.addEventListener(eventName, preventDefaults, false);
-                        document.body.addEventListener(eventName, preventDefaults, false); 
+                        document.body.addEventListener(eventName, preventDefaults, false);
                     });
 
                     function preventDefaults(e) {
@@ -789,7 +1218,7 @@
                 }
                 // --- End Enhanced Custom File Input & Drag-Drop Logic ---
 
-                renderInventory(); 
+                renderInventory();
                 renderSalesHistory();
                 console.log("Page initialization complete.");
             } catch (e) {

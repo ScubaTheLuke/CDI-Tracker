@@ -1,4 +1,11 @@
 from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
+from dotenv import load_dotenv # Add this import
+load_dotenv() # Add this line to load variables from .env
+
+import database
+
+
+from flask import Flask, render_template, request, redirect, url_for, flash, session, jsonify
 import database
 import scryfall
 import datetime
@@ -80,7 +87,7 @@ def scan_card_via_roboflow_route():
 
 @app.route('/')
 def index():
-    active_tab = request.args.get('tab', 'inventoryTab')
+    active_tab = request.args.get('tab', 'dashboardTab') # Default to dashboardTab
     page = request.args.get('page', 1, type=int)
     
     query_filter_text = request.args.get('filter_text', '').strip().lower()
@@ -106,7 +113,7 @@ def index():
         
     inventory_cards_data = database.get_all_cards()
     sealed_products_data = database.get_all_sealed_products()
-    
+    financial_entries = database.get_all_financial_entries()
     sales_events_raw = database.get_all_sale_events_with_items()
 
     sales_history_data_for_json = []
@@ -181,7 +188,15 @@ def index():
         })
     historical_monthly_sales_summary.sort(key=lambda x: (x['year'], x['month']), reverse=True)
 
-    overall_realized_pl = sum(event.get('total_profit_loss', 0.0) or 0.0 for event in sales_events_raw)
+        # Existing P/L from sales
+    sales_pl = sum(event.get('total_profit_loss', 0.0) or 0.0 for event in sales_events_raw)
+
+    # Calculate total of other income and expenses
+    total_other_income = sum(entry['amount'] for entry in financial_entries if entry['entry_type'] == 'income')
+    total_other_expenses = sum(entry['amount'] for entry in financial_entries if entry['entry_type'] == 'expense')
+
+    # Calculate final net P/L for the whole business
+    net_business_pl = sales_pl + total_other_income - total_other_expenses
     
     processed_inventory_cards = []
     total_inventory_market_value_cards = 0
@@ -312,15 +327,19 @@ def index():
         sale_inventory_options.append({"id": f"{item_s_opt['type']}-{item_s_opt['original_id']}", "display": display_text_val, "type": item_s_opt['type']})
     sale_inventory_options_json = json.dumps(sale_inventory_options)
 
+
+
+
     return render_template('index.html',
                            inventory_items_json=inventory_items_json,
                            sales_history_json=json.dumps(sales_history_data_for_json),
                            sale_inventory_options_json=sale_inventory_options_json,
                            total_inventory_market_value=total_inventory_market_value,
                            total_buy_cost_of_inventory=total_buy_cost_of_inventory,
-                           overall_realized_pl=overall_realized_pl,
+                           sales_pl=sales_pl,
+                           net_business_pl=net_business_pl,
                            num_unique_card_inventory_entries=num_unique_card_inventory_entries,
-                           current_month_sales_count=current_month_sale_events_count, # Updated variable name
+                           current_month_sales_count=current_month_sale_events_count,
                            current_month_sealed_sold_quantity=current_month_sealed_sold_quantity,
                            current_month_single_cards_sold_quantity=current_month_single_cards_sold_quantity,
                            current_month_profit_loss=current_month_profit_loss,
@@ -332,8 +351,11 @@ def index():
                            from_pack_details=from_pack_details,
                            current_page=page, total_pages=total_pages,
                            filter_text=query_filter_text, filter_type=query_filter_type, filter_location=query_filter_location, filter_set=query_filter_set, filter_foil=query_filter_foil, filter_rarity=query_filter_rarity, filter_card_lang=query_filter_card_lang, filter_collector=query_filter_collector, filter_sealed_lang=query_filter_sealed_lang, sort_key=query_sort_key, sort_dir=query_sort_direction,
-                           all_locations=all_locations, all_sets_identifiers=all_sets_identifiers, all_rarities=all_rarities, all_card_languages=all_card_languages, all_sealed_languages=all_sealed_languages
+                           all_locations=all_locations, all_sets_identifiers=all_sets_identifiers, all_rarities=all_rarities, all_card_languages=all_card_languages, all_sealed_languages=all_sealed_languages,
+                           financial_entries=financial_entries
                            )
+
+
 
 @app.route('/record_multi_item_sale', methods=['POST'])
 def record_multi_item_sale_route():
@@ -441,9 +463,10 @@ def finalize_open_sealed_route():
         flash_message = (f"Opened {quantity_opened} x '{product_name}'. Cost: {format_currency_with_commas(total_cost_opened)}. "
                          f"Add {num_singles_to_add} singles. Avg. buy price: {format_currency_with_commas(average_buy_price)} each.")
         flash(flash_message, "success")
-        return redirect(url_for('index', tab='addCardTab', suggested_buy_price=average_buy_price, 
-                                from_pack_name=product_name, from_pack_cost=total_cost_opened, 
-                                from_pack_qty_opened=quantity_opened))
+        return redirect(url_for('index', tab='addItemsTab', suggested_buy_price=average_buy_price, 
+                        from_pack_name=product_name, from_pack_cost=total_cost_opened, 
+                        from_pack_qty_opened=quantity_opened))
+
     else: 
         flash(f"Failed to update sealed product inventory: {message}", "error")
         return redirect(url_for('index', tab='inventoryTab'))
@@ -467,9 +490,9 @@ def add_card_route():
         asking_price = float(asking_price_str) if asking_price_str and asking_price_str.strip() != '' else None
         if asking_price is not None and asking_price < 0: asking_price = None
     except ValueError: 
-        flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addCardTab'))
+        flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
-    if buy_price is None: flash('Buy Price is required.', 'error'); return redirect(url_for('index', tab='addCardTab'))
+    if buy_price is None: flash('Buy Price is required.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
     
     set_code_for_lookup = set_code_input or None
     collector_number_for_lookup = collector_number_input or None
@@ -481,13 +504,13 @@ def add_card_route():
              (card_name_for_lookup and collector_number_for_lookup and not set_code_for_lookup) or \
              (card_name_for_lookup and not set_code_for_lookup and not collector_number_for_lookup) ): 
         flash('Lookup requires: (Set & CN), (Set & Name), (Name & CN), or (Name only).', 'error')
-        return redirect(url_for('index', tab='addCardTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
     if quantity is None or not location: 
         flash('Quantity and Location required.', 'error')
-        return redirect(url_for('index', tab='addCardTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
     if quantity <= 0 or buy_price < 0: 
         flash('Quantity must be positive; Buy Price non-negative.', 'error')
-        return redirect(url_for('index', tab='addCardTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
 
     card_details = scryfall.get_card_details(card_name=card_name_for_lookup, set_code=set_code_for_lookup, collector_number=collector_number_for_lookup, lang=language_for_lookup)
     if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
@@ -504,7 +527,7 @@ def add_card_route():
         if card_id_or_none: flash(f"Card '{card_details['name']}' handled in inventory at '{location}'!", 'success')
         else: flash(f"Failed to add/update card. Possible duplicate based on unique attributes (Set, CN, Foil, Loc, Rarity, Lang, Buy Price) or other DB issue.", 'error')
     else: flash(f"Could not fetch valid card details from Scryfall for the provided input.", 'error')
-    return redirect(url_for('index', tab='addCardTab'))
+    return redirect(url_for('index', tab='addItemsTab'))
 
 @app.route('/add_sealed_product', methods=['POST'])
 def add_sealed_product_route():
@@ -522,7 +545,7 @@ def add_sealed_product_route():
 
     if not all([product_name, set_name, product_type, location]): 
         flash('Product Name, Set Name, Product Type, and Location are required.', 'error')
-        return redirect(url_for('index', tab='addSealedProductTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
     try:
         quantity = int(quantity_str) if quantity_str else None
         buy_price = float(buy_price_str) if buy_price_str else None
@@ -531,14 +554,14 @@ def add_sealed_product_route():
         asking_price = float(asking_price_str) if asking_price_str and asking_price_str.strip() != '' else None
         if asking_price is not None and asking_price < 0: asking_price = None
     except ValueError: 
-        flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addSealedProductTab'))
+        flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
     if quantity is None or buy_price is None: 
         flash('Quantity and Buy Price are required.', 'error')
-        return redirect(url_for('index', tab='addSealedProductTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
     if quantity <= 0 or buy_price < 0: 
         flash('Quantity must be positive; Buy Price non-negative.', 'error')
-        return redirect(url_for('index', tab='addSealedProductTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
     
     product_id = database.add_sealed_product(
         product_name=product_name, set_name=set_name, product_type=product_type, language=language, 
@@ -548,7 +571,7 @@ def add_sealed_product_route():
     )
     if product_id: flash(f"Sealed product '{product_name}' (BP: {format_currency_with_commas(buy_price)}) added/updated!", 'success')
     else: flash(f"Failed to add/update sealed product. Possible duplicate or DB issue.", 'error')
-    return redirect(url_for('index', tab='addSealedProductTab'))
+    return redirect(url_for('index', tab='addItemsTab'))
 
 @app.route('/delete_card/<int:card_id>', methods=['POST'])
 def delete_card_route(card_id):
@@ -561,6 +584,57 @@ def delete_sealed_product_route(product_id):
     deleted = database.delete_sealed_product(product_id)
     flash('Sealed product entry deleted!' if deleted else 'Failed to delete sealed product.', 'success' if deleted else 'error')
     return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+
+@app.route('/delete_sale_event/<int:event_id>', methods=['POST'])
+def delete_sale_event_route(event_id):
+    success, message = database.delete_sale_event(event_id)
+    if success:
+        flash(message, 'success')
+    else:
+        flash(message, 'error')
+    return redirect(url_for('index', tab='salesHistoryTab')) # Or your combined sales tab ID
+
+
+@app.route('/add_financial_entry', methods=['POST'])
+def add_financial_entry_route():
+    try:
+        entry_date = request.form.get('entry_date')
+        description = request.form.get('description', '').strip()
+        category = request.form.get('category', '').strip()
+        entry_type = request.form.get('entry_type')
+        amount_str = request.form.get('amount')
+        notes = request.form.get('notes', '').strip()
+
+        if not all([entry_date, description, entry_type, amount_str]):
+            flash('Date, Description, Type, and Amount are required.', 'error')
+            return redirect(url_for('index', tab='businessLedgerTab'))
+
+        amount = float(amount_str)
+        if amount <= 0:
+            flash('Amount must be positive.', 'error')
+            return redirect(url_for('index', tab='businessLedgerTab'))
+
+        new_id = database.add_financial_entry(entry_date, description, category, entry_type, amount, notes)
+        if new_id:
+            flash(f"Financial entry '{description}' added successfully.", 'success')
+        else:
+            flash('Failed to add financial entry.', 'error')
+
+    except (ValueError, TypeError):
+        flash('Invalid amount format. Please enter a valid number.', 'error')
+    except Exception as e:
+        flash(f'An unexpected error occurred: {e}', 'error')
+
+    return redirect(url_for('index', tab='businessLedgerTab'))
+
+@app.route('/delete_financial_entry/<int:entry_id>', methods=['POST'])
+def delete_financial_entry_route(entry_id):
+    deleted = database.delete_financial_entry(entry_id)
+    if deleted:
+        flash('Financial entry deleted successfully.', 'success')
+    else:
+        flash('Failed to delete financial entry.', 'error')
+    return redirect(url_for('index', tab='businessLedgerTab'))
 
 @app.route('/update_card/<int:card_id>', methods=['POST'])
 def update_card_route(card_id):
@@ -648,9 +722,9 @@ def refresh_card_route(card_id):
 
 @app.route('/import_csv', methods=['POST'])
 def import_csv_route():
-    if 'csv_file' not in request.files: flash('No CSV file part in the request.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
+    if 'csv_file' not in request.files: flash('No CSV file part in the request.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
     file = request.files['csv_file']
-    if file.filename == '': flash('No CSV file selected for uploading.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
+    if file.filename == '': flash('No CSV file selected for uploading.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
     default_buy_price_str = request.form.get('default_buy_price', '0.00')
     default_location = request.form.get('default_location', 'Imported Batch')
@@ -664,15 +738,15 @@ def import_csv_route():
         if default_asking_price_str and default_asking_price_str.strip() != '':
             default_asking_price = float(default_asking_price_str)
             if default_asking_price < 0: default_asking_price = None
-    except ValueError: flash('Invalid default buy price or asking price format.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
-    if not default_location.strip(): flash('Default location cannot be empty.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
+    except ValueError: flash('Invalid default buy price or asking price format.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
+    if not default_location.strip(): flash('Default location cannot be empty.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
     if file and file.filename.endswith('.csv'):
         try:
             stream = io.StringIO(file.stream.read().decode("UTF8", errors='replace'), newline=None); csv_reader = csv.DictReader(stream)
             imported_count = 0; failed_count = 0; skipped_count = 0; errors_list = []
             expected_headers = {'quantity': 'Quantity', 'name': 'Name', 'set_name_csv': 'Set', 'collector_number_csv': 'Card Number', 'set_code_csv': 'Set Code', 'printing': 'Printing', 'rarity_csv': 'Rarity', 'language_csv': 'Language'}
-            if not csv_reader.fieldnames: flash('CSV file appears to be empty or has no headers.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
+            if not csv_reader.fieldnames: flash('CSV file appears to be empty or has no headers.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
             csv_reader.fieldnames = [hdr.lower().strip() for hdr in csv_reader.fieldnames if hdr] # Normalize headers
             variant_patterns = {"borderless": r"\s\(borderless\)", "extendedart": r"\s\(extended art\)", "showcase": r"\s\(showcase\)", "retro": r"\s\(retro frame\)", "innocent traveler": r"\s-\sinnocent traveler", "olivia, crimson bride": r"\s-\solivia, crimson bride"}
 
@@ -728,8 +802,8 @@ def import_csv_route():
             flash(summary_message, flash_category)
             if errors_list: [flash(err, 'error') for err in errors_list[:10]];_ = len(errors_list) > 10 and flash(f"...and {len(errors_list) - 10} more errors (see server console for full list).", 'error'); print("--- Detailed CSV Import Errors ---\n" + "\n".join(errors_list) + "\n---------------------------------")
         except Exception as e: flash(f'Critical error processing CSV file: {e}', 'error'); import traceback; traceback.print_exc()
-        return redirect(url_for('index', tab='importCsvTab'))
-    else: flash('Invalid file type. Please upload a CSV file.', 'error'); return redirect(url_for('index', tab='importCsvTab'))
+        return redirect(url_for('index', tab='addItemsTab'))
+    else: flash('Invalid file type. Please upload a CSV file.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
 
 import os
