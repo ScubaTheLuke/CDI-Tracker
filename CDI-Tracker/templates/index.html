@@ -628,7 +628,15 @@
                     <input type="date" id="sale_event_date" name="sale_event_date" value="{{ current_date }}" required>
                 </div>
                 <div>
-                    <label for="sale_event_shipping_cost">Total Shipping Cost:</label>
+                    <label for="sale_event_customer_shipping_charge">Customer Shipping Charge (Paid by Customer):</label>
+                    <input type="number" id="sale_event_customer_shipping_charge" name="customer_shipping_charge" step="0.01" min="0" value="0.00" placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="sale_event_platform_fee">Platform Fee (e.g., eBay, TCGPlayer):</label>
+                    <input type="number" id="sale_event_platform_fee" name="platform_fee" step="0.01" min="0" value="0.00" placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="sale_event_shipping_cost">Your Actual Shipping Cost:</label>
                     <input type="number" id="sale_event_shipping_cost" name="total_shipping_cost" step="0.01" min="0" value="0.00" placeholder="$0.00">
                 </div>
             </div>
@@ -674,7 +682,9 @@
                         <th>Sale Date</th>
                         <th>Items Summary / Details</th>
                         <th>Total Items Qty</th>
-                        <th>Total Shipping</th>
+                        <th>Cust. Shipping</th>
+                        <th>Platform Fee</th>
+                        <th>Your Ship Cost</th>
                         <th>Net P/L for Event</th>
                         <th>Event Notes</th>
                         <th>Actions</th>
@@ -880,61 +890,93 @@
 
         // --- Render Sales History (Updated for Sale Events) ---
         function renderSalesHistory() {
-            const tableBody = document.getElementById('salesHistoryTableBody'); const noSalesMsg = document.getElementById('noSalesResults');
-            if (!tableBody || !noSalesMsg) { console.error("Sales history table elements not found"); return; }
+            const tableBody = document.getElementById('salesHistoryTableBody');
+            const noSalesMsg = document.getElementById('noSalesResults');
+
+            if (!tableBody || !noSalesMsg) {
+                console.error("Sales history table elements (salesHistoryTableBody or noSalesResults) not found in HTML.");
+                return;
+            }
             tableBody.innerHTML = '';
-            const salesEvents = rawSalesHistoryData;
+
+            const salesEvents = rawSalesHistoryData; // Assumes rawSalesHistoryData is populated
             const hasSales = salesEvents && salesEvents.length > 0;
+
             noSalesMsg.style.display = hasSales ? 'none' : 'block';
+
+            // Show/hide the monthly summary table and its heading based on whether there are sales
             const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
-            const monthlySummaryHeading = document.querySelector('#salesHistoryTab h4'); // Target the H4 for monthly summary
+            // Assuming the "Monthly Sales Summaries" heading is the first H4 in the sales history tab if it exists
+            const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3 + h4, #salesHistoryTab > h4:first-of-type');
+
             if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
             if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
 
             if (hasSales) {
                 salesEvents.forEach(event => {
+                    if (!event || typeof event !== 'object') {
+                        console.warn("Skipping invalid event data:", event);
+                        return; // Skip this iteration if event data is not valid
+                    }
+
                     const eventRow = tableBody.insertRow();
                     eventRow.insertCell().textContent = getStr(event, 'sale_date', 'N/A');
+
                     const itemsSummaryCell = eventRow.insertCell();
                     let totalQtyThisEvent = 0;
-                    event.items.forEach(item => { totalQtyThisEvent += getNum(item, 'quantity_sold', 0); });
-                    itemsSummaryCell.innerHTML = `${event.items.length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
+                    (event.items || []).forEach(item => {
+                        totalQtyThisEvent += getNum(item, 'quantity_sold', 0);
+                    });
+                    itemsSummaryCell.innerHTML = `${(event.items || []).length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
+
                     eventRow.insertCell().textContent = totalQtyThisEvent;
-                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost'));
+
+                    // New cells for customer_shipping_charge and platform_fee
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'customer_shipping_charge'));
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'platform_fee'));
+
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost')); // This is YOUR cost
+
                     const profitLossCell = eventRow.insertCell();
                     const eventProfitLoss = getNum(event, 'total_profit_loss');
                     profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
+
                     eventRow.insertCell().textContent = getStr(event, 'notes', '');
 
-                    // --- START OF ADDED/MODIFIED CODE FOR DELETE BUTTON ---
+                    // Actions Cell with Delete Button
                     const actionsCell = eventRow.insertCell();
                     const deleteForm = document.createElement('form');
-                    // Assuming event.id from your rawSalesHistoryData is the sale_event_id
+                    // Construct the action URL: ensure event.id is valid
                     deleteForm.action = `/delete_sale_event/${event.id}`;
                     deleteForm.method = 'post';
                     deleteForm.style.display = 'inline';
 
                     const deleteButton = document.createElement('button');
                     deleteButton.type = 'submit';
-                    deleteButton.className = 'delete-button'; // Use existing class for styling
-                    deleteButton.textContent = 'Delete';    // Text for the button
-                    deleteButton.style.padding = '5px 8px'; // Consistent styling
-                    deleteButton.style.fontSize = '0.8em';  // Consistent styling
+                    deleteButton.className = 'delete-button';
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.style.padding = '5px 8px';
+                    deleteButton.style.fontSize = '0.8em';
                     deleteButton.onclick = function () {
                         return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
                     };
 
                     deleteForm.appendChild(deleteButton);
                     actionsCell.appendChild(deleteForm);
-                    // --- END OF ADDED/MODIFIED CODE FOR DELETE BUTTON ---
 
+                    // Details Row for items in the sale
                     const detailsRow = tableBody.insertRow();
                     detailsRow.id = `event-details-${event.id}`;
                     detailsRow.style.display = 'none';
                     const detailsCell = detailsRow.insertCell();
-                    detailsCell.colSpan = 7; // MODIFIED from 6 to 7
+                    detailsCell.colSpan = 9; // Updated colspan (Date, Summary, Qty, Cust.Ship, Plat.Fee, Your.Ship, P/L, Notes, Actions)
+
                     let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
-                    event.items.forEach(item => {
+                    (event.items || []).forEach(item => {
+                        if (!item || typeof item !== 'object') {
+                            console.warn("Skipping invalid item data within event:", item);
+                            return; // Skip this iteration if item data is not valid
+                        }
                         detailsHTML += `<tr>
                             <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
                             <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
@@ -946,6 +988,7 @@
                     detailsCell.innerHTML = detailsHTML;
                 });
 
+                // Add event listeners for all "Details" buttons after rows are created
                 tableBody.querySelectorAll('.details-btn').forEach(button => {
                     button.addEventListener('click', function () {
                         const detailRowId = this.dataset.eventId;
@@ -957,6 +1000,7 @@
                 });
             }
         }
+
 
         // --- Apply Filters & Sort (Server-Side) ---
         function applyFiltersAndSort() {
@@ -1044,7 +1088,15 @@
         if (multiItemSaleForm) {
             multiItemSaleForm.addEventListener('submit', async function(event) {
                 event.preventDefault();
-                const saleData = { sale_date: document.getElementById('sale_event_date').value, total_shipping_cost: document.getElementById('sale_event_shipping_cost').value, notes: document.getElementById('sale_event_notes').value, items: [] };
+                const saleData = {
+                    sale_date: document.getElementById('sale_event_date').value,
+                    total_shipping_cost: document.getElementById('sale_event_shipping_cost').value, // Your cost
+                    notes: document.getElementById('sale_event_notes').value,
+                    customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value, // NEW
+                    platform_fee: document.getElementById('sale_event_platform_fee').value,                         // NEW
+                    items: []
+                };
+
                 const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
                 if (itemRows.length === 0) { alert("Please add at least one item to the sale."); return; }
                 let formIsValid = true;

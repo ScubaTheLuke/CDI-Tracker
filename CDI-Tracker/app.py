@@ -365,27 +365,39 @@ def record_multi_item_sale_route():
             return jsonify({"success": False, "message": "No data received."}), 400
 
         sale_date_str = data.get('sale_date')
-        total_shipping_cost_str = data.get('total_shipping_cost', '0.0')
+        # This is YOUR cost to ship
+        total_shipping_cost_str = data.get('total_shipping_cost', '0.0') 
         overall_notes = data.get('notes', '')
         items_data = data.get('items')
 
+        # Get new fields from the JSON payload
+        customer_shipping_charge_str = data.get('customer_shipping_charge', '0.0')
+        platform_fee_str = data.get('platform_fee', '0.0')
+
         if not sale_date_str or not isinstance(items_data, list) or not items_data:
-            flash('Missing sale date or items data.', 'error') # For server-side log/debug
+            flash('Missing sale date or items data.', 'error') 
             return jsonify({"success": False, "message": "Missing sale date or items list is empty."}), 400
 
+        # Pass the new fields to the updated database function
         sale_event_id, message = database.record_multi_item_sale(
-            sale_date_str, total_shipping_cost_str, overall_notes, items_data
+            sale_date_str, 
+            total_shipping_cost_str, 
+            overall_notes, 
+            items_data,
+            customer_shipping_charge_str, # New
+            platform_fee_str             # New
         )
 
         if sale_event_id:
+            # The flash message will be shown on the next rendered page after redirect
             flash(f"Sale event (ID: {sale_event_id}) recorded. {message}", 'success')
             return jsonify({"success": True, "message": f"Sale event (ID: {sale_event_id}) recorded.", "sale_event_id": sale_event_id})
         else:
             flash(f"Failed to record sale event. Reason: {message}", 'error')
-            return jsonify({"success": False, "message": f"Failed to record sale event. Reason: {message}"}), 400 # Or 500 for server error
+            return jsonify({"success": False, "message": f"Failed to record sale event. Reason: {message}"}), 400
     except Exception as e:
         print(f"Error in /record_multi_item_sale route: {e}")
-        flash(f"An error occurred: {str(e)}", 'error')
+        flash(f"An error occurred: {str(e)}", 'error') # This flash will be shown
         return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
 
 @app.route('/initiate_open_sealed/<int:product_id>', methods=['POST'])
@@ -585,6 +597,7 @@ def delete_sealed_product_route(product_id):
     flash('Sealed product entry deleted!' if deleted else 'Failed to delete sealed product.', 'success' if deleted else 'error')
     return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
 
+
 @app.route('/delete_sale_event/<int:event_id>', methods=['POST'])
 def delete_sale_event_route(event_id):
     success, message = database.delete_sale_event(event_id)
@@ -592,7 +605,10 @@ def delete_sale_event_route(event_id):
         flash(message, 'success')
     else:
         flash(message, 'error')
-    return redirect(url_for('index', tab='salesHistoryTab')) # Or your combined sales tab ID
+    # Redirect to the tab where sales history is displayed
+    return redirect(url_for('index', tab='salesHistoryTab')) 
+
+
 
 
 @app.route('/add_financial_entry', methods=['POST'])

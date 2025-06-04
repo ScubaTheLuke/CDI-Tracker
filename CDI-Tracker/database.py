@@ -85,16 +85,19 @@ def init_db():
 
     print("Attempting to create sale_events table...")
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS sale_events (
-            id SERIAL PRIMARY KEY,
-            sale_date DATE NOT NULL,
-            total_shipping_cost REAL DEFAULT 0.0,
-            notes TEXT,
-            total_profit_loss REAL,
-            date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
+    CREATE TABLE IF NOT EXISTS sale_events (
+        id SERIAL PRIMARY KEY,
+        sale_date DATE NOT NULL,
+        total_shipping_cost REAL DEFAULT 0.0, -- Your cost to ship
+        notes TEXT,
+        total_profit_loss REAL,
+        date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        customer_shipping_charge REAL DEFAULT 0.0, -- What customer paid for shipping
+        platform_fee REAL DEFAULT 0.0            -- Platform fees for the sale
+    )
     ''')
     print("Sale_events table creation attempted.")
+
 
     print("Attempting to create sale_items table...")
     cursor.execute('''
@@ -135,6 +138,8 @@ def init_db():
     _check_and_add_column(cursor, 'cards', 'rarity', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
     _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
+    _check_and_add_column(cursor, 'sale_events', 'customer_shipping_charge', 'REAL DEFAULT 0.0')
+    _check_and_add_column(cursor, 'sale_events', 'platform_fee', 'REAL DEFAULT 0.0')
     print("All _check_and_add_column calls attempted.")
         
     print("Attempting to commit changes...")
@@ -634,29 +639,41 @@ def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quan
         print(f"DB error in _update_inventory_item_quantity_with_cursor for {table_name} ID {item_id}: {e}")
         return False, f"DB error during quantity update: {e}"
 
-def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app):
+def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app, 
+                           customer_shipping_charge_str, platform_fee_str): # Added new params
     conn = get_db_connection()
     cursor = conn.cursor() 
     sale_event_id = None
-    total_event_profit_loss_calculated = 0.0
+    total_items_profit_loss = 0.0 # Renamed for clarity
 
     try:
         sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
-        total_shipping_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
+        # Your cost for shipping
+        our_total_shipping_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
+        # New fields
+        customer_shipping_charge = float(customer_shipping_charge_str if customer_shipping_charge_str and customer_shipping_charge_str.strip() != '' else 0.0)
+        platform_fee = float(platform_fee_str if platform_fee_str and platform_fee_str.strip() != '' else 0.0)
+
     except ValueError as e:
-        print(f"DB Error: Invalid date/shipping format: {e}")
+        print(f"DB Error: Invalid date/shipping/fee format: {e}")
         if conn: conn.close()
-        return None, f"Invalid date/shipping: {e}"
+        return None, f"Invalid date/shipping/fee: {e}"
 
     try:
-        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes) VALUES (%s, %s, %s) RETURNING id''',
-                       (sale_date_obj, total_shipping_cost, overall_notes))
+        # Insert new fields into sale_events
+        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes, customer_shipping_charge, platform_fee) 
+                          VALUES (%s, %s, %s, %s, %s) RETURNING id''',
+                       (sale_date_obj, our_total_shipping_cost, overall_notes, customer_shipping_charge, platform_fee))
         result = cursor.fetchone()
         if result: sale_event_id = result[0]
         print(f"DB: Created sale_event ID {sale_event_id}")
 
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as item_read_cursor:
             for item_data in items_data_from_app:
+                # ... (existing logic to get item_type, inventory_item_id_int, quantity_sold, sell_price_per_item) ...
+                # Minor change: ensure you're using the correct sell_price_per_item for the calculation
+                # The item_profit_loss stored in sale_items is (sell_price_per_item - buy_price_per_item) * quantity_sold
+
                 inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix')
                 quantity_sold_str = item_data.get('quantity_sold')
                 sell_price_per_item_str = item_data.get('sell_price_per_item')
@@ -685,7 +702,6 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                 item_read_cursor.execute(f"SELECT * FROM {table_name_for_read} WHERE id = %s", (inventory_item_id_int,))
                 original_item_db_row = item_read_cursor.fetchone()
 
-
                 if not original_item_db_row:
                     raise ValueError(f"Inv item not found: {item_type} id {inventory_item_id_int}")
                 if quantity_sold > original_item_db_row['quantity']:
@@ -694,8 +710,9 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
 
                 buy_price_per_item = float(original_item_db_row['buy_price'])
                 item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
-                total_event_profit_loss_calculated += item_profit_loss
+                total_items_profit_loss += item_profit_loss # Accumulate item-specific P/L
 
+                # ... (existing logic to get original_item_name_snapshot, original_item_details_snapshot) ...
                 original_item_name_snapshot = ""
                 original_item_details_snapshot = ""
                 if item_type == 'single_card':
@@ -707,20 +724,23 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                     original_item_name_snapshot = original_item_db_row['product_name']
                     lang_str_sealed = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
                     original_item_details_snapshot = f"{original_item_db_row['set_name']} - {original_item_db_row['product_type']} {'(Collector)' if original_item_db_row['is_collectors_item'] else ''} (L: {lang_str_sealed.upper()})"
-                
+
                 cursor.execute('''INSERT INTO sale_items (sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss)
                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
                                (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
 
-                # Pass the main cursor (non-DictCursor) to the helper function for the UPDATE
                 success_inv_update, msg_inv_update = _update_inventory_item_quantity_with_cursor(cursor, item_type, inventory_item_id_int, -quantity_sold)
                 if not success_inv_update:
                     raise Exception(f"Inv update failed: {msg_inv_update}")
 
-        final_event_profit_loss = total_event_profit_loss_calculated - total_shipping_cost
+        # Calculate the final P/L for the event including new fields
+        # total_items_profit_loss = Sum of (item_sell_price - item_buy_price) * quantity_sold
+        # Net Event P/L = total_items_profit_loss + customer_shipping_charge - our_total_shipping_cost - platform_fee
+        final_event_profit_loss = total_items_profit_loss + customer_shipping_charge - our_total_shipping_cost - platform_fee
+
         cursor.execute('''UPDATE sale_events SET total_profit_loss = %s WHERE id = %s''', (final_event_profit_loss, sale_event_id))
         conn.commit()
-        print(f"DB: Committed sale_event ID {sale_event_id}")
+        print(f"DB: Committed sale_event ID {sale_event_id} with total P/L: {final_event_profit_loss}")
         return sale_event_id, "Sale event recorded successfully."
     except Exception as e:
         print(f"DB Error in record_multi_item_sale: {e}")
@@ -732,33 +752,57 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
 
 def get_all_sale_events_with_items():
     conn = get_db_connection()
+    # Use DictCursor to access columns by name
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
     sale_events_processed = []
     try:
-        cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded
+        # Select all necessary fields from sale_events, including the new ones
+        cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded,
+                                 customer_shipping_charge, platform_fee 
                           FROM sale_events ORDER BY sale_date DESC, id DESC''')
         events = cursor.fetchall()
         for event_row in events:
+            # event_row is already a DictRow, so direct dictionary conversion is fine
             event_dict = dict(event_row) 
-            if isinstance(event_dict.get('sale_date'), str):
-                event_dict['sale_date'] = datetime.datetime.strptime(event_dict['sale_date'], '%Y-%m-%d').date()
-            if isinstance(event_dict.get('date_recorded'), str):
-                 event_dict['date_recorded'] = datetime.datetime.fromisoformat(event_dict['date_recorded'])
+            
+            # Ensure dates are Python date/datetime objects
+            # (PostgreSQL driver usually handles this, but good to be robust)
+            if event_dict.get('sale_date') and isinstance(event_dict.get('sale_date'), str):
+                try:
+                    event_dict['sale_date'] = datetime.datetime.strptime(event_dict['sale_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    # Handle or log cases where date might not be in expected string format
+                    print(f"Warning: Could not parse sale_date string: {event_dict.get('sale_date')}")
+                    pass 
+            
+            if event_dict.get('date_recorded') and isinstance(event_dict.get('date_recorded'), str):
+                try:
+                    event_dict['date_recorded'] = datetime.datetime.fromisoformat(event_dict['date_recorded'])
+                except ValueError:
+                    print(f"Warning: Could not parse date_recorded string: {event_dict.get('date_recorded')}")
+                    pass
 
-
+            # Fetch associated items for this event
             cursor.execute('''SELECT id, sale_event_id, inventory_item_id, item_type, original_item_name,
                                      original_item_details, quantity_sold, sell_price_per_item,
                                      buy_price_per_item, item_profit_loss
                               FROM sale_items WHERE sale_event_id = %s ORDER BY id ASC''', (event_dict['id'],))
             items_raw = cursor.fetchall()
+            # Convert item rows to dictionaries
             event_dict['items'] = [dict(item_row) for item_row in items_raw] 
             sale_events_processed.append(event_dict)
+            
     except psycopg2.Error as e:
-        print(f"DB Error get_all_sale_events: {e}")
+        print(f"DB Error in get_all_sale_events_with_items: {e}")
     finally:
-        cursor.close()
-        conn.close()
+        if cursor: 
+            cursor.close()
+        if conn: 
+            conn.close()
     return sale_events_processed
+
+
+    
 
 
 def add_financial_entry(entry_date, description, category, entry_type, amount, notes):
