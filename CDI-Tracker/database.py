@@ -188,48 +188,67 @@ def get_item_by_id(item_type, item_id):
         conn.close()
     return item
 
-def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id, rarity, language):
+# In database.py, find and replace your add_card function with this one
+
+def add_card(name, set_code, collector_number, is_foil, quantity, buy_price, rarity, language, location='Unsorted'):
+    """Adds a new card to the inventory or updates the quantity if an identical card exists."""
     conn = get_db_connection()
     cursor = conn.cursor()
-    timestamp = datetime.datetime.now()
-    is_foil_int = 1 if is_foil else 0
-    card_id = None 
-    try:
-        current_buy_price = float(buy_price)
-    except (ValueError, TypeError):
-        print(f"DB Error: Invalid buy_price format '{buy_price}' for card '{name}'.")
-        if conn: conn.close()
-        return None
+    
+    # Fetch current market price from Scryfall
+    from scryfall import get_card_details
+    scryfall_data = get_card_details(set_code=set_code, collector_number=collector_number)
+    
+    current_market_price_usd = None
+    image_uri = None
+    if scryfall_data and not scryfall_data.get('error'):
+        prices = scryfall_data.get('prices', {})
+        price_key = 'usd_foil' if is_foil else 'usd'
+        current_market_price_usd = prices.get(price_key)
+        
+        # Get image URI from image_uris or card_faces
+        if 'image_uris' in scryfall_data and 'normal' in scryfall_data['image_uris']:
+            image_uri = scryfall_data['image_uris']['normal']
+        elif 'card_faces' in scryfall_data and 'image_uris' in scryfall_data['card_faces'][0]:
+            image_uri = scryfall_data['card_faces'][0]['image_uris']['normal']
 
     try:
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as check_cursor:
-            check_cursor.execute('''SELECT id, quantity FROM cards WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s AND rarity = %s AND language = %s AND buy_price = %s''',
-                                (set_code, collector_number, is_foil_int, location, rarity, language, current_buy_price))
-            existing = check_cursor.fetchone()
-
-        if existing:
-            card_id, new_qty = existing['id'], existing['quantity'] + quantity
-            cursor.execute('''UPDATE cards SET quantity = %s, market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s, sell_price = %s, last_updated = %s, name = %s, scryfall_id = %s WHERE id = %s''',
-                           (new_qty, market_price_usd, foil_market_price_usd, image_uri, sell_price, timestamp, name, scryfall_id, card_id))
-        else:
-            cursor.execute('''INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, date_added, last_updated, scryfall_id, rarity, language)
-                              VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id''',
-                           (set_code, collector_number, name, quantity, current_buy_price, is_foil_int, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, timestamp, timestamp, scryfall_id, rarity, language))
-            result = cursor.fetchone()
-            if result: card_id = result[0]
+        # Attempt to insert a new card record
+        sql = """
+            INSERT INTO cards (name, set_code, collector_number, is_foil, quantity, buy_price, current_market_price_usd, rarity, language, location, image_uri, last_updated)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW());
+        """
+        cursor.execute(sql, (name, set_code, collector_number, is_foil, quantity, buy_price, current_market_price_usd, rarity, language, location, image_uri))
         conn.commit()
-    except psycopg2.IntegrityError as ie:
-        print(f"DB IntegrityError in add_card for {name}: {ie}")
-        if conn: conn.rollback()
-        card_id = None 
+        print(f"SUCCESS (Inserted): Added {quantity} x {name} ({set_code.upper()}) to inventory.")
+
+    except psycopg2.errors.UniqueViolation as e:
+        # If the card already exists (violates unique constraint), update the quantity instead
+        conn.rollback() # Rollback the failed INSERT transaction
+        try:
+            update_sql = """
+                UPDATE cards
+                SET quantity = quantity + %s,
+                    last_updated = NOW()
+                WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s AND rarity = %s AND language = %s AND buy_price = %s;
+            """
+            cursor.execute(update_sql, (quantity, set_code, collector_number, is_foil, location, rarity, language, buy_price))
+            conn.commit()
+            print(f"SUCCESS (Updated): Added {quantity} x {name} ({set_code.upper()}) to existing stack.")
+        except psycopg2.Error as update_e:
+            print(f"DB Update Error after IntegrityError for {name}: {update_e}")
+            conn.rollback()
+
     except psycopg2.Error as e:
-        print(f"DB error add_card for {name}: {e}")
-        if conn: conn.rollback()
-        card_id = None 
+        # Handle other potential database errors
+        print(f"DB IntegrityError in add_card for {name}: {e}")
+        conn.rollback()
+
     finally:
-        if cursor: cursor.close()
-        if conn: conn.close()
-    return card_id
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 
