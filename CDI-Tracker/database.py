@@ -190,7 +190,7 @@ def get_item_by_id(item_type, item_id):
 
 # In database.py, find and replace your add_card function with this one
 
-def add_card(name, set_code, collector_number, is_foil, quantity, buy_price, rarity, language, location='Unsorted'):
+def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id, rarity, language):
     """Adds a new card to the inventory or updates the quantity if an identical card exists."""
     conn = get_db_connection()
     cursor = conn.cursor()
