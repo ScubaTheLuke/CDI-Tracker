@@ -336,6 +336,9 @@
         <p>
             <strong>Total Inventory Buy Cost:</strong> <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span><br>
             <strong>Total Inventory Market Value:</strong> <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span><br>
+            <strong>Total Single Cards (Units):</strong> <span id="totalSingleCards">{{ '{:,}'.format(total_single_cards_quantity) }}</span><br>
+            <strong>Total Sealed Products (Units):</strong> <span id="totalSealedProducts">{{ '{:,}'.format(total_sealed_products_quantity) }}</span><br>
+            <br>
             <strong>Realized P/L from Sales (All Time):</strong>
             <span class="{{ 'profit' if sales_pl >= 0 else 'loss' }}">{{ sales_pl | currency_commas }}</span><br>
             <strong>Net Business P/L (All Time):</strong>
@@ -408,6 +411,15 @@
                 </select>
             </div>
             <div>
+                <label for="inventoryConditionFilter">Condition (Cards):</label>
+                <select id="inventoryConditionFilter">
+                    <option value="all" {% if filter_condition == 'all' %}selected{% endif %}>All Conditions</option>
+                    {% for c in all_conditions %}
+                    <option value="{{ c }}" {% if filter_condition == c %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
                 <label for="inventoryCollectorFilter">Collector's (Sealed):</label>
                 <select id="inventoryCollectorFilter">
                     <option value="all" {% if filter_collector == 'all' %}selected{% endif %}>Any</option>
@@ -437,6 +449,7 @@
                 <option value="current_market_price" {% if sort_key == 'current_market_price' %}selected{% endif %}>Market Price</option>
                 <option value="rarity" {% if sort_key == 'rarity' %}selected{% endif %}>Rarity (Cards)</option>
                 <option value="language" {% if sort_key == 'language' %}selected{% endif %}>Language</option>
+                <option value="condition" {% if sort_key == 'condition' %}selected{% endif %}>Condition (Cards)</option>
                 <option value="collector_number" {% if sort_key == 'collector_number' %}selected{% endif %}>Collector # (Cards)</option>
                 <option value="product_type" {% if sort_key == 'product_type' %}selected{% endif %}>Product Type (Sealed)</option>
             </select>
@@ -455,14 +468,14 @@
         <nav aria-label="Inventory Page Navigation">
             <ul class="pagination">
                 <li class="page-item {% if current_page == 1 %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page-1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page > 1 else '#' }}" aria-label="Previous">&laquo; Prev</a>
+                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page-1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page > 1 else '#' }}" aria-label="Previous">&laquo; Prev</a>
                 </li>
                 {% set page_window = 2 %}
                 {% set start_page = current_page - page_window if current_page - page_window > 0 else 1 %}
                 {% set end_page = current_page + page_window if current_page + page_window < total_pages else total_pages %}
 
                 {% if start_page > 1 %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">1</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">1</a></li>
                 {% if start_page > 2 %}
                 <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
                 {% endif %}
@@ -470,7 +483,7 @@
 
                 {% for page_num in range(start_page, end_page + 1) %}
                 <li class="page-item {% if page_num == current_page %}active{% endif %}">
-                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=page_num, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ page_num }}</a>
+                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=page_num, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ page_num }}</a>
                 </li>
                 {% endfor %}
 
@@ -478,10 +491,10 @@
                 {% if end_page < total_pages - 1 %}
                 <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
                 {% endif %}
-                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=total_pages, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ total_pages }}</a></li>
+                <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=total_pages, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ total_pages }}</a></li>
                 {% endif %}
                 <li class="page-item {% if current_page == total_pages %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page+1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page < total_pages else '#' }}" aria-label="Next">Next &raquo;</a>
+                    <a class="page-link" href="{{ url_for('index', tab=active_tab, page=current_page+1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) if current_page < total_pages else '#' }}" aria-label="Next">Next &raquo;</a>
                 </li>
             </ul>
         </nav>
@@ -531,6 +544,17 @@
                         <option value="zht" {% if (request.form.language if request.method == 'POST' ) == 'zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
                         <option value="ph" {% if (request.form.language if request.method == 'POST' ) == 'ph' %}selected{% endif %}>Phyrexian (ph)</option>
                         <option value="" {% if (request.form.language if request.method == 'POST' ) == '' %}selected{% endif %}>Other</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="condition_add">Condition:</label>
+                    <select id="condition_add" name="condition" required>
+                        <option value="Mint">Mint</option>
+                        <option value="Near Mint" selected>Near Mint</option>
+                        <option value="Lightly Played">Lightly Played</option>
+                        <option value="Moderately Played">Moderately Played</option>
+                        <option value="Heavily Played">Heavily Played</option>
+                        <option value="Damaged">Damaged</option>
                     </select>
                 </div>
                 <div><label for="quantity_add">Quantity:</label><input type="number" id="quantity_add" name="quantity" min="1" value="{{ request.form.quantity if request.method == 'POST' else '1' }}" required></div>
@@ -609,6 +633,17 @@
                         <option value="zhs">Simplified Chinese (zhs)</option>
                         <option value="zht">Traditional Chinese (zht)</option>
                         <option value="ph">Phyrexian (ph)</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="default_condition_csv">Default Condition:</label>
+                    <select id="default_condition_csv" name="default_condition_csv" required>
+                        <option value="Mint">Mint</option>
+                        <option value="Near Mint" selected>Near Mint</option>
+                        <option value="Lightly Played">Lightly Played</option>
+                        <option value="Moderately Played">Moderately Played</option>
+                        <option value="Heavily Played">Heavily Played</option>
+                        <option value="Damaged">Damaged</option>
                     </select>
                 </div>
             </div>
@@ -833,6 +868,7 @@
         const inventoryFoilFilter = document.getElementById('inventoryFoilFilter');
         const inventoryRarityFilter = document.getElementById('inventoryRarityFilter');
         const inventoryCardLanguageFilter = document.getElementById('inventoryCardLanguageFilter');
+        const inventoryConditionFilter = document.getElementById('inventoryConditionFilter');
         const inventoryCollectorFilter = document.getElementById('inventoryCollectorFilter');
         const inventorySealedLanguageFilter = document.getElementById('inventorySealedLanguageFilter');
         const inventorySortKeySelect = document.getElementById('inventorySortKey');
@@ -859,6 +895,7 @@
                 if (item.type === 'single_card') {
                     const setCode = getStr(item, 'set_code', 'N/A'); const collectorNum = getStr(item, 'collector_number', 'N/A');
                     const rarity = getStr(item, 'rarity', 'N/A'); const language = getStr(item, 'language', 'N/A'); const isFoil = getBool(item, 'is_foil');
+                    const condition = getStr(item, 'condition', 'N/A');
                     const marketVsBuyPercentageDisplay = getStr(item, 'market_vs_buy_percentage_display', 'N/A');
                     const potentialPLAtAskingPriceDisplay = item.potential_pl_at_asking_price_display;
                     let marketVsBuyPercentageHTML = 'N/A';
@@ -866,7 +903,7 @@
                     else if (marketVsBuyPercentageDisplay !== "N/A") { const numericVal = parseFloat(marketVsBuyPercentageDisplay); if (!isNaN(numericVal)) { const className = numericVal >= 0 ? 'profit' : 'loss'; marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`; } else marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay; }
                     let potentialPLHTML = 'N/A (No asking price)';
                     if (typeof potentialPLAtAskingPriceDisplay === 'number') { const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss'; potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`; } else potentialPLHTML = potentialPLAtAskingPriceDisplay;
-                    itemHTML += `<strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br><strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br><strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>`;
+                    itemHTML += `<strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br><strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Condition:</strong> ${condition}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br><strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>`;
                 } else if (item.type === 'sealed_product') {
                     const setName = getStr(item, 'set_name', 'N/A'); const productType = getStr(item, 'product_type', 'N/A');
                     const language = getStr(item, 'language', 'N/A'); const isCollectorsItem = getBool(item, 'is_collectors_item');
@@ -879,7 +916,11 @@
                 itemHTML += `</p>`;
                 const displayNameEscaped = displayName.replace(/"/g, '&quot;');
                 if (item.type === 'single_card') {
-                    itemHTML += `<div class="actions"><form action="/delete_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/refresh_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div><details class="update-details"><summary>Update Card Details</summary><form action="/update_card/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><button type="submit">Save Card</button></form></details>`;
+                    const condition = getStr(item, 'condition');
+                    const conditionOptions = ['Mint', 'Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
+                        .map(c => `<option value="${c}" ${condition === c ? 'selected' : ''}>${c}</option>`).join('');
+
+                    itemHTML += `<div class="actions"><form action="/delete_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/refresh_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div><details class="update-details"><summary>Update Card Details</summary><form action="/update_card/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Condition:</label><select name="condition">${conditionOptions}</select></div><button type="submit">Save Card</button></form></details>`;
                 } else if (item.type === 'sealed_product') {
                     const buyPriceValue = buyPrice !== null ? buyPrice : ''; const isCollectorsItem = getBool(item, 'is_collectors_item');
                     itemHTML += `<div class="actions"><form action="/delete_sealed_product/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/initiate_open_sealed/${originalId}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="${quantity}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="${displayNameEscaped}"><input type="hidden" name="original_buy_price" value="${buyPriceValue}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form></div><details class="update-details"><summary>Update Sealed Details</summary><form action="/update_sealed_product/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="${marketPrice !== null ? marketPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div><div><label for="update_language_sealed_${originalId}">Language:</label><select id="update_language_sealed_${originalId}" name="language"><option value="en" ${getStr(item, 'language') === 'en' ? 'selected' : ''}>English (en)</option><option value="es" ${getStr(item, 'language') === 'es' ? 'selected' : ''}>Spanish (es)</option><option value="fr" ${getStr(item, 'language') === 'fr' ? 'selected' : ''}>French (fr)</option><option value="de" ${getStr(item, 'language') === 'de' ? 'selected' : ''}>German (de)</option><option value="it" ${getStr(item, 'language') === 'it' ? 'selected' : ''}>Italian (it)</option><option value="pt" ${getStr(item, 'language') === 'pt' ? 'selected' : ''}>Portuguese (pt)</option><option value="ja" ${getStr(item, 'language') === 'ja' ? 'selected' : ''}>Japanese (ja)</option><option value="ko" ${getStr(item, 'language') === 'ko' ? 'selected' : ''}>Korean (ko)</option><option value="ru" ${getStr(item, 'language') === 'ru' ? 'selected' : ''}>Russian (ru)</option><option value="zhs" ${getStr(item, 'language') === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option><option value="zht" ${getStr(item, 'language') === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option></select></div><div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>`;
@@ -1013,6 +1054,7 @@
             if (inventoryFoilFilter) params.set('filter_foil', inventoryFoilFilter.value);
             if (inventoryRarityFilter) params.set('filter_rarity', inventoryRarityFilter.value);
             if (inventoryCardLanguageFilter) params.set('filter_card_lang', inventoryCardLanguageFilter.value);
+            if (inventoryConditionFilter) params.set('filter_condition', inventoryConditionFilter.value);
             if (inventoryCollectorFilter) params.set('filter_collector', inventoryCollectorFilter.value);
             if (inventorySealedLanguageFilter) params.set('filter_sealed_lang', inventorySealedLanguageFilter.value);
             if (inventorySortKeySelect) params.set('sort_key', inventorySortKeySelect.value);
@@ -1158,6 +1200,7 @@
                                         (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
                                         (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
                                         (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
+                                        (inventoryConditionFilter && inventoryConditionFilter.value !== 'all') ||
                                         (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
                                         (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
 

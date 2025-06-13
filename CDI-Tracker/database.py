@@ -53,10 +53,11 @@ def init_db():
             location TEXT,
             rarity TEXT,
             language TEXT,
+            condition TEXT,
             date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             scryfall_id TEXT,
-            UNIQUE(set_code, collector_number, is_foil, location, rarity, language, buy_price)
+            UNIQUE(set_code, collector_number, is_foil, location, rarity, language, buy_price, condition)
         )
     ''')
     print("Cards table creation attempted.")
@@ -132,17 +133,52 @@ def init_db():
     ''')
     print("Financial_entries table creation attempted.")
 
-
+    # This block fixes the constraint on EXISTING databases.
+    try:
+        print("Checking for old unique constraint on 'cards' table...")
+        # Check if the OLD constraint exists by its specific name from the error log
+        cursor.execute("""
+            SELECT 1 FROM pg_constraint WHERE conname = 'cards_set_code_collector_number_is_foil_location_rarity_lan_key';
+        """)
+        if cursor.fetchone():
+            print("Dropping old unique constraint...")
+            cursor.execute("ALTER TABLE cards DROP CONSTRAINT cards_set_code_collector_number_is_foil_location_rarity_lan_key;")
+            print("Old constraint dropped.")
+        else:
+            print("Old constraint not found, skipping drop.")
+            
+        # Check if the NEW constraint exists before trying to add it
+        print("Checking for new unique constraint on 'cards' table...")
+        cursor.execute("""
+            SELECT 1 FROM pg_constraint WHERE conname = 'cards_unique_attributes_with_condition_key';
+        """)
+        if not cursor.fetchone():
+            print("Adding new unique constraint with condition...")
+            cursor.execute("""
+                ALTER TABLE cards ADD CONSTRAINT cards_unique_attributes_with_condition_key
+                UNIQUE (set_code, collector_number, is_foil, location, rarity, language, buy_price, condition);
+            """)
+            print("New constraint added.")
+        else:
+            print("New constraint already exists.")
+            
+        conn.commit()
+    except psycopg2.Error as e:
+        print(f"Error during constraint update: {e}")
+        conn.rollback()
+    
+    print("Checking and adding columns if they don't exist...")
     _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'rarity', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
+    _check_and_add_column(cursor, 'cards', 'condition', 'TEXT')
     _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'sale_events', 'customer_shipping_charge', 'REAL DEFAULT 0.0')
     _check_and_add_column(cursor, 'sale_events', 'platform_fee', 'REAL DEFAULT 0.0')
-    print("All _check_and_add_column calls attempted.")
+    print("All column checks attempted.")
         
-    print("Attempting to commit changes...")
+    print("Attempting to commit final changes...")
     conn.commit()
     print("Changes committed.")
     cursor.close()
@@ -188,73 +224,69 @@ def get_item_by_id(item_type, item_id):
         conn.close()
     return item
 
-# In database.py, replace your current add_card function with this one
-
-def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id, rarity, language):
+def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, market_price_usd, foil_market_price_usd, image_uri, sell_price, location, scryfall_id, rarity, language, condition):
     """
     Adds a new card to the inventory or updates the quantity if an identical card is found.
-    This function trusts the data passed to it and does not perform its own Scryfall lookup.
+    An identical card is one that matches on all unique constraint fields.
     """
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     timestamp = datetime.datetime.now()
     is_foil_db_val = 1 if is_foil else 0
+    card_id = None
     
     try:
-        current_buy_price = float(buy_price)
-    except (ValueError, TypeError):
-        print(f"DB Error: Invalid buy_price format '{buy_price}' for card '{name}'.")
-        if conn: conn.close()
-        return None
-
-    try:
-        # Attempt to INSERT a new card record
+        # Check if an identical card already exists
         cursor.execute(
-            """INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, 
-                                 market_price_usd, foil_market_price_usd, image_uri, sell_price, 
-                                 location, date_added, last_updated, scryfall_id, rarity, language)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
-            (set_code, collector_number, name, quantity, current_buy_price, is_foil_db_val, 
-             market_price_usd, foil_market_price_usd, image_uri, sell_price, 
-             location, timestamp, timestamp, scryfall_id, rarity, language)
+            """SELECT id, quantity FROM cards
+               WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s 
+               AND rarity = %s AND language = %s AND buy_price = %s AND condition = %s""",
+            (set_code, collector_number, is_foil_db_val, location, rarity, language, buy_price, condition)
         )
-        print(f"SUCCESS (Inserted): Added {quantity} x {name} ({set_code.upper()}) to inventory.")
+        existing_card = cursor.fetchone()
 
-    except psycopg2.errors.UniqueViolation as e:
-        # This block runs if the INSERT fails because the card is a duplicate.
-        conn.rollback() # Important: rollback the failed INSERT transaction first
-        try:
-            # Now, UPDATE the quantity of the existing entry
+        if existing_card:
+            # Card exists, so update its quantity
+            new_quantity = existing_card['quantity'] + quantity
             cursor.execute(
                 """UPDATE cards
-                   SET quantity = quantity + %s, last_updated = %s,
+                   SET quantity = %s, last_updated = %s,
                        market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s,
                        sell_price = %s, name = %s, scryfall_id = %s
-                   WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s 
-                   AND rarity = %s AND language = %s AND buy_price = %s""",
-                (quantity, timestamp, market_price_usd, foil_market_price_usd, image_uri, sell_price, name, scryfall_id,
-                 set_code, collector_number, is_foil_db_val, location, rarity, language, current_buy_price)
+                   WHERE id = %s""",
+                (new_quantity, timestamp, market_price_usd, foil_market_price_usd, image_uri, 
+                 sell_price, name, scryfall_id, existing_card['id'])
             )
-            print(f"SUCCESS (Updated): Added {quantity} x {name} ({set_code.upper()}) to existing stack.")
-        except psycopg2.Error as update_e:
-            print(f"DB UPDATE Error after duplicate found for {name}: {update_e}")
-            conn.rollback()
-
-    except psycopg2.Error as other_db_error:
-        # Handle other potential database errors during the initial INSERT
-        print(f"DB Error in add_card for {name}: {other_db_error}")
-        conn.rollback()
-
-    finally:
-        # Commit the transaction if it was successful (either INSERT or UPDATE)
+            card_id = existing_card['id']
+            print(f"SUCCESS (Updated): Added {quantity} x {name} ({set_code.upper()}) [{condition}] to existing stack.")
+        else:
+            # Card does not exist, so insert a new row
+            cursor.execute(
+                """INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, 
+                                     market_price_usd, foil_market_price_usd, image_uri, sell_price, 
+                                     location, date_added, last_updated, scryfall_id, rarity, language, condition)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (set_code, collector_number, name, quantity, buy_price, is_foil_db_val, 
+                 market_price_usd, foil_market_price_usd, image_uri, sell_price, 
+                 location, timestamp, timestamp, scryfall_id, rarity, language, condition)
+            )
+            card_id = cursor.fetchone()['id']
+            print(f"SUCCESS (Inserted): Added {quantity} x {name} ({set_code.upper()}) [{condition}] to inventory.")
+        
         conn.commit()
-        if cursor: cursor.close()
-        if conn: conn.close()
+        return card_id
 
-    # The function doesn't necessarily need to return a card_id for this workflow,
-    # but you could add "RETURNING id" to the SQL and fetchone() if you need it.
-    return True # Indicate success
-
+    except psycopg2.Error as e:
+        print(f"DB Error in add_card for {name}: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 def delete_sale_event(sale_event_id):
@@ -349,7 +381,7 @@ def get_all_cards():
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     cards = []
     try:
-        cursor.execute("SELECT * FROM cards WHERE quantity > 0 ORDER BY name, set_code, collector_number, location, buy_price, rarity, language")
+        cursor.execute("SELECT * FROM cards WHERE quantity > 0 ORDER BY name, set_code, collector_number, location, buy_price, rarity, language, condition")
         cards = cursor.fetchall()
     except psycopg2.Error as e:
         print(f"DB error in get_all_cards: {e}")
@@ -435,7 +467,7 @@ def update_card_prices_and_image(card_id, market_price_usd, foil_market_price_us
 def update_card_fields(card_id, data_to_update):
     conn = get_db_connection()
     cursor = conn.cursor()
-    allowed_fields = {'quantity', 'buy_price', 'sell_price', 'location'}
+    allowed_fields = {'quantity', 'buy_price', 'sell_price', 'location', 'condition'}
     fields_to_update_sql = []
     values_for_sql = []
 
@@ -743,7 +775,8 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                     original_item_name_snapshot = original_item_db_row['name']
                     rarity_str = (original_item_db_row.get('rarity') if original_item_db_row.get('rarity') is not None else 'N/A')
                     lang_str = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
-                    original_item_details_snapshot = f"{original_item_db_row['set_code']}-{original_item_db_row['collector_number']} {'(Foil)' if original_item_db_row['is_foil'] else ''} (R: {rarity_str.capitalize()}, L: {lang_str.upper()})"
+                    condition_str = (original_item_db_row.get('condition') if original_item_db_row.get('condition') is not None else 'N/A')
+                    original_item_details_snapshot = f"{original_item_db_row['set_code']}-{original_item_db_row['collector_number']} {'(Foil)' if original_item_db_row['is_foil'] else ''} (R: {rarity_str.capitalize()}, L: {lang_str.upper()}, C: {condition_str})"
                 elif item_type == 'sealed_product':
                     original_item_name_snapshot = original_item_db_row['product_name']
                     lang_str_sealed = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
@@ -826,7 +859,6 @@ def get_all_sale_events_with_items():
     return sale_events_processed
 
 
-    
 
 
 def add_financial_entry(entry_date, description, category, entry_type, amount, notes):

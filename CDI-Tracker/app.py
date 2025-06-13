@@ -26,22 +26,7 @@ ROBOFLOW_API_KEY = os.environ.get("ROBOFLOW_API_KEY", "YOUR_ROBOFLOW_API_KEY_HER
 ROBOFLOW_MODEL_ENDPOINT = os.environ.get("ROBOFLOW_MODEL_ENDPOINT", "YOUR_ROBOFLOW_MODEL_INFERENCE_URL_HERE")
 
 ITEMS_PER_PAGE = 50 
-# # aslkdfj;alskdfja;slkdfjas;lkdfjasl;kdfja;slkdfj
 
-# las;dkfja;slkdfjasl;dkfja
-# sdfas
-# dfas
-# df
-# asdf
-# asdf
-# as
-# dfas
-# df
-# asdf
-# as
-# dfs
-# dff
-# s
 def format_currency_with_commas(value):
     if value is None: return "$0.00"
     try:
@@ -49,9 +34,6 @@ def format_currency_with_commas(value):
         return f"-${abs(num_value):,.2f}" if num_value < 0 else f"${num_value:,.2f}"
     except (ValueError, TypeError): return str(value)
 app.jinja_env.filters['currency_commas'] = format_currency_with_commas
-
-# The @app.before_request decorator that called database.init_db() has been removed.
-# Database initialization should be done manually once.
 
 @app.route('/api/all_sets_info')
 def api_all_sets_info():
@@ -97,6 +79,7 @@ def index():
     query_filter_foil = request.args.get('filter_foil', 'all')
     query_filter_rarity = request.args.get('filter_rarity', 'all')
     query_filter_card_lang = request.args.get('filter_card_lang', 'all')
+    query_filter_condition = request.args.get('filter_condition', 'all')
     query_filter_collector = request.args.get('filter_collector', 'all')
     query_filter_sealed_lang = request.args.get('filter_sealed_lang', 'all')
     query_sort_key = request.args.get('sort_key', 'display_name')
@@ -125,7 +108,7 @@ def index():
             event_copy['date_recorded'] = event_copy['date_recorded'].isoformat()
         
         processed_items = []
-        for item_detail in event_copy.get('items', []): # Renamed item to item_detail
+        for item_detail in event_copy.get('items', []):
             item_copy = dict(item_detail)
             processed_items.append(item_copy)
         event_copy['items'] = processed_items
@@ -149,11 +132,11 @@ def index():
         sale_date_obj = event.get('sale_date')
         if not isinstance(sale_date_obj, datetime.date): 
             try: sale_date_obj = datetime.date.fromisoformat(str(sale_date_obj))
-            except (ValueError, TypeError): continue # Skip if date is invalid
+            except (ValueError, TypeError): continue
 
         year_month_key = (sale_date_obj.year, sale_date_obj.month)
         
-        event_total_profit = event.get('total_profit_loss', 0.0) or 0.0 # Ensure it's float
+        event_total_profit = event.get('total_profit_loss', 0.0) or 0.0
         historical_monthly_summary_temp[year_month_key]['profit_loss'] += float(event_total_profit)
         historical_monthly_summary_temp[year_month_key]['sales_events_count'] += 1
 
@@ -188,21 +171,20 @@ def index():
         })
     historical_monthly_sales_summary.sort(key=lambda x: (x['year'], x['month']), reverse=True)
 
-        # Existing P/L from sales
     sales_pl = sum(event.get('total_profit_loss', 0.0) or 0.0 for event in sales_events_raw)
 
-    # Calculate total of other income and expenses
     total_other_income = sum(entry['amount'] for entry in financial_entries if entry['entry_type'] == 'income')
     total_other_expenses = sum(entry['amount'] for entry in financial_entries if entry['entry_type'] == 'expense')
 
-    # Calculate final net P/L for the whole business
     net_business_pl = sales_pl + total_other_income - total_other_expenses
     
     processed_inventory_cards = []
     total_inventory_market_value_cards = 0
     total_buy_cost_of_inventory_cards = 0
+    total_single_cards_quantity = 0  # New counter
     for card_row in inventory_cards_data:
         card = dict(card_row)
+        total_single_cards_quantity += card.get('quantity', 0)  # Increment counter
         item = {'type': 'single_card', 'original_id': card['id']}
         item['display_name'] = card.get('name', 'N/A')
         item['quantity'] = card.get('quantity', 0)
@@ -215,6 +197,7 @@ def index():
         item['is_foil'] = bool(card.get('is_foil', 0))
         item['rarity'] = card.get('rarity', 'N/A')
         item['language'] = card.get('language', 'N/A')
+        item['condition'] = card.get('condition', 'N/A')
         item['total_buy_cost'] = (item['quantity'] * item['buy_price']) if item.get('buy_price') is not None else 0
         total_buy_cost_of_inventory_cards += item['total_buy_cost']
         current_market_price = None
@@ -235,8 +218,10 @@ def index():
     processed_sealed_products = []
     total_inventory_market_value_sealed = 0
     total_buy_cost_of_inventory_sealed = 0
+    total_sealed_products_quantity = 0  # New counter
     for product_row in sealed_products_data:
         product = dict(product_row)
+        total_sealed_products_quantity += product.get('quantity', 0)  # Increment counter
         item = {'type': 'sealed_product', 'original_id': product['id']}
         item['display_name'] = product.get('product_name', 'N/A')
         item['quantity'] = product.get('quantity', 0)
@@ -263,6 +248,8 @@ def index():
     all_rarities = sorted(list(set(i.get('rarity') for i in all_combined_inventory_items_unfiltered if i.get('type') == 'single_card' and i.get('rarity'))))
     all_card_languages = sorted(list(set(i.get('language') for i in all_combined_inventory_items_unfiltered if i.get('type') == 'single_card' and i.get('language'))))
     all_sealed_languages = sorted(list(set(i.get('language') for i in all_combined_inventory_items_unfiltered if i.get('type') == 'sealed_product' and i.get('language'))))
+    all_conditions_for_template = ['Mint', 'Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
+
 
     filtered_inventory_items = all_combined_inventory_items_unfiltered
     if query_filter_text: filtered_inventory_items = [i for i in filtered_inventory_items if query_filter_text in str(i.get('display_name', '')).lower() or query_filter_text in str(i.get('set_code', '')).lower() or query_filter_text in str(i.get('set_name', '')).lower() or query_filter_text in str(i.get('location', '')).lower() or (i.get('type') == 'single_card' and query_filter_text in str(i.get('collector_number', '')).lower()) or (i.get('type') == 'single_card' and query_filter_text in str(i.get('rarity', '')).lower()) or query_filter_text in str(i.get('language', '')).lower() or (i.get('type') == 'sealed_product' and query_filter_text in str(i.get('product_type', '')).lower())]
@@ -271,31 +258,25 @@ def index():
     if query_filter_set != 'all': filtered_inventory_items = [i for i in filtered_inventory_items if (i.get('type') == 'single_card' and (str(i.get('set_code','')) == query_filter_set or str(i.get('set_name','')) == query_filter_set)) or (i.get('type') == 'sealed_product' and str(i.get('set_name','')) == query_filter_set)]
     
     temp_items_after_type_specific_filters = []
-    for item_to_check in filtered_inventory_items: # item_to_check to avoid conflict with outer item
+    for item_to_check in filtered_inventory_items:
         keep = True
         if item_to_check.get('type') == 'single_card':
             if query_filter_foil != 'all' and item_to_check.get('is_foil') != (query_filter_foil == 'yes'): keep = False
             if query_filter_rarity != 'all' and item_to_check.get('rarity') != query_filter_rarity: keep = False
             if query_filter_card_lang != 'all' and item_to_check.get('language') != query_filter_card_lang: keep = False
+            if query_filter_condition != 'all' and item_to_check.get('condition') != query_filter_condition: keep = False
         elif item_to_check.get('type') == 'sealed_product':
             if query_filter_collector != 'all' and item_to_check.get('is_collectors_item') != (query_filter_collector == 'yes'): keep = False
             if query_filter_sealed_lang != 'all' and item_to_check.get('language') != query_filter_sealed_lang: keep = False
         
-        # If item type doesn't match current specific filter set (e.g. applying card filters to sealed product when type is 'all')
-        # but the item_type itself ISN'T the one being specifically filtered for, we should keep it.
-        # The main query_filter_type check handles broader type filtering.
-        # This section handles applying card-only filters only to cards, and sealed-only to sealed.
         if ( (query_filter_type == 'single_card' and item_to_check.get('type') != 'single_card') or \
              (query_filter_type == 'sealed_product' and item_to_check.get('type') != 'sealed_product') ):
-            # This condition means we are specifically filtering for one type, but this item is of the other.
-            # It should have been caught by "if query_filter_type != 'all'" already.
-            # The logic here is more about when query_filter_type is 'all', we only apply specific filters to relevant types.
-            pass # Item is of a different type than the specific filters being applied; keep unless general filters removed it.
+            pass 
 
         if keep: temp_items_after_type_specific_filters.append(item_to_check)
     filtered_inventory_items = temp_items_after_type_specific_filters
 
-    def get_sort_value(item_to_sort, key): # Renamed item to item_to_sort
+    def get_sort_value(item_to_sort, key):
         val = item_to_sort.get(key)
         if key == 'set_name_sort': 
             s_val = (str(item_to_sort.get('set_code','')) or str(item_to_sort.get('set_name', ''))) if item_to_sort.get('type') == 'single_card' else str(item_to_sort.get('set_name', ''))
@@ -320,15 +301,15 @@ def index():
 
     sale_inventory_options = []
     temp_sorted_for_sale_options = sorted(all_combined_inventory_items_unfiltered, key=lambda x_sort: x_sort.get('display_name', '').lower())
-    for item_s_opt in temp_sorted_for_sale_options: # Renamed item to item_s_opt
+    for item_s_opt in temp_sorted_for_sale_options:
         display_text_val = f"{item_s_opt['display_name']} "
-        if item_s_opt['type'] == 'single_card': display_text_val += f"({item_s_opt.get('set_code','N/A').upper()}-{item_s_opt.get('collector_number','N/A')}) {'(Foil)' if item_s_opt.get('is_foil') else ''} (R: {item_s_opt.get('rarity','N/A')}, L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
-        else: display_text_val += f"({item_s_opt.get('set_name','N/A')} / {item_s_opt.get('product_type','N/A')}){' (Collector)' if item_s_opt.get('is_collectors_item') else ''} (L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        if item_s_opt['type'] == 'single_card': 
+            condition_str = f"C: {item_s_opt.get('condition','N/A')}, "
+            display_text_val += f"({item_s_opt.get('set_code','N/A').upper()}-{item_s_opt.get('collector_number','N/A')}) {'(Foil)' if item_s_opt.get('is_foil') else ''} (R: {item_s_opt.get('rarity','N/A')}, L: {item_s_opt.get('language','N/A')}, {condition_str}BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        else: 
+            display_text_val += f"({item_s_opt.get('set_name','N/A')} / {item_s_opt.get('product_type','N/A')}){' (Collector)' if item_s_opt.get('is_collectors_item') else ''} (L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
         sale_inventory_options.append({"id": f"{item_s_opt['type']}-{item_s_opt['original_id']}", "display": display_text_val, "type": item_s_opt['type']})
     sale_inventory_options_json = json.dumps(sale_inventory_options)
-
-
-
 
     return render_template('index.html',
                            inventory_items_json=inventory_items_json,
@@ -336,6 +317,8 @@ def index():
                            sale_inventory_options_json=sale_inventory_options_json,
                            total_inventory_market_value=total_inventory_market_value,
                            total_buy_cost_of_inventory=total_buy_cost_of_inventory,
+                           total_single_cards_quantity=total_single_cards_quantity,
+                           total_sealed_products_quantity=total_sealed_products_quantity,
                            sales_pl=sales_pl,
                            net_business_pl=net_business_pl,
                            num_unique_card_inventory_entries=num_unique_card_inventory_entries,
@@ -350,8 +333,24 @@ def index():
                            suggested_buy_price=suggested_buy_price,
                            from_pack_details=from_pack_details,
                            current_page=page, total_pages=total_pages,
-                           filter_text=query_filter_text, filter_type=query_filter_type, filter_location=query_filter_location, filter_set=query_filter_set, filter_foil=query_filter_foil, filter_rarity=query_filter_rarity, filter_card_lang=query_filter_card_lang, filter_collector=query_filter_collector, filter_sealed_lang=query_filter_sealed_lang, sort_key=query_sort_key, sort_dir=query_sort_direction,
-                           all_locations=all_locations, all_sets_identifiers=all_sets_identifiers, all_rarities=all_rarities, all_card_languages=all_card_languages, all_sealed_languages=all_sealed_languages,
+                           filter_text=query_filter_text, 
+                           filter_type=query_filter_type, 
+                           filter_location=query_filter_location, 
+                           filter_set=query_filter_set, 
+                           filter_foil=query_filter_foil, 
+                           filter_rarity=query_filter_rarity, 
+                           filter_card_lang=query_filter_card_lang, 
+                           filter_condition=query_filter_condition, 
+                           filter_collector=query_filter_collector, 
+                           filter_sealed_lang=query_filter_sealed_lang, 
+                           sort_key=query_sort_key, 
+                           sort_dir=query_sort_direction,
+                           all_locations=all_locations, 
+                           all_sets_identifiers=all_sets_identifiers, 
+                           all_rarities=all_rarities, 
+                           all_card_languages=all_card_languages, 
+                           all_sealed_languages=all_sealed_languages, 
+                           all_conditions=all_conditions_for_template,
                            financial_entries=financial_entries
                            )
 
@@ -365,12 +364,10 @@ def record_multi_item_sale_route():
             return jsonify({"success": False, "message": "No data received."}), 400
 
         sale_date_str = data.get('sale_date')
-        # This is YOUR cost to ship
         total_shipping_cost_str = data.get('total_shipping_cost', '0.0') 
         overall_notes = data.get('notes', '')
         items_data = data.get('items')
 
-        # Get new fields from the JSON payload
         customer_shipping_charge_str = data.get('customer_shipping_charge', '0.0')
         platform_fee_str = data.get('platform_fee', '0.0')
 
@@ -378,18 +375,16 @@ def record_multi_item_sale_route():
             flash('Missing sale date or items data.', 'error') 
             return jsonify({"success": False, "message": "Missing sale date or items list is empty."}), 400
 
-        # Pass the new fields to the updated database function
         sale_event_id, message = database.record_multi_item_sale(
             sale_date_str, 
             total_shipping_cost_str, 
             overall_notes, 
             items_data,
-            customer_shipping_charge_str, # New
-            platform_fee_str             # New
+            customer_shipping_charge_str, 
+            platform_fee_str
         )
 
         if sale_event_id:
-            # The flash message will be shown on the next rendered page after redirect
             flash(f"Sale event (ID: {sale_event_id}) recorded. {message}", 'success')
             return jsonify({"success": True, "message": f"Sale event (ID: {sale_event_id}) recorded.", "sale_event_id": sale_event_id})
         else:
@@ -397,7 +392,7 @@ def record_multi_item_sale_route():
             return jsonify({"success": False, "message": f"Failed to record sale event. Reason: {message}"}), 400
     except Exception as e:
         print(f"Error in /record_multi_item_sale route: {e}")
-        flash(f"An error occurred: {str(e)}", 'error') # This flash will be shown
+        flash(f"An error occurred: {str(e)}", 'error')
         return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
 
 @app.route('/initiate_open_sealed/<int:product_id>', methods=['POST'])
@@ -461,7 +456,6 @@ def finalize_open_sealed_route():
         total_cost_opened = float(total_cost_opened_str)
     except ValueError: 
         flash("Invalid number for singles or cost.", "error")
-        # Re-populate session data if redirecting back to confirm page
         session['open_sealed_data'] = {'product_id': product_id, 'quantity_opened': quantity_opened, 'total_cost_opened': total_cost_opened_str, 'product_name': product_name}
         return redirect(url_for('confirm_open_sealed_page_route'))
     if num_singles_to_add <= 0: 
@@ -495,13 +489,14 @@ def add_card_route():
     asking_price_str = request.form.get('asking_price')
     rarity_input = request.form.get('rarity', '').strip()
     language_input = request.form.get('language', 'en').strip()
+    condition_input = request.form.get('condition', 'Near Mint').strip()
 
     try:
         quantity = int(quantity_str) if quantity_str else None
         buy_price = float(buy_price_str) if buy_price_str else None
         asking_price = float(asking_price_str) if asking_price_str and asking_price_str.strip() != '' else None
         if asking_price is not None and asking_price < 0: asking_price = None
-    except ValueError: 
+    except (ValueError, TypeError): 
         flash('Invalid number format.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
 
     if buy_price is None: flash('Buy Price is required.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
@@ -530,14 +525,17 @@ def add_card_route():
         scryfall_uuid = card_details.get('id')
         final_rarity = card_details.get('rarity', rarity_input if rarity_input else 'unknown').lower()
         final_language = card_details.get('language', language_input if language_input else 'en').lower()
-        card_id_or_none = database.add_card( 
+        
+        card_id = database.add_card( 
             final_set_code.upper(), final_collector_number, card_details['name'], quantity, buy_price, is_foil, 
             card_details['market_price_usd'], card_details['foil_market_price_usd'], 
             card_details['image_uri'], asking_price, location, scryfall_uuid, 
-            final_rarity, final_language 
+            final_rarity, final_language, condition_input
         )
-        if card_id_or_none: flash(f"Card '{card_details['name']}' handled in inventory at '{location}'!", 'success')
-        else: flash(f"Failed to add/update card. Possible duplicate based on unique attributes (Set, CN, Foil, Loc, Rarity, Lang, Buy Price) or other DB issue.", 'error')
+        if card_id:
+            flash(f"Successfully handled '{card_details['name']}' [{condition_input}].", 'success')
+        else:
+            flash(f"Failed to add/update card '{card_details['name']}'. Check server logs.", 'error')
     else: flash(f"Could not fetch valid card details from Scryfall for the provided input.", 'error')
     return redirect(url_for('index', tab='addItemsTab'))
 
@@ -589,13 +587,13 @@ def add_sealed_product_route():
 def delete_card_route(card_id):
     deleted = database.delete_card(card_id)
     flash('Card entry deleted!' if deleted else 'Failed to delete card entry.', 'success' if deleted else 'error')
-    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
 
 @app.route('/delete_sealed_product/<int:product_id>', methods=['POST'])
 def delete_sealed_product_route(product_id):
     deleted = database.delete_sealed_product(product_id)
     flash('Sealed product entry deleted!' if deleted else 'Failed to delete sealed product.', 'success' if deleted else 'error')
-    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
 
 
 @app.route('/delete_sale_event/<int:event_id>', methods=['POST'])
@@ -605,7 +603,6 @@ def delete_sale_event_route(event_id):
         flash(message, 'success')
     else:
         flash(message, 'error')
-    # Redirect to the tab where sales history is displayed
     return redirect(url_for('index', tab='salesHistoryTab')) 
 
 
@@ -665,23 +662,26 @@ def update_card_route(card_id):
         if request.form.get('buy_price') is not None and request.form.get('buy_price').strip() != '': 
             price = float(request.form.get('buy_price'))
             if price < 0: flash('Buy price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page',1)))
-            if abs(price - original_card['buy_price']) > 1e-9 : data_to_update['buy_price'] = price # Compare floats carefully
+            if abs(price - original_card['buy_price']) > 1e-9 : data_to_update['buy_price'] = price
         if request.form.get('asking_price') is not None:
             ask_price_str = request.form.get('asking_price').strip()
             ask_price = float(ask_price_str) if ask_price_str != '' else None
             if ask_price is not None and ask_price < 0: flash('Asking price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page',1)))
-            if ask_price != original_card['sell_price']: data_to_update['sell_price'] = ask_price # None is different from 0.0
+            if ask_price != original_card['sell_price']: data_to_update['sell_price'] = ask_price
         if request.form.get('location') is not None:
             location = request.form.get('location').strip()
             if not location: flash('Location cannot be empty.'); return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page',1)))
             if location != original_card['location']: data_to_update['location'] = location
+        if request.form.get('condition') is not None:
+            condition = request.form.get('condition').strip()
+            if condition != original_card['condition']: data_to_update['condition'] = condition
     except ValueError: flash('Invalid number format for update.', 'error'); return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page',1)))
 
     if not data_to_update: flash('No changes detected to update.', 'warning')
     else:
         success, message = database.update_card_fields(card_id, data_to_update)
         flash(f'Card details updated! {message}' if success else f'Failed to update card. {message}', 'success' if success else 'error')
-    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
 
 @app.route('/update_sealed_product/<int:product_id>', methods=['POST'])
 def update_sealed_product_route(product_id):
@@ -722,7 +722,7 @@ def update_sealed_product_route(product_id):
     else:
         success, message = database.update_sealed_product_fields(product_id, data_to_update)
         flash(f'Sealed product details updated! {message}' if success else f'Failed to update. {message}', 'success' if success else 'error')
-    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
 
 @app.route('/refresh_card/<int:card_id>', methods=['POST'])
 def refresh_card_route(card_id):
@@ -734,97 +734,166 @@ def refresh_card_route(card_id):
         updated = database.update_card_prices_and_image(card_id, card_details['market_price_usd'], card_details['foil_market_price_usd'], card_details['image_uri'])
         flash('Market data refreshed successfully!' if updated else 'Failed to update market data in DB.', 'success' if updated else 'error')
     else: flash(f"Could not fetch refresh data from Scryfall for {card['set_code']}-{card['collector_number']}.", 'error')
-    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1))) # Preserve page
+    return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
+
 
 @app.route('/import_csv', methods=['POST'])
 def import_csv_route():
-    if 'csv_file' not in request.files: flash('No CSV file part in the request.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
+    if 'csv_file' not in request.files:
+        flash('No CSV file part in the request.', 'error')
+        return redirect(url_for('index', tab='addItemsTab'))
     file = request.files['csv_file']
-    if file.filename == '': flash('No CSV file selected for uploading.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
+    if file.filename == '':
+        flash('No CSV file selected for uploading.', 'error')
+        return redirect(url_for('index', tab='addItemsTab'))
 
+    # Get default values from form
     default_buy_price_str = request.form.get('default_buy_price', '0.00')
     default_location = request.form.get('default_location', 'Imported Batch')
     default_asking_price_str = request.form.get('default_asking_price')
-    assume_non_foil = 'assume_non_foil' in request.form
     default_language_csv = request.form.get('default_language_csv', 'en').strip().lower()
+    default_condition_csv = request.form.get('default_condition_csv', 'Near Mint').strip()
+    assume_non_foil = 'assume_non_foil' in request.form
     
     try:
         default_buy_price = float(default_buy_price_str)
-        default_asking_price = None
-        if default_asking_price_str and default_asking_price_str.strip() != '':
-            default_asking_price = float(default_asking_price_str)
-            if default_asking_price < 0: default_asking_price = None
-    except ValueError: flash('Invalid default buy price or asking price format.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
-    if not default_location.strip(): flash('Default location cannot be empty.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
-
-    if file and file.filename.endswith('.csv'):
-        try:
-            stream = io.StringIO(file.stream.read().decode("UTF8", errors='replace'), newline=None); csv_reader = csv.DictReader(stream)
-            imported_count = 0; failed_count = 0; skipped_count = 0; errors_list = []
-            expected_headers = {'quantity': 'Quantity', 'name': 'Name', 'set_name_csv': 'Set', 'collector_number_csv': 'Card Number', 'set_code_csv': 'Set Code', 'printing': 'Printing', 'rarity_csv': 'Rarity', 'language_csv': 'Language'}
-            if not csv_reader.fieldnames: flash('CSV file appears to be empty or has no headers.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
-            csv_reader.fieldnames = [hdr.lower().strip() for hdr in csv_reader.fieldnames if hdr] # Normalize headers
-            variant_patterns = {"borderless": r"\s\(borderless\)", "extendedart": r"\s\(extended art\)", "showcase": r"\s\(showcase\)", "retro": r"\s\(retro frame\)", "innocent traveler": r"\s-\sinnocent traveler", "olivia, crimson bride": r"\s-\solivia, crimson bride"}
-
-            for row_num, row_raw in enumerate(csv_reader, start=1):
-                row = {k: v.strip() if isinstance(v, str) else v for k, v in row_raw.items()}
-                card_name_from_csv = row.get(expected_headers['name'].lower())
-                set_code_from_csv = row.get(expected_headers['set_code_csv'].lower())
-                collector_number_from_csv = row.get(expected_headers['collector_number_csv'].lower())
-                quantity_str = row.get(expected_headers['quantity'].lower())
-                printing_csv = row.get(expected_headers['printing'].lower(), 'normal').lower()
-                set_name_from_csv = row.get(expected_headers['set_name_csv'].lower())
-                rarity_from_csv = row.get(expected_headers['rarity_csv'].lower())
-                language_from_csv = row.get(expected_headers['language_csv'].lower(), default_language_csv).lower()
-                
-                parsed_variant_info = None; scryfall_lookup_name = card_name_from_csv
-                if scryfall_lookup_name:
-                    for variant_key, pattern in variant_patterns.items():
-                        match = re.search(pattern, scryfall_lookup_name, re.IGNORECASE)
-                        if match: 
-                            parsed_variant_info = variant_key
-                            if not ("innocent traveler" in variant_key or "olivia, crimson bride" in variant_key) : scryfall_lookup_name = re.sub(pattern, "", scryfall_lookup_name, flags=re.IGNORECASE).strip()
-                            break
-                
-                if not all([scryfall_lookup_name, (set_code_from_csv or set_name_from_csv), collector_number_from_csv, quantity_str]):
-                    errors_list.append(f"Row {row_num}: Missing essential data for '{card_name_from_csv}'. Skipping."); skipped_count += 1; continue
-                try: quantity = int(quantity_str)
-                except ValueError: errors_list.append(f"Row {row_num}: Invalid quantity '{quantity_str}' for '{card_name_from_csv}'. Skipping."); skipped_count += 1; continue
-                if quantity <= 0: errors_list.append(f"Row {row_num}: Quantity must be positive for '{card_name_from_csv}'. Skipping."); skipped_count += 1; continue
-                
-                is_foil = False
-                if not assume_non_foil and 'foil' in printing_csv: is_foil = True
-                
-                lang_for_scryfall_lookup = language_from_csv if language_from_csv and language_from_csv != default_language_csv else None # Only pass if specific
-                card_details = None
-                # Lookup attempts (using cleaned name and variant info)
-                if set_code_from_csv and collector_number_from_csv: card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
-                if not card_details and scryfall_lookup_name and set_code_from_csv: card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_code_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
-                if not card_details and scryfall_lookup_name and set_name_from_csv: card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, set_code=set_name_from_csv, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
-                if not card_details and scryfall_lookup_name and collector_number_from_csv: card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, collector_number=collector_number_from_csv, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
-                if not card_details and scryfall_lookup_name: card_details = scryfall.get_card_details(card_name=scryfall_lookup_name, lang=lang_for_scryfall_lookup, variant_info_from_app=parsed_variant_info)
-
-                if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
-                    final_set_code = card_details['set_code']; final_collector_number = card_details['collector_number']; scryfall_uuid = card_details.get('id'); final_rarity = card_details.get('rarity', rarity_from_csv if rarity_from_csv else 'unknown').lower(); final_language = card_details.get('language', language_from_csv if language_from_csv else default_language_csv).lower()
-                    card_id = database.add_card(final_set_code.upper(), final_collector_number, card_details['name'], quantity, default_buy_price, is_foil, card_details['market_price_usd'], card_details['foil_market_price_usd'], card_details['image_uri'], default_asking_price, default_location, scryfall_uuid, final_rarity, final_language)
-                    if card_id: imported_count +=1
-                    else: failed_count +=1; errors_list.append(f"Row {row_num}: DB error adding/updating '{card_details['name']}'.")
-                else: failed_count +=1; errors_list.append(f"Row {row_num}: Scryfall lookup failed for '{card_name_from_csv}' (Lookup as: '{scryfall_lookup_name}', Variant: {parsed_variant_info}). Skipping.")
-            
-            summary_message = f"CSV Import Finished: {imported_count} cards processed."
-            if failed_count > 0: summary_message += f" {failed_count} failed."
-            if skipped_count > 0: summary_message += f" {skipped_count} skipped."
-            flash_category = 'success' if imported_count > 0 and not errors_list else ('warning' if imported_count > 0 and errors_list else 'error')
-            flash(summary_message, flash_category)
-            if errors_list: [flash(err, 'error') for err in errors_list[:10]];_ = len(errors_list) > 10 and flash(f"...and {len(errors_list) - 10} more errors (see server console for full list).", 'error'); print("--- Detailed CSV Import Errors ---\n" + "\n".join(errors_list) + "\n---------------------------------")
-        except Exception as e: flash(f'Critical error processing CSV file: {e}', 'error'); import traceback; traceback.print_exc()
+        default_asking_price = float(default_asking_price_str) if default_asking_price_str and default_asking_price_str.strip() != '' else None
+    except (ValueError, TypeError):
+        flash('Invalid default price format.', 'error')
         return redirect(url_for('index', tab='addItemsTab'))
-    else: flash('Invalid file type. Please upload a CSV file.', 'error'); return redirect(url_for('index', tab='addItemsTab'))
+
+    if not default_location.strip():
+        flash('Default location cannot be empty.', 'error')
+        return redirect(url_for('index', tab='addItemsTab'))
+
+    if not file or not file.filename.endswith('.csv'):
+        flash('Invalid file type. Please upload a CSV file.', 'error')
+        return redirect(url_for('index', tab='addItemsTab'))
+
+    # --- Aggregation Logic ---
+    card_aggregator = defaultdict(lambda: {'quantity': 0, 'details': {}})
+    errors_list = []
+    skipped_count = 0
+
+    try:
+        stream = io.StringIO(file.stream.read().decode("UTF8", errors='replace'), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        if not csv_reader.fieldnames:
+             flash('CSV file appears to be empty or has no headers.', 'error')
+             return redirect(url_for('index', tab='addItemsTab'))
+        
+        # Normalize headers to be more forgiving
+        csv_reader.fieldnames = [hdr.lower().strip().replace(' ', '_') for hdr in csv_reader.fieldnames if hdr]
+
+        for row_num, row_raw in enumerate(csv_reader, start=1):
+            row = {k: v.strip() if isinstance(v, str) else v for k, v in row_raw.items()}
+
+            card_name = row.get('name')
+            set_code = row.get('set_code') or row.get('set')
+            collector_number = row.get('card_number') or row.get('collector_number')
+            quantity_str = row.get('quantity')
+            printing_str = row.get('printing', 'normal').lower()
+            
+            if not all([card_name, quantity_str]):
+                errors_list.append(f"Row {row_num}: Missing required 'Name' or 'Quantity' column. Skipping.")
+                skipped_count += 1
+                continue
+            
+            try:
+                quantity = int(quantity_str)
+                if quantity <= 0:
+                    errors_list.append(f"Row {row_num}: Quantity for '{card_name}' must be positive. Skipping.")
+                    skipped_count += 1
+                    continue
+            except (ValueError, TypeError):
+                errors_list.append(f"Row {row_num}: Invalid quantity for '{card_name}'. Skipping.")
+                skipped_count += 1
+                continue
+            
+            is_foil = not assume_non_foil and 'foil' in printing_str
+
+            # Create a unique key based on the most specific data available
+            unique_key = (card_name, set_code, collector_number, is_foil, default_location, default_buy_price, default_condition_csv)
+            
+            card_aggregator[unique_key]['quantity'] += quantity
+            if not card_aggregator[unique_key]['details']:
+                 card_aggregator[unique_key]['details'] = {
+                     'name': card_name, 'set_code': set_code, 'collector_number': collector_number,
+                     'is_foil': is_foil, 'buy_price': default_buy_price, 'sell_price': default_asking_price, 
+                     'location': default_location, 'language': default_language_csv, 'condition': default_condition_csv,
+                     'rarity': row.get('rarity')
+                 }
+
+    except Exception as e:
+        flash(f'Critical error reading or processing CSV file: {e}', 'error')
+        import traceback; traceback.print_exc()
+        return redirect(url_for('index', tab='addItemsTab'))
+
+    # --- Process the aggregated data with robust lookup ---
+    imported_count = 0
+    failed_count = 0
+    
+    for key, data in card_aggregator.items():
+        card_info = data['details']
+        total_quantity = data['quantity']
+        
+        # --- NEW ROBUST LOOKUP SEQUENCE ---
+        card_details = None
+        # Attempt 1: Most specific (Set + CN). This is fast.
+        if card_info.get('set_code') and card_info.get('collector_number'):
+            card_details = scryfall.get_card_details(set_code=card_info['set_code'], collector_number=card_info['collector_number'], lang=card_info['language'])
+        
+        # Attempt 2: Fallback to Name + Set (e.g., for promos without a CN)
+        if not card_details and card_info.get('name') and card_info.get('set_code'):
+             card_details = scryfall.get_card_details(card_name=card_info['name'], set_code=card_info['set_code'], lang=card_info['language'])
+
+        # Attempt 3: Final fallback to just the Name. This will find *a* version of the card.
+        if not card_details and card_info.get('name'):
+            card_details = scryfall.get_card_details(card_name=card_info['name'], lang=card_info['language'])
+        
+        if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
+            final_rarity = card_details.get('rarity', card_info.get('rarity', 'unknown')).lower()
+            final_language = card_details.get('language', card_info['language']).lower()
+            
+            card_id = database.add_card(
+                set_code=card_details['set_code'].upper(), collector_number=card_details['collector_number'], 
+                name=card_details['name'], quantity=total_quantity, buy_price=card_info['buy_price'], 
+                is_foil=card_info['is_foil'], market_price_usd=card_details['market_price_usd'], 
+                foil_market_price_usd=card_details['foil_market_price_usd'], image_uri=card_details['image_uri'], 
+                sell_price=card_info['sell_price'], location=card_info['location'], 
+                scryfall_id=card_details.get('id'), rarity=final_rarity, language=final_language, 
+                condition=card_info['condition']
+            )
+
+            if card_id:
+                imported_count += 1
+            else:
+                failed_count += 1
+                errors_list.append(f"DB error for '{card_info['name']}' ({card_info.get('set_code')}).")
+        else:
+            failed_count += 1
+            errors_list.append(f"Scryfall lookup failed for '{card_info['name']}' ({card_info.get('set_code') or 'N/A'}-{card_info.get('collector_number') or 'N/A'}).")
+
+    # --- Final Flash Messaging ---
+    summary_message = f"CSV Import Finished: {imported_count} unique card stacks processed."
+    if failed_count > 0: summary_message += f" {failed_count} failed."
+    if skipped_count > 0: summary_message += f" {skipped_count} rows skipped."
+    
+    flash_category = 'success' if imported_count > 0 and not errors_list else ('warning' if imported_count > 0 and errors_list else 'error')
+    flash(summary_message, flash_category)
+    
+    if errors_list:
+        [flash(err, 'error') for err in errors_list[:10]]
+        if len(errors_list) > 10:
+            flash(f"...and {len(errors_list) - 10} more errors (see server console for full list).", 'error')
+        print("--- Detailed CSV Import Errors ---\n" + "\n".join(errors_list) + "\n---------------------------------")
+        
+    return redirect(url_for('index', tab='addItemsTab'))
 
 
 import os
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 10000))  # 10000 is the Render default
+    port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port)
-
