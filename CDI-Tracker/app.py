@@ -145,7 +145,7 @@ def index():
         event.get('total_supplies_cost_for_sale', 0.0) or 0.0
         for event in sales_events_raw
     )
-    print(f"DEBUG: Total Shipping Supplies Cost Used in Sales (All Time): ${total_supplies_cost_deducted_in_sales_pl:,.2f}")
+    app.logger.info(f"DEBUG: Total Shipping Supplies Cost Used in Sales (All Time): ${total_supplies_cost_deducted_in_sales_pl:,.2f}")
 
 
 
