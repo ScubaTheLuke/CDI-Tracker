@@ -1,20 +1,38 @@
-/* --- Base Dark Theme & MTG Colors --- */
+/* --- Classy Dungeon Theme (Default Dark Mode) --- */
 :root {
-    --bg-primary: #18171B; /* Deep, dark charcoal - almost black */
-    --bg-secondary: #24232A; /* Slightly lighter for elements, card backgrounds */
-    --bg-tertiary: #302F38; /* For hover states, borders, subtle distinctions */
-    --text-primary: #EAEAEA; /* Off-white for main text */
-    --text-secondary: #A0A0A0; /* Lighter gray for subtext, placeholders */
-    --border-color: #4A4857; /* Subtle border color */
+    /* Backgrounds: Deep, muted purples/greys for a stony, ancient feel */
+    --bg-primary: #1A1521; /* Very deep, dark plum/aubergine - main background */
+    --bg-secondary: #2D2534; /* Slightly lighter plum-grey for panels, cards, content blocks */
+    --bg-tertiary: #3D3344; /* Even lighter, for inputs, hover states, subtle distinctions, borders */
+    /* Text Colors: Like old parchment against dark stone */
+    --text-primary: #E6DDC4; /* A warm, antique parchment cream for main text */
+    --text-secondary: #A9A39A; /* Muted medium-grey/brown for subtext, placeholders */
+    /* Borders: Subtle, integrating with the stone feel */
+    --border-color: #5C4D61; /* Desaturated purple-grey for subtle borders */
+    /* Accent Colors: Regal and functional, maintaining clarity */
+    --mtg-black-accent: #8C5E58; /* Muted, deep terracotta/rust for primary actions/tabs - robust and earthy */
+    --mtg-gold-accent: #C7A250; /* Rich, antique gold for highlights, secondary actions, and headings */
+    --mtg-red: #D32F2F; /* Standard strong red for loss/errors (unchanged) */
+    --mtg-green: #388E3C; /* Standard strong green for profit/success (unchanged) */
+    --mtg-blue: #5E88C6; /* Standard blue for links/info accents (unchanged, already muted) */
 
-    --mtg-black-accent: #5C527F; /* Muted Purple, for primary actions/tabs */
-    --mtg-gold-accent: #B08D57; /* A muted gold for highlights or secondary actions */
-    --mtg-red: #D32F2F; /* For loss, errors, delete buttons */
-    --mtg-green: #388E3C; /* For profit, success */
-    --mtg-blue: #5E88C6; /* For links or info accents */
-
-    --font-family-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* Clean sans-serif */
+    --font-family-main: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
+
+/* --- Classic Mode (Original Palette) Variables - KEPT AS IS --- */
+body.classic-mode {
+    --bg-primary: #18171B; /* Original Deep, dark charcoal */
+    --bg-secondary: #24232A; /* Original Slightly lighter */
+    --bg-tertiary: #302F38; /* Original For hover states, borders */
+    --text-primary: #EAEAEA; /* Original Off-white */
+    --text-secondary: #A0A0A0; /* Original Lighter gray */
+    --border-color: #4A4857; /* Original Subtle border color */
+
+    --mtg-black-accent: #5C527F; /* Original Muted Purple */
+    /* Other mtg- colors (red, green, blue, gold) inherit from the :root default set above,
+       which are designed to work well with both themes or are universally functional. */
+}
+
 
 body {
     font-family: var(--font-family-main);
@@ -22,6 +40,7 @@ body {
     background-color: var(--bg-primary);
     color: var(--text-primary);
     line-height: 1.6;
+    transition: background-color 0.3s ease, color 0.3s ease; /* Smooth theme transition */
 }
 
 h1, h2, h3 {
@@ -45,7 +64,62 @@ h3 {
     border-bottom: none;
     color: var(--mtg-gold-accent);
 }
-/* Card titles */
+
+/* --- Theme Switch --- */
+.theme-switch {
+    position: fixed; /* Fixed position on screen */
+    top: 20px;
+    right: 70px; /* Adjust to clear hamburger button */
+    z-index: 1003; /* Higher than hamburger */
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--text-secondary);
+}
+
+    .theme-switch input[type="checkbox"] {
+        height: 0;
+        width: 0;
+        visibility: hidden;
+    }
+
+    .theme-switch label {
+        cursor: pointer;
+        text-indent: -9999px; /* Hide text, rely on visual switch */
+        width: 50px; /* Width of the switch track */
+        height: 26px; /* Height of the switch track */
+        background: var(--bg-tertiary); /* Track color (dark mode default) */
+        display: block;
+        border-radius: 100px;
+        position: relative;
+        border: 1px solid var(--border-color);
+        transition: background-color 0.3s, border-color 0.3s;
+    }
+
+        .theme-switch label:after {
+            content: '';
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 22px; /* Size of the draggable circle */
+            height: 22px;
+            background: var(--text-primary); /* Circle color (contrast to track) */
+            border-radius: 90px;
+            transition: 0.3s;
+        }
+
+    /* When checkbox is checked (i.e., classic mode active) */
+    .theme-switch input:checked + label {
+        background: var(--mtg-gold-accent); /* Track color when classic mode active */
+        border-color: var(--mtg-gold-accent);
+    }
+
+        .theme-switch input:checked + label:after {
+            left: calc(100% - 2px);
+            transform: translateX(-100%);
+            background: var(--bg-primary); /* Circle color when classic mode active (will be original dark primary) */
+        }
+
 
 /* --- Forms --- */
 .card-form, .update-form {
@@ -95,7 +169,7 @@ select {
     input[type="date"]:focus,
     select:focus {
         border-color: var(--mtg-black-accent);
-        box-shadow: 0 0 0 2px rgba(92, 82, 127, 0.5); /* Focus glow */
+        box-shadow: 0 0 0 2px var(--mtg-black-accent); /* Focus glow uses accent color directly */
         outline: none;
     }
 
@@ -127,7 +201,8 @@ button, .button { /* Added .button for general use if needed */
 }
 
     button:hover {
-        background-color: #493D6A; /* Darker shade of accent */
+        background-color: var(--mtg-black-accent); /* Use current accent */
+        filter: brightness(1.2); /* Slightly brighter on hover */
     }
 
     button:active {
@@ -232,6 +307,18 @@ button, .button { /* Added .button for general use if needed */
     align-self: center;
     border: 1px solid var(--bg-tertiary);
 }
+
+/* Scryfall Set Symbol Filter (adjust for light mode) */
+/* By default, in dark mode, invert the black symbols to white */
+.set-symbol-item img {
+    filter: brightness(0) invert(1);
+}
+
+/* In classic mode, remove the filter so symbols appear in their original color (likely black/dark) */
+body.classic-mode .set-symbol-item img {
+    filter: none;
+}
+
 
 .card-image-placeholder {
     width: 100%;
@@ -357,7 +444,7 @@ table {
     }
 
     table tr:hover {
-        background-color: #383740; /* Slightly different hover for rows */
+        background-color: var(--bg-tertiary); /* Use var for consistency */
     }
 
 /* --- Links --- */
@@ -437,14 +524,15 @@ h2 + p { /* Paragraphs directly after H2 */
     border-bottom: 1px solid var(--border-color);
     font-size: 0.9em;
 }
-.search-result-item:last-child {
-    border-bottom: none;
-}
 
-.search-result-item:hover {
-    background-color: var(--bg-tertiary);
-    color: var(--mtg-gold-accent);
-}
+    .search-result-item:last-child {
+        border-bottom: none;
+    }
+
+    .search-result-item:hover {
+        background-color: var(--bg-tertiary);
+        color: var(--mtg-gold-accent);
+    }
 
 
 /* --- Increased Specificity for P/L Colors --- */
@@ -453,6 +541,7 @@ h2 + p { /* Paragraphs directly after H2 */
 .card-entry p span.profit {
     color: #28A745;
 }
+
 .card-entry p span.loss {
     color: #D32F2F;
 }
@@ -461,34 +550,32 @@ h2 + p { /* Paragraphs directly after H2 */
 h2 + p span.profit {
     color: #28A745;
 }
- h2 + p span.loss {
+
+h2 + p span.loss {
     color: #D32F2F;
 }
 
 /* Target spans inside table cells (Sales History) */
 table td span.profit {
-     color: #28A745;
-}
- table td span.loss {
-     color: #D32F2F;
+    color: #28A745;
 }
 
-/* You can keep the original simpler rules too, or remove them */
-/* Original simpler rules (might be okay to keep as fallback): */
-/* .profit { color: var(--profit-color); font-weight: bold; } */
-/* .loss { color: var(--loss-color); font-weight: bold; } */
-/* Ensure font-weight is still applied if needed - adding it here too */
+table td span.loss {
+    color: #D32F2F;
+}
+
 .profit, .loss {
     font-weight: bold;
 }
-/* In your style.css */
+
 .tab-content > .tab-pane {
     display: none; /* Hide inactive tab panes */
 }
-.tab-content > .tab-pane.active, 
-.tab-content > .tab-pane.active.show { /* Handle .show if used for transitions */
-    display: block; /* Show the active tab pane */
-}
+
+    .tab-content > .tab-pane.active,
+    .tab-content > .tab-pane.active.show { /* Handle .show if used for transitions */
+        display: block; /* Show the active tab pane */
+    }
 
 
 /* ========================================== */
@@ -549,22 +636,28 @@ table td span.profit {
 
 /* --- Navigation --- */
 @media (max-width: 768px) {
+    /* Theme switch position for mobile to not conflict with hamburger */
+    .theme-switch {
+        top: 20px;
+        right: 70px; /* Adjusted to be near hamburger */
+    }
+
     .tab-nav {
         display: flex;
         flex-direction: column;
         align-items: stretch;
     }
 
-    .tab-nav .tab-button {
-        width: 100%;
-        margin-bottom: 8px;
-        padding: 12px 10px;
-        font-size: 1.1em;
-    }
+        .tab-nav .tab-button {
+            width: 100%;
+            margin-bottom: 8px;
+            padding: 12px 10px;
+            font-size: 1.1em;
+        }
 
-    .tab-nav .tab-button:last-child {
-        margin-bottom: 0;
-    }
+            .tab-nav .tab-button:last-child {
+                margin-bottom: 0;
+            }
 }
 
 /* --- Forms (`.form-grid` and general form elements) --- */
@@ -574,26 +667,28 @@ table td span.profit {
         gap: 15px !important;
     }
 
-    .form-grid > div {
-        margin-bottom: 5px; /* Add a bit of space below each form group */
-    }
-    
-    .form-grid label,
-    #enterSaleTab .search-input-container label {
-        font-size: 0.95em; /* Ensure labels are readable */
-        margin-bottom: 6px;
-    }
+        .form-grid > div {
+            margin-bottom: 5px; /* Add a bit of space below each form group */
+        }
+
+        .form-grid label,
+        #enterSaleTab .search-input-container label {
+            font-size: 0.95em; /* Ensure labels are readable */
+            margin-bottom: 6px;
+        }
 
     /* Specific adjustments for addCardTab's set code input with button */
     #addCardTab .form-grid div:has(#set_code_add) > div {
         display: flex;
-        flex-direction: column; /* Stack input and button */
+        flex-direction: column;
     }
+
     #set_code_add {
-        margin-bottom: 8px; /* Space between input and button when stacked */
+        margin-bottom: 8px;
     }
+
     #findSetBySymbolBtn {
-        width: 100%; /* Make button full width */
+        width: 100%;
         padding: 10px !important;
     }
 }
@@ -607,187 +702,388 @@ table td span.profit {
         padding: 10px;
     }
 
-    .filter-controls > div,
-    .sort-controls > div, /* For potential future divs */
-    .sort-controls label,
-    .sort-controls select,
-    .sort-controls .direction-toggle {
-        width: 100% !important;
-        margin-bottom: 10px !important;
-        margin-left: 0 !important; /* Reset margins if any */
-        margin-right: 0 !important;
-    }
-    
-    .filter-controls button,
-    .sort-controls button {
-      width: 100%;
-    }
+        .filter-controls > div,
+        .sort-controls > div,
+        .sort-controls label,
+        .sort-controls select,
+        .sort-controls .direction-toggle {
+            width: 100% !important;
+            margin-bottom: 10px !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
 
-    .sort-controls .direction-toggle {
-        display: flex;
-    }
-    .sort-controls .direction-toggle button {
-        flex: 1; /* Make sort direction buttons share space */
-    }
-    .sort-controls .direction-toggle button:first-child {
-        margin-right: 5px;
-    }
+        .filter-controls button,
+        .sort-controls button {
+            width: 100%;
+        }
+
+        .sort-controls .direction-toggle {
+            display: flex;
+        }
+
+            .sort-controls .direction-toggle button {
+                flex: 1;
+            }
+
+                .sort-controls .direction-toggle button:first-child {
+                    margin-right: 5px;
+                }
 }
 
 /* --- Inventory Card Grid (`.card-grid` and `.card-entry`) --- */
 @media (max-width: 768px) {
     .card-grid {
-        padding: 0 10px; /* Add some horizontal padding to the grid container */
-         /* minmax(220px, 1fr) is already quite responsive. Adjust 220px if cards are too small/large */
+        padding: 0 10px;
     }
 }
 
 @media (max-width: 480px) {
     .card-grid {
-        /* On very small screens, force one column if preferred, though auto-fill often handles it */
-        /* grid-template-columns: 1fr !important; */
     }
+
     .card-entry {
-        padding: 10px; /* Reduce padding inside cards */
+        padding: 10px;
     }
-    .card-entry h3 {
-        font-size: 1.1em;
-    }
-    .card-entry p {
-        font-size: 0.9em;
-        line-height: 1.5;
-    }
-    .card-entry .card-image,
-    .card-entry .card-image-placeholder {
-        /* Consider making images smaller or ensuring they don't overflow if they have fixed sizes */
-        max-height: 150px; /* Example */
-        object-fit: contain;
-    }
-    .card-entry .actions, 
-    .card-entry .update-details summary {
-        font-size: 0.9em;
-    }
-    .card-entry .actions button,
-    .card-entry .update-form button {
-        padding: 8px 10px; /* Adjust button padding */
-        width: 100%;
-        margin-top: 5px;
-        margin-left: 0 !important;
-        display: block; /* Stack buttons in actions div */
-    }
-    .card-entry .actions form {
-      display: block !important; /* Ensure forms stack */
-      margin-bottom: 5px;
-    }
-    .card-entry .open-product-form div {
-        flex-direction: column;
-    }
-    .card-entry .open-product-form input[type="number"] {
-        width: 100% !important; /* Make quantity input full width */
-        margin-bottom: 5px;
-    }
+
+        .card-entry h3 {
+            font-size: 1.1em;
+        }
+
+        .card-entry p {
+            font-size: 0.9em;
+            line-height: 1.5;
+        }
+
+        .card-entry .card-image,
+        .card-entry .card-image-placeholder {
+            max-height: 150px;
+            object-fit: contain;
+        }
+
+        .card-entry .actions,
+        .card-entry .update-details summary {
+            font-size: 0.9em;
+        }
+
+            .card-entry .actions button,
+            .card-entry .update-form button {
+                padding: 8px 10px;
+                width: 100%;
+                margin-top: 5px;
+                margin-left: 0 !important;
+                display: block;
+            }
+
+            .card-entry .actions form {
+                display: block !important;
+                margin-bottom: 5px;
+            }
+
+        .card-entry .open-product-form div {
+            flex-direction: column;
+        }
+
+        .card-entry .open-product-form input[type="number"] {
+            width: 100% !important;
+            margin-bottom: 5px;
+        }
+
     .update-form div {
         display: flex;
-        flex-direction: column; /* Stack labels and inputs in update forms */
+        flex-direction: column;
         margin-bottom: 8px;
     }
+
     .update-form label {
         margin-bottom: 3px;
     }
 }
 
 /* --- Tables (Making them horizontally scrollable) --- */
-/* You will need to wrap your tables in index.html with <div class="table-responsive-wrapper"> */
 @media (max-width: 768px) {
     .table-responsive-wrapper {
         overflow-x: auto;
         display: block;
         width: 100%;
-        margin-bottom: 1rem; /* Space below the scrollable area */
-        -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+        margin-bottom: 1rem;
+        -webkit-overflow-scrolling: touch;
     }
+
     .monthly-summary-table,
     .sales-event-table,
     .nested-items-table {
-        min-width: 600px; /* Or whatever min-width makes sense for your table content */
-        font-size: 0.9em; /* Slightly smaller font for tables on mobile */
+        min-width: 600px;
+        font-size: 0.9em;
     }
-    .monthly-summary-table th, .monthly-summary-table td,
-    .sales-event-table th, .sales-event-table td,
-    .nested-items-table th, .nested-items-table td {
-        padding: 8px 10px; /* Adjust padding */
-        white-space: nowrap; /* Prevent text wrapping that breaks layout too much */
-    }
+
+        .monthly-summary-table th, .monthly-summary-table td,
+        .sales-event-table th, .sales-event-table td,
+        .nested-items-table th, .nested-items-table td {
+            padding: 8px 10px;
+            white-space: nowrap;
+        }
 }
 
 /* --- Modals (`setSymbolModal`) --- */
 @media (max-width: 768px) {
     .modal-content {
-        width: 95%; /* Allow modal to use more screen width */
-        margin: 10% auto; /* Adjust top margin */
+        width: 95%;
+        margin: 10% auto;
         padding: 20px;
     }
+
     .set-symbol-list {
-        /* On mobile, maybe force single column for easier tapping */
         grid-template-columns: 1fr !important;
     }
+
     .set-symbol-item {
-        padding: 15px 10px; /* Make items taller for easier tapping */
+        padding: 15px 10px;
     }
+
     .modal-close-button {
-        font-size: 40px; /* Make close button larger */
-        top: 5px; /* Adjust position if needed */
+        font-size: 40px;
+        top: 5px;
         right: 15px;
     }
 }
 
+
 /* --- Pagination --- */
 @media (max-width: 480px) {
     .pagination li a {
-        padding: 6px 10px; /* Slightly smaller pagination buttons */
+        padding: 6px 10px;
         font-size: 0.9em;
     }
-    .pagination li.page-item.disabled a, /* Hide ellipsis on very small screens */
-    .pagination li.page-item:nth-child(2) > a[href="#"], /* More robust hiding for ellipsis */
+
+    .pagination li.page-item.disabled a,
+    .pagination li.page-item:nth-child(2) > a[href="#"],
     .pagination li.page-item:nth-last-child(2) > a[href="#"] {
-        /* display: none; */ /* Uncomment if you want to hide "..." */
     }
 }
 
+/* --- Expandable box for dashboard stats --- */
+
+/* Dashboard Stat Lines with Expandable Info - General Styling */
+.stat-line {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+    .stat-line strong {
+        flex-shrink: 0;
+        white-space: nowrap;
+    }
+
+    .stat-line span {
+        margin-left: auto;
+        text-align: right;
+        min-width: 80px;
+        padding-left: 10px;
+    }
+
+.stat-details {
+    margin-left: 5px;
+    cursor: pointer;
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.stat-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background-color: var(--bg-tertiary);
+    color: var(--text-secondary);
+    font-size: 0.8em;
+    font-weight: bold;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    transition: background-color 0.2s, color 0.2s, transform 0.1s;
+    line-height: 1;
+    padding-top: 2px;
+}
+
+    .stat-info-btn:hover {
+        background-color: var(--mtg-blue);
+        color: var(--bg-primary);
+        border-color: var(--mtg-blue);
+    }
+
+    .stat-info-btn:active {
+        transform: translateY(1px);
+    }
+
+.stat-details[open] .stat-info-btn {
+    background-color: var(--mtg-gold-accent);
+    color: var(--bg-primary);
+    border-color: var(--mtg-gold-accent);
+}
+
+.stat-explanation {
+    background-color: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-top: 8px;
+    margin-bottom: 5px;
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+    grid-column: 1 / -1;
+}
+
+    .stat-explanation strong {
+        color: var(--text-primary);
+    }
+
+/* --- Dashboard Grid Container --- */
+.dashboard-stats-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    padding: 10px;
+    margin-bottom: 20px;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+}
+
+/* NEW: Styling for each category group container */
+.dashboard-category-group {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+    /* Styling for category titles within the grid */
+    .dashboard-category-group h4 {
+        margin: 0;
+        padding: 10px 15px;
+        background-color: var(--mtg-black-accent);
+        color: var(--text-primary);
+        font-size: 1.2em;
+        border-bottom: 1px solid var(--border-color);
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.3);
+    }
+
+    /* Style for each stat row item within a category group */
+    .dashboard-category-group .stat-line {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        padding: 8px 15px;
+        border-bottom: 1px solid var(--border-tertiary);
+        margin-bottom: 0;
+    }
+
+        /* Alternating background colors for rows, RESETTING per category group */
+        .dashboard-category-group .stat-line:nth-of-type(odd) {
+            background-color: var(--bg-secondary);
+        }
+
+        .dashboard-category-group .stat-line:nth-of-type(even) {
+            background-color: var(--bg-tertiary);
+        }
+
+        /* Remove bottom border from the last stat-line item in each group */
+        .dashboard-category-group .stat-line:last-of-type {
+            border-bottom: none;
+        }
+
+/* Remove the <br> tags now that groups provide separation */
+.dashboard-stats-grid br {
+    display: none;
+}
+
+
+/* Responsive adjustments for dashboard grid */
+@media (max-width: 768px) {
+    .dashboard-stats-grid {
+        padding: 5px;
+        gap: 10px;
+    }
+
+    .dashboard-category-group {
+        border: none;
+        box-shadow: none;
+    }
+
+        .dashboard-category-group h4 {
+            font-size: 1.1em;
+            padding: 8px 10px;
+        }
+
+        .dashboard-category-group .stat-line {
+            flex-direction: column;
+            align-items: flex-start;
+            padding: 8px 10px;
+        }
+
+            .dashboard-category-group .stat-line strong,
+            .dashboard-category-group .stat-line span {
+                width: 100%;
+                text-align: left;
+                padding-left: 0;
+            }
+
+            .dashboard-category-group .stat-line strong {
+                margin-bottom: 3px;
+            }
+
+        .dashboard-category-group .stat-details {
+            align-self: flex-start;
+            margin-top: 5px;
+            margin-left: 0;
+        }
+}
 
 /* --- confirm_open_sealed.html Specifics --- */
 @media (max-width: 600px) {
     .confirm-container {
-        margin: 20px 10px; /* Reduce margins */
+        margin: 20px 10px;
         padding: 20px;
     }
-    .confirm-container h1 {
-        font-size: 1.6em;
-    }
-    .confirm-container input[type="number"].form-input, /* Target the specific input */
-    .confirm-container .button {
-        width: 100%;
-        box-sizing: border-box;
-        margin-bottom: 10px; 
-    }
-    .confirm-container .form-actions {
-        flex-direction: column;
-        gap: 0; /* Remove gap if buttons are stacked */
-    }
-    .confirm-container .form-actions .button {
-        margin-right: 0; /* Remove right margin if buttons were side-by-side */
-    }
-    .confirm-container .form-actions .button.delete-button {
-        margin-top: 0; /* Was for spacing in flex row */
-    }
+
+        .confirm-container h1 {
+            font-size: 1.6em;
+        }
+
+        .confirm-container input[type="number"].form-input,
+        .confirm-container .button {
+            width: 100%;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+        }
+
+        .confirm-container .form-actions {
+            flex-direction: column;
+            gap: 0;
+        }
+
+            .confirm-container .form-actions .button {
+                margin-right: 0;
+            }
+
+                .confirm-container .form-actions .button.delete-button {
+                    margin-top: 0;
+                }
 }
 
 /* --- Enter Sale Tab --- */
 @media (max-width: 768px) {
     #enterSaleTab .search-input-container input[type="text"] {
-        min-width: unset; /* Remove min-width */
+        min-width: unset;
         width: 100%;
     }
+
     .sale-item-row h4 {
         font-size: 1.1em;
     }
@@ -799,18 +1095,13 @@ table td span.profit {
 /* ===================================================== */
 
 @media (max-width: 768px) {
-    /* Ensure the container of the button and filters inside inventoryTab allows block flow */
     #inventoryTab {
-        /* If #inventoryTab is a flex container itself, you might need to adjust its properties
-           For example, if it's flex-direction: row, you might change it to column for its direct children.
-           Let's assume for now it's a block or we want its direct children to stack.
-        */
     }
 
     /* --- Toggle Button - Mobile --- */
     #toggleInventoryFiltersBtn {
         display: block !important;
-        width: 100%; /* This is already set, good. */
+        width: 100%;
         padding: 12px 15px;
         margin-bottom: 15px;
         background-color: var(--mtg-gold-accent);
@@ -822,24 +1113,22 @@ table td span.profit {
         text-align: center;
         cursor: pointer;
         box-sizing: border-box;
-        order: -1; /* TRY THIS: If its parent is a flex container, this will try to put the button first */
-                   /* This is a guess, might not be needed if parent isn't flex or button is first in DOM */
+        order: -1;
     }
 
     /* --- Filter Controls - Mobile --- */
     #inventoryTab .filter-controls {
         display: none !important;
-        width: 100%; /* Ensure it takes full width when shown */
-        box-sizing: border-box; /* Consistent box model */
-        /* Stacking styles are important when it becomes visible */
+        width: 100%;
+        box-sizing: border-box;
         flex-direction: column !important;
         align-items: stretch !important;
         padding: 10px !important;
     }
 
-    #inventoryTab .filter-controls.expanded {
-        display: flex !important;
-    }
+        #inventoryTab .filter-controls.expanded {
+            display: flex !important;
+        }
 }
 
 /* Desktop: Ensure filters are visible and button is hidden */
@@ -850,11 +1139,11 @@ table td span.profit {
 
     #inventoryTab .filter-controls {
         display: flex !important;
-        flex-direction: row !important; 
+        flex-direction: row !important;
         align-items: flex-end !important;
         flex-wrap: wrap !important;
-        padding: 15px !important; /* Reset padding to original desktop style */
-        order: 0; /* Reset order if it was changed for mobile */
+        padding: 15px !important;
+        order: 0;
     }
 }
 
@@ -863,96 +1152,97 @@ table td span.profit {
 /* ================================= */
 
 #hamburgerBtn {
-    display: none; /* Hidden on desktop by default */
-    font-size: 1.8em; 
+    display: none;
+    font-size: 1.8em;
     padding: 8px 12px;
-    background-color: var(--bg-tertiary); /* Or var(--mtg-gold-accent) if you preferred */
+    background-color: var(--bg-tertiary);
     color: var(--text-primary);
     border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
-    position: fixed; /* KEEP THIS! This was key to making it appear */
-    top: 15px;       /* Adjust as needed */
-    right: 15px;      /* Adjust as needed */
-    z-index: 1002;    
+    position: fixed;
+    top: 15px;
+    right: 15px;
+    z-index: 1002;
 }
 
 /* Mobile Styles */
 @media (max-width: 768px) {
     #hamburgerBtn {
-        display: block; /* Show hamburger button on mobile */
-        /* top: 15px; right: 15px; values are inherited from above */
+        display: block;
     }
 
-    .tab-nav { 
-        display: none; 
+    .tab-nav {
+        display: none;
         flex-direction: column;
-        align-items: flex-start; 
-        position: fixed; 
-        left: 0; /* Start fully off-screen for the slide */
+        align-items: flex-start;
+        position: fixed;
+        left: 0;
         top: 0;
-        width: 280px; 
-        max-width: 80%; 
-        height: 100vh; 
+        width: 280px;
+        max-width: 80%;
+        height: 100vh;
         background-color: var(--bg-secondary);
-        padding-top: 60px; 
+        padding-top: 60px;
         box-shadow: 3px 0px 10px rgba(0,0,0,0.3);
-        z-index: 1001; 
-        overflow-y: auto; 
+        z-index: 1001;
+        overflow-y: auto;
         transition: transform 0.3s ease-in-out;
-        transform: translateX(-100%); /* Initially off-screen to the left */
+        transform: translateX(-100%);
     }
 
-    .tab-nav.open {
-        display: flex; 
-        transform: translateX(0); 
-    }
+        .tab-nav.open {
+            display: flex;
+            transform: translateX(0);
+        }
 
-    .tab-nav .tab-button {
-        width: 100%;
-        text-align: left;
-        padding: 15px 20px; 
-        border-bottom: 1px solid var(--border-color);
-        border-radius: 0; 
-        margin: 0; 
-        font-size: 1.1em;
-        box-sizing: border-box;
-    }
+        .tab-nav .tab-button {
+            width: 100%;
+            text-align: left;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 0;
+            margin: 0;
+            font-size: 1.1em;
+            box-sizing: border-box;
+        }
 
-    .tab-nav .tab-button:last-child {
-        border-bottom: none;
-    }
+            .tab-nav .tab-button:last-child {
+                border-bottom: none;
+            }
 }
 
 /* Desktop Styles (Ensure original .tab-nav styles are maintained) */
 @media (min-width: 769px) {
     #hamburgerBtn {
-        display: none !important; /* Still ensure button is hidden on desktop */
-    }
-    .tab-nav { 
-        display: flex !important; 
-        flex-direction: row !important; 
-        position: static !important; 
-        width: auto !important; 
-        height: auto !important;
-        background-color: transparent !important; 
-        padding-top: 0 !important;
-        box-shadow: none !important;
-        transform: none !important; 
-        margin-bottom: 20px; 
-        gap: 0; 
+        display: none !important;
     }
 
-    .tab-nav .tab-button {
-        width: auto; 
-        padding: 10px 15px; 
-        border-bottom: none; 
-        border-radius: 4px; 
-        margin-right: 10px; 
+    .tab-nav {
+        display: flex !important;
+        flex-direction: row !important;
+        position: static !important;
+        width: auto !important;
+        height: auto !important;
+        background-color: transparent !important;
+        padding-top: 0 !important;
+        box-shadow: none !important;
+        transform: none !important;
+        margin-bottom: 20px;
+        gap: 0;
     }
-    .tab-nav .tab-button:last-child {
-        margin-right: 0;
-    }
+
+        .tab-nav .tab-button {
+            width: auto;
+            padding: 10px 15px;
+            border-bottom: none;
+            border-radius: 4px;
+            margin-right: 10px;
+        }
+
+            .tab-nav .tab-button:last-child {
+                margin-right: 0;
+            }
 }
 
 /* ================================= */
@@ -960,7 +1250,7 @@ table td span.profit {
 /* ================================= */
 
 .custom-file-upload-container {
-    margin-bottom: 15px; /* Or your preferred spacing */
+    margin-bottom: 15px;
 }
 
 .custom-file-upload {
@@ -971,9 +1261,9 @@ table td span.profit {
 
 /* Style the label to look like a button */
 .file-upload-button {
-    display: inline-block; /* Or 'block' if you want it on its own line before filename */
+    display: inline-block;
     padding: 10px 18px;
-    background-color: var(--mtg-blue); /* Using one of your theme colors */
+    background-color: var(--mtg-blue);
     color: var(--text-primary);
     border: none;
     border-radius: 4px;
@@ -981,12 +1271,12 @@ table td span.profit {
     font-size: 1em;
     font-weight: bold;
     transition: background-color 0.3s;
-    white-space: nowrap; /* Prevent text wrapping */
+    white-space: nowrap;
 }
 
-.file-upload-button:hover {
-    background-color: var(--button-hover-bg, #4a6e9c); /* Define --button-hover-bg or use a darker shade */
-}
+    .file-upload-button:hover {
+        background-color: var(--button-hover-bg, #4a6e9c);
+    }
 
 /* The actual file input is visually hidden but still accessible */
 .custom-file-upload input[type="file"] {
@@ -996,35 +1286,35 @@ table td span.profit {
 .file-name-display {
     font-size: 0.9em;
     color: var(--text-secondary);
-    padding: 8px 10px; /* Match other input padding if desired */
+    padding: 8px 10px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     background-color: var(--bg-tertiary);
-    flex-grow: 1; /* Allow it to take available space */
+    flex-grow: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    min-height: 38px; /* Approximate height of a button with padding */
-    line-height: 1.5; /* Adjust for vertical centering if needed */
+    min-height: 38px;
+    line-height: 1.5;
     box-sizing: border-box;
 }
 
 /* Responsive adjustments for the custom file input */
 @media (max-width: 768px) {
     .custom-file-upload {
-        flex-direction: column; /* Stack button and filename on mobile */
-        align-items: stretch;   /* Make both full width */
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .file-upload-button {
         width: 100%;
         text-align: center;
-        margin-bottom: 8px; /* Space between button and filename when stacked */
+        margin-bottom: 8px;
     }
 
     .file-name-display {
         width: 100%;
-        text-align: center; /* Or left, your preference */
+        text-align: center;
     }
 }
 
@@ -1041,16 +1331,16 @@ table td span.profit {
     border-radius: 8px;
     padding: 30px 20px;
     text-align: center;
-    cursor: default; /* The label inside will be the clickable button */
+    cursor: default;
     background-color: var(--bg-tertiary);
-    margin-bottom: 15px; /* Space below the drop zone */
+    margin-bottom: 15px;
     transition: background-color 0.2s ease-in-out, border-color 0.2s ease-in-out;
 }
 
-.custom-file-drop-zone.dragover {
-    background-color: var(--bg-secondary); /* Visual feedback when dragging over */
-    border-color: var(--mtg-gold-accent);
-}
+    .custom-file-drop-zone.dragover {
+        background-color: var(--bg-secondary);
+        border-color: var(--mtg-gold-accent);
+    }
 
 .drop-zone-text {
     color: var(--text-secondary);
@@ -1059,7 +1349,7 @@ table td span.profit {
 }
 
 /* Style for the label that acts as a button */
-.custom-file-drop-zone .file-upload-button { /* Existing class, ensure it's styled well */
+.custom-file-drop-zone .file-upload-button {
     display: inline-block;
     padding: 10px 18px;
     background-color: var(--mtg-blue);
@@ -1070,12 +1360,12 @@ table td span.profit {
     font-size: 1em;
     font-weight: bold;
     transition: background-color 0.3s;
-    margin-bottom: 10px; /* Space between button and filename display */
+    margin-bottom: 10px;
 }
 
-.custom-file-drop-zone .file-upload-button:hover {
-    background-color: var(--button-hover-bg, #4a6e9c); /* Define or use a darker shade */
-}
+    .custom-file-drop-zone .file-upload-button:hover {
+        background-color: var(--button-hover-bg, #4a6e9c);
+    }
 
 /* The actual file input is hidden */
 .custom-file-drop-zone input[type="file"] {
@@ -1083,18 +1373,18 @@ table td span.profit {
 }
 
 .custom-file-drop-zone .file-name-display {
-    display: block; /* Takes its own line */
+    display: block;
     margin-top: 10px;
     font-size: 0.9em;
-    color: var(--text-primary); /* Make it more visible */
+    color: var(--text-primary);
     padding: 8px 10px;
     border-radius: 4px;
-    background-color: var(--bg-secondary); /* Slightly different background */
+    background-color: var(--bg-secondary);
     min-height: 38px;
     line-height: 1.5;
     box-sizing: border-box;
-    width: 80%; /* Or 100% on mobile */
-    max-width: 400px; /* Max width for aesthetics */
+    width: 80%;
+    max-width: 400px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1105,15 +1395,18 @@ table td span.profit {
     .custom-file-drop-zone {
         padding: 20px 15px;
     }
+
     .drop-zone-text {
         font-size: 0.9em;
     }
+
     .custom-file-drop-zone .file-upload-button {
-        width: calc(100% - 20px); /* Slightly less than full for padding */
+        width: calc(100% - 20px);
         display: block;
         margin-left: auto;
         margin-right: auto;
     }
+
     .custom-file-drop-zone .file-name-display {
         width: calc(100% - 20px);
         max-width: 100%;

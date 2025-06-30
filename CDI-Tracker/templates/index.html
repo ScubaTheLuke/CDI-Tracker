@@ -6,7 +6,6 @@
     <title>CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
-        /* Styles for filter area */
         .filter-controls {
             background-color: var(--bg-secondary);
             padding: 15px;
@@ -44,7 +43,6 @@
                 align-self: flex-end;
             }
 
-        /* Styles for Sort Controls */
         .sort-controls {
             background-color: var(--bg-secondary);
             padding: 10px 15px;
@@ -83,7 +81,6 @@
                     border-color: var(--mtg-gold-accent);
                 }
 
-        /* Pagination Styles */
         .pagination {
             display: flex;
             justify-content: center;
@@ -218,7 +215,7 @@
                 width: 32px;
                 height: 32px;
                 margin-right: 12px;
-                filter: brightness(0) invert(1);
+                /* filter: brightness(0) invert(1); THIS IS MOVED TO style.css to be theme-aware */
                 object-fit: contain;
             }
 
@@ -280,24 +277,23 @@
         #addItemsTab .card-form {
             margin-bottom: 30px;
         }
-        /* Space between forms in Add Items tab */
+
         #addItemsTab h3 {
             margin-top: 10px;
             border-bottom: 1px solid var(--border-color);
             padding-bottom: 8px;
         }
 
-        /* Enter Sale Tab - Multi Item */
         #salesHistoryTab .search-input-container input[type="text"] {
             min-width: 250px;
             font-size: 1em;
         }
-        /* Scoped to new Sales & History Tab */
+
         #salesHistoryTab .search-input-container label {
             margin-bottom: 6px;
             font-size: 1em;
         }
-        /* Scoped */
+
         .sale-item-row {
             border: 1px solid var(--bg-tertiary);
             border-radius: 6px;
@@ -323,6 +319,13 @@
 
     <button id="hamburgerBtn" aria-label="Open navigation menu" aria-expanded="false" type="button">&#9776;</button>
 
+    <div class="theme-switch">
+        <span>Dark Mode</span>
+        <input type="checkbox" id="themeToggle" />
+        <label for="themeToggle"></label>
+        <span>Classic Mode</span>
+    </div>
+
     <div class="tab-nav" id="mainTabNav">
         <button id="dashboardTabNav" class="tab-button" onclick="openTab(event, 'dashboardTab')">Dashboard</button>
         <button id="inventoryTabNav" class="tab-button" onclick="openTab(event, 'inventoryTab')">Inventory</button>
@@ -333,23 +336,152 @@
 
     <div id="dashboardTab" class="tab-content">
         <h2>Dashboard & Financial Overview</h2>
-        <p>
-            <strong>Total Inventory Buy Cost:</strong> <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span><br>
-            <strong>Total Inventory Market Value:</strong> <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span><br>
-            <strong>Total Single Cards (Units):</strong> <span id="totalSingleCards">{{ '{:,}'.format(total_single_cards_quantity) }}</span><br>
-            <strong>Total Sealed Products (Units):</strong> <span id="totalSealedProducts">{{ '{:,}'.format(total_sealed_products_quantity) }}</span><br>
-            <br>
-            <strong>Realized P/L from Sales (All Time):</strong>
-            <span class="{{ 'profit' if sales_pl >= 0 else 'loss' }}">{{ sales_pl | currency_commas }}</span><br>
-            <strong>Net Business P/L (All Time):</strong>
-            <span class="{{ 'profit' if net_business_pl >= 0 else 'loss' }}">{{ net_business_pl | currency_commas }}</span><br>
-            <br>
-            <strong>{{ current_month_name }} P/L from Sales (Current Month):</strong>
-            <span class="{{ 'profit' if current_month_profit_loss >= 0 else 'loss' }}">{{ current_month_profit_loss | currency_commas }}</span><br>
-            <strong>Total Sales Events ({{ current_month_name }}):</strong> {{ current_month_sales_count }}<br>
-            <strong>Total Single Cards Sold (Units, {{ current_month_name }}):</strong> {{ current_month_single_cards_sold_quantity }}<br>
-            <strong>Total Sealed Products Sold (Units, {{ current_month_name }}):</strong> {{ current_month_sealed_sold_quantity }}
-        </p>
+
+        <div class="dashboard-stats-grid">
+            <div class="dashboard-category-group">
+                <h4>Inventory Overview</h4>
+                <div class="stat-line">
+                    <strong>Total Inventory Buy Cost:</strong>
+                    <span id="totalInventoryBuyCost">{{ total_buy_cost_of_inventory | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Buy Price' for all individual cards and sealed products currently in inventory.</p>
+                            <p>This represents the total amount you've spent on acquiring your active, unsold stock.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Inventory Market Value:</strong>
+                    <span id="totalInventoryMarketValue">{{ total_inventory_market_value | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Market Price' for all individual cards and sealed products currently in inventory.</p>
+                            <p>This is the estimated value of your active, unsold stock if sold at current market rates.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Single Cards (Units):</strong>
+                    <span id="totalSingleCards">{{ '{:,}'.format(total_single_cards_quantity) }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Quantity' for all individual single cards currently in inventory.</p>
+                            <p>This represents the total number of single cards you currently hold.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Sealed Products (Units):</strong>
+                    <span id="totalSealedProducts">{{ '{:,}'.format(total_sealed_products_quantity) }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Quantity' for all individual sealed products currently in inventory.</p>
+                            <p>This represents the total number of sealed products you currently hold.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <div class="dashboard-category-group">
+                <h4>Sales Performance (All Time)</h4>
+                <div class="stat-line">
+                    <strong>Gross Sales (All Time):</strong>
+                    <span id="totalGrossSales">{{ total_gross_sales | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Sell Price per Item' for all items sold across all sale events (Quantity Sold x Sell Price).</p>
+                            <p>This is your total revenue from selling items, before deducting any costs.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Cost of Goods Sold (COGS) (All Time):</strong>
+                    <span id="totalCogs">{{ total_cogs | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Buy Price per Item' for all items sold across all sale events (Quantity Sold x Buy Price).</p>
+                            <p>This represents the direct cost of the items that you have sold.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Realized P/L from Sales (All Time):</strong>
+                    <span class="{{ 'profit' if sales_pl >= 0 else 'loss' }}">{{ sales_pl | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> (Sum of Item Sell Prices + Sum of Customer Shipping Charges) - (Sum of Item Buy Prices + Sum of Your Total Shipping Costs + Sum of Platform Fees) for all sales events.</p>
+                            <p>This reflects your actual profit/loss from items you've successfully sold, including all direct costs for each sale.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <div class="dashboard-category-group">
+                <h4>Overall Business Financials</h4>
+                <div class="stat-line">
+                    <strong>Net Business P/L (All Time):</strong>
+                    <span class="{{ 'profit' if net_business_pl >= 0 else 'loss' }}">{{ net_business_pl | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> 'Realized P/L from Sales (All Time)' + 'Total Other Income' - 'Total Other Expenses' (from Business Ledger).</p>
+                            <p>This is your comprehensive overall business profit/loss, accounting for all sales, other income, and all expenses (including shipping supply purchases via the ledger).</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+
+            <div class="dashboard-category-group">
+                <h4>Current Month Snapshot ({{ current_month_name }})</h4>
+                <div class="stat-line">
+                    <strong>P/L from Sales (Current Month):</strong>
+                    <span class="{{ 'profit' if current_month_profit_loss >= 0 else 'loss' }}">{{ current_month_profit_loss | currency_commas }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Same as 'Realized P/L from Sales (All Time)', but only for sales events within the current month.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Sales Events (Current Month):</strong>
+                    <span>{{ current_month_sales_count }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Total number of individual sale transactions recorded in the current month.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Single Cards Sold (Units, Current Month):</strong>
+                    <span>{{ current_month_single_cards_sold_quantity }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Quantity Sold' for all single cards in sales events within the current month.</p>
+                        </div>
+                    </details>
+                </div>
+                <div class="stat-line">
+                    <strong>Total Sealed Products Sold (Units, Current Month):</strong>
+                    <span>{{ current_month_sealed_sold_quantity }}</span>
+                    <details class="stat-details">
+                        <summary class="stat-info-btn">?</summary>
+                        <div class="stat-explanation">
+                            <p><strong>Calculated as:</strong> Sum of 'Quantity Sold' for all sealed products in sales events within the current month.</p>
+                        </div>
+                    </details>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="inventoryTab" class="tab-content">
@@ -365,74 +497,74 @@
             <div>
                 <label for="inventoryTypeFilter">Item Type:</label>
                 <select id="inventoryTypeFilter">
-                    <option value="all" {% if filter_type == 'all' %}selected{% endif %}>All Types</option>
-                    <option value="single_card" {% if filter_type == 'single_card' %}selected{% endif %}>Single Cards</option>
-                    <option value="sealed_product" {% if filter_type == 'sealed_product' %}selected{% endif %}>Sealed Products</option>
+                    <option value="all" {% if filter_type=='all' %}selected{% endif %}>All Types</option>
+                    <option value="single_card" {% if filter_type=='single_card' %}selected{% endif %}>Single Cards</option>
+                    <option value="sealed_product" {% if filter_type=='sealed_product' %}selected{% endif %}>Sealed Products</option>
                 </select>
             </div>
             <div>
                 <label for="inventoryLocationFilter">Location:</label>
                 <select id="inventoryLocationFilter">
-                    <option value="all" {% if filter_location == 'all' %}selected{% endif %}>All Locations</option>
+                    <option value="all" {% if filter_location=='all' %}selected{% endif %}>All Locations</option>
                     {% for loc in all_locations %}
-                    <option value="{{ loc }}" {% if filter_location == loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
+                    <option value="{{ loc }}" {% if filter_location==loc %}selected{% endif %}>{{ loc }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventorySetFilter">Set:</label>
                 <select id="inventorySetFilter">
-                    <option value="all" {% if filter_set == 'all' %}selected{% endif %}>All Sets</option>
+                    <option value="all" {% if filter_set=='all' %}selected{% endif %}>All Sets</option>
                     {% for s_id in all_sets_identifiers %}
-                    <option value="{{ s_id }}" {% if filter_set == s_id %}selected{% endif %}>{{ s_id }}</option>{% endfor %}
+                    <option value="{{ s_id }}" {% if filter_set==s_id %}selected{% endif %}>{{ s_id }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventoryFoilFilter">Foil (Cards):</label>
                 <select id="inventoryFoilFilter">
-                    <option value="all" {% if filter_foil == 'all' %}selected{% endif %}>Any</option>
-                    <option value="yes" {% if filter_foil == 'yes' %}selected{% endif %}>Foil Only</option>
-                    <option value="no" {% if filter_foil == 'no' %}selected{% endif %}>Non-Foil Only</option>
+                    <option value="all" {% if filter_foil=='all' %}selected{% endif %}>Any</option>
+                    <option value="yes" {% if filter_foil=='yes' %}selected{% endif %}>Foil Only</option>
+                    <option value="no" {% if filter_foil=='no' %}selected{% endif %}>Non-Foil Only</option>
                 </select>
             </div>
             <div>
                 <label for="inventoryRarityFilter">Rarity (Cards):</label>
                 <select id="inventoryRarityFilter">
-                    <option value="all" {% if filter_rarity == 'all' %}selected{% endif %}>All Rarities</option>
+                    <option value="all" {% if filter_rarity=='all' %}selected{% endif %}>All Rarities</option>
                     {% for r in all_rarities %}
-                    <option value="{{ r }}" {% if filter_rarity == r %}selected{% endif %}>{{ r.capitalize() }}</option>{% endfor %}
+                    <option value="{{ r }}" {% if filter_rarity==r %}selected{% endif %}>{{ r.capitalize() }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventoryCardLanguageFilter">Language (Cards):</label>
                 <select id="inventoryCardLanguageFilter">
-                    <option value="all" {% if filter_card_lang == 'all' %}selected{% endif %}>All Languages</option>
+                    <option value="all" {% if filter_card_lang=='all' %}selected{% endif %}>All Languages</option>
                     {% for lang_code in all_card_languages %}
-                    <option value="{{ lang_code }}" {% if filter_card_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
+                    <option value="{{ lang_code }}" {% if filter_card_lang==lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventoryConditionFilter">Condition (Cards):</label>
                 <select id="inventoryConditionFilter">
-                    <option value="all" {% if filter_condition == 'all' %}selected{% endif %}>All Conditions</option>
+                    <option value="all" {% if filter_condition=='all' %}selected{% endif %}>All Conditions</option>
                     {% for c in all_conditions %}
-                    <option value="{{ c }}" {% if filter_condition == c %}selected{% endif %}>{{ c }}</option>
+                    <option value="{{ c }}" {% if filter_condition==c %}selected{% endif %}>{{ c }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
                 <label for="inventoryCollectorFilter">Collector's (Sealed):</label>
                 <select id="inventoryCollectorFilter">
-                    <option value="all" {% if filter_collector == 'all' %}selected{% endif %}>Any</option>
-                    <option value="yes" {% if filter_collector == 'yes' %}selected{% endif %}>Collector's Only</option>
-                    <option value="no" {% if filter_collector == 'no' %}selected{% endif %}>Non-Collector's Only</option>
+                    <option value="all" {% if filter_collector=='all' %}selected{% endif %}>Any</option>
+                    <option value="yes" {% if filter_collector=='yes' %}selected{% endif %}>Collector's Only</option>
+                    <option value="no" {% if filter_collector=='no' %}selected{% endif %}>Non-Collector's Only</option>
                 </select>
             </div>
             <div>
                 <label for="inventorySealedLanguageFilter">Language (Sealed):</label>
                 <select id="inventorySealedLanguageFilter">
-                    <option value="all" {% if filter_sealed_lang == 'all' %}selected{% endif %}>All Languages</option>
+                    <option value="all" {% if filter_sealed_lang=='all' %}selected{% endif %}>All Languages</option>
                     {% for lang_code in all_sealed_languages %}
-                    <option value="{{ lang_code }}" {% if filter_sealed_lang == lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
+                    <option value="{{ lang_code }}" {% if filter_sealed_lang==lang_code %}selected{% endif %}>{{ lang_code.upper() }}</option>{% endfor %}
                 </select>
             </div>
             <div><label>&nbsp;</label><button id="applyInventoryFiltersBtn">Apply Filters & Sort</button></div>
@@ -441,17 +573,20 @@
         <div class="sort-controls">
             <label for="inventorySortKey">Sort by:</label>
             <select id="inventorySortKey">
-                <option value="display_name" {% if sort_key == 'display_name' %}selected{% endif %}>Name</option>
-                <option value="set_name_sort" {% if sort_key == 'set_name_sort' %}selected{% endif %}>Set</option>
-                <option value="location" {% if sort_key == 'location' %}selected{% endif %}>Location</option>
-                <option value="quantity" {% if sort_key == 'quantity' %}selected{% endif %}>Quantity</option>
-                <option value="buy_price" {% if sort_key == 'buy_price' %}selected{% endif %}>Buy Price</option>
-                <option value="current_market_price" {% if sort_key == 'current_market_price' %}selected{% endif %}>Market Price</option>
-                <option value="rarity" {% if sort_key == 'rarity' %}selected{% endif %}>Rarity (Cards)</option>
-                <option value="language" {% if sort_key == 'language' %}selected{% endif %}>Language</option>
-                <option value="condition" {% if sort_key == 'condition' %}selected{% endif %}>Condition (Cards)</option>
-                <option value="collector_number" {% if sort_key == 'collector_number' %}selected{% endif %}>Collector # (Cards)</option>
-                <option value="product_type" {% if sort_key == 'product_type' %}selected{% endif %}>Product Type (Sealed)</option>
+                <option value="display_name" {% if sort_key=='display_name' %}selected{% endif %}>Name</option>
+                <option value="set_name_sort" {% if sort_key=='set_name_sort' %}selected{% endif %}>Set</option>
+                <option value="location" {% if sort_key=='location' %}selected{% endif %}>Location</option>
+                <option value="quantity" {% if sort_key=='quantity' %}selected{% endif %}>Quantity</option>
+                <option value="buy_price" {% if sort_key=='buy_price' %}selected{% endif %}>Buy Price</option>
+                <option value="current_market_price" {% if sort_key=='current_market_price' %}selected{% endif %}>Market Price</option>
+                <option value="rarity" {% if sort_key=='rarity' %}selected{% endif %}>Rarity (Cards)</option>
+                <option value="language" {% if sort_key=='language' %}selected{% endif %}>Language</option>
+                <option value="condition" {% if sort_key=='condition' %}selected{% endif %}>Condition (Cards)</option>
+                <option value="collector_number" {% if sort_key=='collector_number' %}selected{% endif %}>Collector # (Cards)</option>
+                <option value="product_type" {% if sort_key=='product_type' %}selected{% endif %}>Product Type (Sealed)</option>
+                <option value="cost_per_unit" {% if sort_key=='cost_per_unit' %}selected{% endif %}>Cost Per Unit (Supplies)</option>
+                <option value="purchase_date" {% if sort_key=='purchase_date' %}selected{% endif %}>Purchase Date (Supplies)</option>
+                <option value="supply_name" {% if sort_key=='supply_name' %}selected{% endif %}>Supply Name</option>
             </select>
             <label for="inventorySortDirection" style="margin-left:10px;">Direction:</label>
             <div class="direction-toggle">
@@ -459,8 +594,47 @@
                 <button id="sortDescBtn" data-direction="desc" class="{% if sort_dir == 'desc' %}active{% endif %}">Descending &#x25BC;</button>
             </div>
         </div>
+
+        {# NEW SECTION: Mass Edit #}
+        <h3>Mass Edit Filtered Inventory Items</h3>
+        <form id="massEditForm" class="card-form">
+            <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 15px;">
+                This action will apply changes to **ALL currently filtered inventory items** (respecting the filters set above).
+                <br>IMPORTANT: For mass edits, always make sure to specify what item type you are modifying in the 'Item Type' filter above (e.g., 'Single Cards', 'Sealed Products', or 'Shipping Supplies') to prevent unintended changes across different item types.
+                <br>Be cautious, this cannot be undone automatically!
+            </p>
+            <div class="form-grid">
+                <div>
+                    <label for="massEditField">Field to Change:</label>
+                    <select id="massEditField" name="field_to_change" required>
+                        <option value="">-- Select Field --</option>
+                        <optgroup label="General Fields">
+                            <option value="location">Location</option>
+                            <option value="sell_price">Asking Price (Set New Value)</option>
+                        </optgroup>
+                        <optgroup label="Percentage Adjustments">
+                            <option value="buy_price_change_percentage">Buy Price (+/- %)</option>
+                            <option value="manual_market_price_change_percentage">Sealed Manual Market Price (+/- %)</option>
+                            <option value="cost_per_unit_change_percentage">Supply Cost Per Unit (+/- %)</option>
+                        </optgroup>
+                        <optgroup label="Card-Specific Fields">
+                            <option value="condition">Condition</option>
+                        </optgroup>
+                        <optgroup label="Supply-Specific Fields">
+                            <option value="unit_of_measure">Unit of Measure</option>
+                            <option value="description">Description</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div>
+                    <label for="massEditValue">New Value / Percentage:</label>
+                    <input type="text" id="massEditValue" name="new_value" placeholder="Enter new value or % (e.g., 10 for +10%, -5 for -5%)" required>
+                </div>
+            </div>
+            <button type="submit" class="button delete-button" style="margin-top:15px;">Apply Mass Edit</button>
+        </form>
+
         <div class="card-grid" id="inventoryGrid">
-            {# Inventory items will be rendered here by JavaScript from server-processed data #}
         </div>
         <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
 
@@ -531,19 +705,19 @@
                 <div>
                     <label for="language_add">Language:</label>
                     <select id="language_add" name="language">
-                        <option value="en" {% if (request.form.language if request.method == 'POST' else 'en' ) == 'en' %}selected{% endif %}>English (en)</option>
-                        <option value="es" {% if (request.form.language if request.method == 'POST' ) == 'es' %}selected{% endif %}>Spanish (es)</option>
-                        <option value="fr" {% if (request.form.language if request.method == 'POST' ) == 'fr' %}selected{% endif %}>French (fr)</option>
-                        <option value="de" {% if (request.form.language if request.method == 'POST' ) == 'de' %}selected{% endif %}>German (de)</option>
-                        <option value="it" {% if (request.form.language if request.method == 'POST' ) == 'it' %}selected{% endif %}>Italian (it)</option>
-                        <option value="pt" {% if (request.form.language if request.method == 'POST' ) == 'pt' %}selected{% endif %}>Portuguese (pt)</option>
-                        <option value="ja" {% if (request.form.language if request.method == 'POST' ) == 'ja' %}selected{% endif %}>Japanese (ja)</option>
-                        <option value="ko" {% if (request.form.language if request.method == 'POST' ) == 'ko' %}selected{% endif %}>Korean (ko)</option>
-                        <option value="ru" {% if (request.form.language if request.method == 'POST' ) == 'ru' %}selected{% endif %}>Russian (ru)</option>
-                        <option value="zhs" {% if (request.form.language if request.method == 'POST' ) == 'zhs' %}selected{% endif %}>Simplified Chinese (zhs)</option>
-                        <option value="zht" {% if (request.form.language if request.method == 'POST' ) == 'zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
-                        <option value="ph" {% if (request.form.language if request.method == 'POST' ) == 'ph' %}selected{% endif %}>Phyrexian (ph)</option>
-                        <option value="" {% if (request.form.language if request.method == 'POST' ) == '' %}selected{% endif %}>Other</option>
+                        <option value="en" {% if (request.form.language if request.method=='POST' else 'en' )=='en' %}selected{% endif %}>English (en)</option>
+                        <option value="es" {% if (request.form.language if request.method=='POST' )=='es' %}selected{% endif %}>Spanish (es)</option>
+                        <option value="fr" {% if (request.form.language if request.method=='POST' )=='fr' %}selected{% endif %}>French (fr)</option>
+                        <option value="de" {% if (request.form.language if request.method=='POST' )=='de' %}selected{% endif %}>German (de)</option>
+                        <option value="it" {% if (request.form.language if request.method=='POST' )=='it' %}selected{% endif %}>Italian (it)</option>
+                        <option value="pt" {% if (request.form.language if request.method=='POST' )=='pt' %}selected{% endif %}>Portuguese (pt)</option>
+                        <option value="ja" {% if (request.form.language if request.method=='POST' )=='ja' %}selected{% endif %}>Japanese (ja)</option>
+                        <option value="ko" {% if (request.form.language if request.method=='POST' )=='ko' %}selected{% endif %}>Korean (ko)</option>
+                        <option value="ru" {% if (request.form.language if request.method=='POST' )=='ru' %}selected{% endif %}>Russian (ru)</option>
+                        <option value="zhs" {% if (request.form.language if request.method=='POST' )=='zhs' %}selected{% endif %}>Simplified Chinese (zhs)</option>
+                        <option value="zht" {% if (request.form.language if request.method=='POST' )=='zht' %}selected{% endif %}>Traditional Chinese (zht)</option>
+                        <option value="ph" {% if (request.form.language if request.method=='POST' )=='ph' %}selected{% endif %}>Phyrexian (ph)</option>
+                        <option value="" {% if (request.form.language if request.method=='POST' )=='' %}selected{% endif %}>Other</option>
                     </select>
                 </div>
                 <div>
@@ -565,7 +739,7 @@
                 <div><label for="asking_price_add">Asking Price (each, opt.):</label><input type="number" id="asking_price_add" name="asking_price" step="0.01" min="0" placeholder="$0.00" value="{{ request.form.asking_price if request.method == 'POST' else '' }}"></div>
                 <div><label for="location_add">Location:</label><input type="text" id="location_add" name="location" required value="{{ request.form.location if request.method == 'POST' else '' }}"></div>
             </div>
-            <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;" {% if request.method == 'POST' and request.form.get('is_foil') %}checked{% endif %}><label for="is_foil_add">Foil</label></div>
+            <div><input type="checkbox" id="is_foil_add" name="is_foil" value="true" style="margin-top:10px;" {% if request.method=='POST' and request.form.get('is_foil') %}checked{% endif %}><label for="is_foil_add">Foil</label></div>
             <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
         </form>
         <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required. Rarity/Language will be auto-filled by Scryfall if found, or use your input.</em></p>
@@ -601,6 +775,31 @@
             </div>
             <div><input type="checkbox" id="is_collectors_item_sealed" name="is_collectors_item" value="true" style="margin-top:10px;"><label for="is_collectors_item_sealed">Collector's Version?</label></div>
             <button type="submit" style="margin-top:10px;">Add Sealed Product</button>
+        </form>
+
+        <h3>Add Shipping Supplies</h3>
+        <form action="{{ url_for('add_shipping_supply_route') }}" method="post" class="card-form">
+            <div class="form-grid">
+                <div><label for="supply_name_add">Supply Name:</label><input type="text" id="supply_name_add" name="supply_name" required placeholder="e.g., Bubble Mailer"></div>
+                <div><label for="description_add">Description (Optional):</label><input type="text" id="description_add" name="description" placeholder="e.g., 6x9 Padded"></div>
+                <div>
+                    <label for="unit_of_measure_add">Unit of Measure:</label>
+                    <select id="unit_of_measure_add" name="unit_of_measure" required>
+                        <option value="unit" selected>Unit (Default)</option>
+                        <option value="box">Box</option>
+                        <option value="roll">Roll</option>
+                        <option value="sheet">Sheet</option>
+                        <option value="envelope">Envelope</option>
+                        <option value="mailer">Mailer</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div><label for="purchase_date_add">Purchase Date:</label><input type="date" id="purchase_date_add" name="purchase_date" value="{{ current_date }}" required></div>
+                <div><label for="quantity_add_supply">Quantity:</label><input type="number" id="quantity_add_supply" name="quantity" min="1" required></div>
+                <div><label for="total_purchase_amount_add">Total Purchase Amount:</label><input type="number" id="total_purchase_amount_add" name="total_purchase_amount" step="0.01" min="0" required placeholder="$0.00"></div>
+                <div><label for="location_add_supply">Location:</label><input type="text" id="location_add_supply" name="location" placeholder="e.g., Garage Shelf, Office Cabinet"></div>
+            </div>
+            <button type="submit" style="margin-top:10px;">Add Shipping Supply Batch</button>
         </form>
 
         <h3>Import Collection from CSV</h3>
@@ -671,7 +870,7 @@
                     <input type="number" id="sale_event_platform_fee" name="platform_fee" step="0.01" min="0" value="0.00" placeholder="$0.00">
                 </div>
                 <div>
-                    <label for="sale_event_shipping_cost">Your Actual Shipping Cost:</label>
+                    <label for="sale_event_shipping_cost">Your Actual Postage Cost:</label>
                     <input type="number" id="sale_event_shipping_cost" name="total_shipping_cost" step="0.01" min="0" value="0.00" placeholder="$0.00">
                 </div>
             </div>
@@ -684,6 +883,11 @@
             <div id="saleItemsContainer">
             </div>
             <button type="button" id="addItemToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Item to Sale</button>
+
+            <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Shipping Supplies Used</h4>
+            <div id="shippingSuppliesUsedContainer">
+            </div>
+            <button type="button" id="addShippingSupplyToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Shipping Supply</button>
 
             <hr style="margin: 20px 0; border-color: var(--border-color);">
             <button type="submit" style="margin-top:15px; font-size: 1.1em;">Record Entire Sale Transaction</button>
@@ -726,7 +930,6 @@
                     </tr>
                 </thead>
                 <tbody id="salesHistoryTableBody">
-                    {# Sales history (events and items) will be populated by JavaScript #}
                 </tbody>
             </table>
         </div>
@@ -825,42 +1028,58 @@
     <script type="application/json" id="inventory_items_json_data">{{ inventory_items_json | safe }}</script>
     <script type="application/json" id="sales_history_json_data">{{ sales_history_json | safe }}</script>
     <script type="application/json" id="sale_inventory_options_json_data">{{ sale_inventory_options_json | safe }}</script>
+    <script type="application/json" id="shipping_supplies_display_json_data">{{ shipping_supplies_display_json | safe }}</script>
+    <script type="application/json" id="shipping_supply_options_json_data">{{ shipping_supply_options_json | safe }}</script>
 
     <script>
-        // --- Helper Functions ---
         function getStr(obj, key, defaultVal = '') { if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) { return String(obj[key]); } return defaultVal; }
         function getNum(obj, key, defaultVal = null) { if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) { const num = parseFloat(obj[key]); if (!isNaN(num)) return num; } return defaultVal; }
         function getBool(obj, key, defaultVal = false) { if (obj && typeof obj === 'object' && obj !== null && typeof obj[key] === 'boolean') return obj[key]; return defaultVal; }
         function formatCurrencyJS(value) { const numValue = parseFloat(value); if (value === null || value === undefined || isNaN(numValue)) return "$0.00"; try { if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; } catch (e) { return String(value); }}
 
-        // --- Global Data Variables ---
-        let rawInventoryItemsData = []; let rawSalesHistoryData = []; let saleInventoryOptionsData = []; let allScryfallSets = [];
+        let rawInventoryItemsData = [];
+        let rawSalesHistoryData = [];
+        let saleInventoryOptionsData = [];
+        let allScryfallSets = [];
+        let rawShippingSuppliesData = [];
+        let shippingSupplyOptionsData = [];
+
         try { const invJsonEl = document.getElementById('inventory_items_json_data'); rawInventoryItemsData = JSON.parse(invJsonEl ? invJsonEl.textContent : '[]'); if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = [];} catch (e) { console.error("Error parsing inventory_items_json:", e); rawInventoryItemsData = [];}
         try { const salesJsonEl = document.getElementById('sales_history_json_data'); rawSalesHistoryData = JSON.parse(salesJsonEl ? salesJsonEl.textContent : '[]'); if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];} catch (e) { console.error("Error parsing sales_history_json:", e); rawSalesHistoryData = [];}
         try { const saleOptsJsonEl = document.getElementById('sale_inventory_options_json_data'); saleInventoryOptionsData = JSON.parse(saleOptsJsonEl ? saleOptsJsonEl.textContent : '[]'); if (!Array.isArray(saleInventoryOptionsData)) saleInventoryOptionsData = [];} catch (e) { console.error("Error parsing sale_inventory_options_json:", e); saleInventoryOptionsData = [];}
+        try { const shippingSuppliesDisplayEl = document.getElementById('shipping_supplies_display_json_data'); rawShippingSuppliesData = JSON.parse(shippingSuppliesDisplayEl ? shippingSuppliesDisplayEl.textContent : '[]'); if (!Array.isArray(rawShippingSuppliesData)) rawShippingSuppliesData = [];} catch (e) { console.error("Error parsing shipping_supplies_display_json_data:", e); rawShippingSuppliesData = [];}
+        try { const shippingSupplyOptionsEl = document.getElementById('shipping_supply_options_json_data'); shippingSupplyOptionsData = JSON.parse(shippingSupplyOptionsEl ? shippingSupplyOptionsEl.textContent : '[]'); if (!Array.isArray(shippingSupplyOptionsData)) shippingSupplyOptionsData = [];} catch (e) { console.error("Error parsing shipping_supply_options_json_data:", e); shippingSupplyOptionsData = [];}
 
-        // --- Tab Navigation (Updated) ---
         function openTab(evt, tabName) {
-            // If called by an event (button click), update URL and let Flask handle re-render
             if (evt) {
                 const currentParams = new URLSearchParams(window.location.search);
                 currentParams.set('tab', tabName);
-                // Only remove page for inventoryTab related navigations or if switching to a non-paginated tab
                 if (tabName !== 'inventoryTab' || currentParams.get('tab') === 'inventoryTab') {
                     currentParams.delete('page');
                 }
                 window.location.search = currentParams.toString();
-            } else { // If called directly (e.g., on page load), just switch visibility
+            } else {
                 var i, tabcontent, tabbuttons;
-                tabcontent = document.getElementsByClassName("tab-content"); for (i = 0; i < tabcontent.length; i++) { tabcontent[i].style.display = "none"; }
-                tabbuttons = document.getElementsByClassName("tab-button"); for (i = 0; i < tabbuttons.length; i++) { tabbuttons[i].className = tabbuttons[i].className.replace(" active", ""); }
-                var currentTabContent = document.getElementById(tabName); if (currentTabContent) { currentTabContent.style.display = "block"; }
-                var activeBtn = document.getElementById(tabName + "Nav"); if (activeBtn) { activeBtn.className += " active"; }
+                tabcontent = document.getElementsByClassName("tab-content");
+                for (i = 0; i < tabcontent.length; i++) {
+                    tabcontent[i].style.display = "none";
+                }
+                tabbuttons = document.getElementsByClassName("tab-button");
+                for (i = 0; i < tabbuttons.length; i++) {
+                    tabbuttons[i].className = tabbuttons[i].className.replace(" active", "");
+                }
+                var currentTabContent = document.getElementById(tabName);
+                if (currentTabContent) {
+                    currentTabContent.style.display = "block";
+                }
+                var activeBtn = document.getElementById(tabName + "Nav");
+                if (activeBtn) {
+                    activeBtn.className += " active";
+                }
             }
         }
-        var activeTabFromFlask = "{{ active_tab|default('dashboardTab') }}"; // Default to dashboardTab
+        var activeTabFromFlask = "{{ active_tab|default('dashboardTab') }}";
 
-        // --- DOM Elements (Inventory Tab) ---
         const inventoryFilterInput = document.getElementById('inventoryFilterInput');
         const inventoryTypeFilter = document.getElementById('inventoryTypeFilter');
         const inventoryLocationFilter = document.getElementById('inventoryLocationFilter');
@@ -877,451 +1096,777 @@
         const inventoryGrid = document.getElementById('inventoryGrid');
         const noInventoryResultsMsg = document.getElementById('noInventoryResults');
 
-        // --- Render Inventory (Displays server-processed data) ---
         function renderInventory() {
             if (!inventoryGrid) { console.error("inventoryGrid not found"); return; }
-            const itemsToDisplay = rawInventoryItemsData || [];
+            const currentFilterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
+            let itemsToDisplay = [];
+
+            if (currentFilterType === 'shipping_supply') {
+                itemsToDisplay = rawShippingSuppliesData;
+            } else {
+                itemsToDisplay = rawInventoryItemsData;
+            }
+
             inventoryGrid.innerHTML = '';
             if (noInventoryResultsMsg) noInventoryResultsMsg.style.display = itemsToDisplay.length === 0 ? 'block' : 'none';
 
             itemsToDisplay.forEach(item => {
                 if (!item) return;
-                const cardEntry = document.createElement('div'); cardEntry.className = 'card-entry';
-                const displayName = getStr(item, 'display_name', 'N/A'); const imageUri = getStr(item, 'image_uri');
-                const location = getStr(item, 'location', 'N/A'); const quantity = getNum(item, 'quantity', 0);
-                const buyPrice = getNum(item, 'buy_price'); const marketPrice = getNum(item, 'current_market_price');
-                const sellPrice = getNum(item, 'sell_price'); const originalId = item.original_id;
-                let itemHTML = `${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}<h3>${displayName}</h3><p>`;
-                if (item.type === 'single_card') {
-                    const setCode = getStr(item, 'set_code', 'N/A'); const collectorNum = getStr(item, 'collector_number', 'N/A');
-                    const rarity = getStr(item, 'rarity', 'N/A'); const language = getStr(item, 'language', 'N/A'); const isFoil = getBool(item, 'is_foil');
-                    const condition = getStr(item, 'condition', 'N/A');
-                    const marketVsBuyPercentageDisplay = getStr(item, 'market_vs_buy_percentage_display', 'N/A');
-                    const potentialPLAtAskingPriceDisplay = item.potential_pl_at_asking_price_display;
-                    let marketVsBuyPercentageHTML = 'N/A';
-                    if (marketVsBuyPercentageDisplay === "Infinite") marketVsBuyPercentageHTML = `<span class="profit">Infinite%</span>`;
-                    else if (marketVsBuyPercentageDisplay !== "N/A") { const numericVal = parseFloat(marketVsBuyPercentageDisplay); if (!isNaN(numericVal)) { const className = numericVal >= 0 ? 'profit' : 'loss'; marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`; } else marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay; }
-                    let potentialPLHTML = 'N/A (No asking price)';
-                    if (typeof potentialPLAtAskingPriceDisplay === 'number') { const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss'; potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`; } else potentialPLHTML = potentialPLAtAskingPriceDisplay;
-                    itemHTML += `<strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br><strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Condition:</strong> ${condition}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br><strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>`;
-                } else if (item.type === 'sealed_product') {
-                    const setName = getStr(item, 'set_name', 'N/A'); const productType = getStr(item, 'product_type', 'N/A');
-                    const language = getStr(item, 'language', 'N/A'); const isCollectorsItem = getBool(item, 'is_collectors_item');
-                    const marketVsBuyDisplay = getStr(item, 'market_vs_buy_percentage_display', "N/A (Manual Price)");
-                    const potentialPLDisplay = item.potential_pl_at_asking_price_display;
-                    let potentialPLSealedHTML = 'N/A (No asking price)';
-                    if (typeof potentialPLDisplay === 'number') { const className = potentialPLDisplay >= 0 ? 'profit' : 'loss'; potentialPLSealedHTML = `<span class="${className}">${formatCurrencyJS(potentialPLDisplay)}</span>`; } else potentialPLSealedHTML = potentialPLDisplay;
-                    itemHTML += `<strong>Set:</strong> ${setName}<br><strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) + ' <em style="font-size:0.9em;">(Manual)</em>' : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyDisplay}<br><strong>Potential P/L (Asking):</strong> ${potentialPLSealedHTML}<br>`;
-                }
-                itemHTML += `</p>`;
-                const displayNameEscaped = displayName.replace(/"/g, '&quot;');
-                if (item.type === 'single_card') {
-                    const condition = getStr(item, 'condition');
-                    const conditionOptions = ['Mint', 'Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
-                        .map(c => `<option value="${c}" ${condition === c ? 'selected' : ''}>${c}</option>`).join('');
+                const cardEntry = document.createElement('div');
+                cardEntry.className = 'card-entry';
+                let itemHTML = '';
 
-                    itemHTML += `<div class="actions"><form action="/delete_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/refresh_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div><details class="update-details"><summary>Update Card Details</summary><form action="/update_card/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Condition:</label><select name="condition">${conditionOptions}</select></div><button type="submit">Save Card</button></form></details>`;
-                } else if (item.type === 'sealed_product') {
-                    const buyPriceValue = buyPrice !== null ? buyPrice : ''; const isCollectorsItem = getBool(item, 'is_collectors_item');
-                    itemHTML += `<div class="actions"><form action="/delete_sealed_product/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/initiate_open_sealed/${originalId}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="${quantity}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="${displayNameEscaped}"><input type="hidden" name="original_buy_price" value="${buyPriceValue}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form></div><details class="update-details"><summary>Update Sealed Details</summary><form action="/update_sealed_product/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="${marketPrice !== null ? marketPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div><div><label for="update_language_sealed_${originalId}">Language:</label><select id="update_language_sealed_${originalId}" name="language"><option value="en" ${getStr(item, 'language') === 'en' ? 'selected' : ''}>English (en)</option><option value="es" ${getStr(item, 'language') === 'es' ? 'selected' : ''}>Spanish (es)</option><option value="fr" ${getStr(item, 'language') === 'fr' ? 'selected' : ''}>French (fr)</option><option value="de" ${getStr(item, 'language') === 'de' ? 'selected' : ''}>German (de)</option><option value="it" ${getStr(item, 'language') === 'it' ? 'selected' : ''}>Italian (it)</option><option value="pt" ${getStr(item, 'language') === 'pt' ? 'selected' : ''}>Portuguese (pt)</option><option value="ja" ${getStr(item, 'language') === 'ja' ? 'selected' : ''}>Japanese (ja)</option><option value="ko" ${getStr(item, 'language') === 'ko' ? 'selected' : ''}>Korean (ko)</option><option value="ru" ${getStr(item, 'language') === 'ru' ? 'selected' : ''}>Russian (ru)</option><option value="zhs" ${getStr(item, 'language') === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option><option value="zht" ${getStr(item, 'language') === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option></select></div><div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>`;
-                }
-                cardEntry.innerHTML = itemHTML; inventoryGrid.appendChild(cardEntry);
-            });
+                if (item.hasOwnProperty('supply_name')) {
+                    const supplyName = getStr(item, 'supply_name', 'N/A');
+                    const description = getStr(item, 'description', '');
+                    const unitOfMeasure = getStr(item, 'unit_of_measure', 'unit');
+                    const purchaseDate = getStr(item, 'purchase_date', 'N/A');
+                    const quantityOnHand = getNum(item, 'quantity_on_hand', 0);
+                    const costPerUnit = getNum(item, 'cost_per_unit');
+                    const location = getStr(item, 'location', 'N/A');
+                    const originalId = item.id;
+
+                    itemHTML += `<div class="card-image-placeholder" style="background-color: var(--mtg-blue);"><span style="color:var(--bg-primary); font-weight:bold; font-size:1.5em;">📦</span></div><h3>${supplyName}</h3><p>`;
+                    itemHTML += `<strong>Description:</strong> ${description || 'N/A'}<br>`;
+                    itemHTML += `<strong>Unit:</strong> ${unitOfMeasure.charAt(0).toUpperCase() + unitOfMeasure.slice(1)}<br>`;
+                    itemHTML += `<strong>Purchase Date:</strong> ${purchaseDate}<br>`;
+                    itemHTML += `<strong>Quantity on Hand:</strong> ${quantityOnHand}<br>`;
+                    itemHTML += `<strong>Cost Per Unit:</strong> ${formatCurrencyJS(costPerUnit)}<br>`;
+                    itemHTML += `<strong>Location:</strong> ${location}<br>`;
+                    itemHTML += `</p>`;
+                    const displayNameEscaped = supplyName.replace(/"/g, '&quot;');
+                    itemHTML += `<div class="actions"><form action="/delete_shipping_supply/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Shipping Supply Batch (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form></div><details class="update-details"><summary>Update Supply Batch</summary><form action="/update_shipping_supply/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity_on_hand" value="${quantityOnHand}" min="0"></div><div><label>Cost Per Unit:</label><input type="number" name="cost_per_unit" value="${costPerUnit !== null ? costPerUnit.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label for="update_description_supply_${originalId}">Description:</label><input type="text" id="update_description_supply_${originalId}" name="description" value="${description || ''}" placeholder="Optional"></div><div><label for="update_unit_of_measure_supply_${originalId}">Unit of Measure:</label><select id="update_unit_of_measure_supply_${originalId}" name="unit_of_measure"><option value="unit" ${unitOfMeasure === 'unit' ? 'selected' : ''}>Unit (Default)</option><option value="box" ${unitOfMeasure === 'box' ? 'selected' : ''}>Box</option><option value="roll" ${unitOfMeasure === 'roll' ? 'selected' : ''}>Roll</option><option value="sheet" ${unitOfMeasure === 'sheet' ? 'selected' : ''}>Sheet</option><option value="envelope" ${unitOfMeasure === 'envelope' ? 'selected' : ''}>Envelope</option><option value="mailer" ${unitOfMeasure === 'mailer' ? 'selected' : ''}>Mailer</option><option value="other" ${unitOfMeasure === 'other' ? 'selected' : ''}>Other</option></select></div><button type="submit">Save Supply</button></form></details>`;
+
+                } else {
+                    const displayName = getStr(item, 'display_name', 'N/A'); const imageUri = getStr(item, 'image_uri');
+                    const location = getStr(item, 'location', 'N/A'); const quantity = getNum(item, 'quantity', 0);
+                    const buyPrice = getNum(item, 'buy_price'); const marketPrice = getNum(item, 'current_market_price');
+                    const sellPrice = getNum(item, 'sell_price'); const originalId = item.original_id;
+                    itemHTML = `${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}<h3>${displayName}</h3><p>`;
+                    if (item.type === 'single_card') {
+                        const setCode = getStr(item, 'set_code', 'N/A'); const collectorNum = getStr(item, 'collector_number', 'N/A');
+                        const rarity = getStr(item, 'rarity', 'N/A'); const language = getStr(item, 'language', 'N/A'); const isFoil = getBool(item, 'is_foil');
+                        const condition = getStr(item, 'condition', 'N/A');
+                        const marketVsBuyPercentageDisplay = getStr(item, 'market_vs_buy_percentage_display', 'N/A');
+                        const potentialPLAtAskingPriceDisplay = item.potential_pl_at_asking_price_display;
+                        let marketVsBuyPercentageHTML = 'N/A';
+                        if (marketVsBuyPercentageDisplay === "Infinite") marketVsBuyPercentageHTML = `<span class="profit">Infinite%</span>`;
+                        else if (marketVsBuyPercentageDisplay !== "N/A") { const numericVal = parseFloat(marketVsBuyPercentageDisplay); if (!isNaN(numericVal)) { const className = numericVal >= 0 ? 'profit' : 'loss'; marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`; } else marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay; }
+                        let potentialPLHTML = 'N/A (No asking price)';
+                        if (typeof potentialPLAtAskingPriceDisplay === 'number') { const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss'; potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`; } else potentialPLHTML = potentialPLAtAskingPriceDisplay;
+                        itemHTML += `<strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br><strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Condition:</strong> ${condition}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br><strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>`;
+                    } else if (item.type === 'sealed_product') {
+                        const setName = getStr(item, 'set_name', 'N/A'); const productType = getStr(item, 'product_type', 'N/A');
+                        const language = getStr(item, 'language', 'N/A'); const isCollectorsItem = getBool(item, 'is_collectors_item');
+                        const marketVsBuyDisplay = getStr(item, 'market_vs_buy_percentage_display', "N/A (Manual Price)");
+                        const potentialPLDisplay = item.potential_pl_at_asking_price_display;
+                        let potentialPLSealedHTML = 'N/A (No asking price)';
+                        if (typeof potentialPLDisplay === 'number') { const className = potentialPLDisplay >= 0 ? 'profit' : 'loss'; potentialPLSealedHTML = `<span class="${className}">${formatCurrencyJS(potentialPLDisplay)}</span>`; } else potentialPLSealedHTML = potentialPLDisplay;
+                        itemHTML += `<strong>Set:</strong> ${setName}<br><strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) + ' <em style="font-size:0.9em;">(Manual)</em>' : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyDisplay}<br><strong>Potential P/L (Asking):</strong> ${potentialPLSealedHTML}<br>`;
+                    }
+                    itemHTML += `</p>`;
+                    const displayNameEscaped = displayName.replace(/"/g, '&quot;');
+                    if (item.type === 'single_card') {
+                        const condition = getStr(item, 'condition');
+                        const conditionOptions = ['Mint', 'Near Mint', 'Lightly Played', 'Moderately Played', 'Heavily Played', 'Damaged']
+                            .map(c => `<option value="${c}" ${condition === c ? 'selected' : ''}>${c}</option>`).join('');
+
+                        itemHTML += `<div class="actions"><form action="/delete_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/refresh_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div><details class="update-details"><summary>Update Card Details</summary><form action="/update_card/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Condition:</label><select name="condition">${conditionOptions}</select></div><button type="submit">Save Card</button></form></details>`;
+                    } else if (item.type === 'sealed_product') {
+                        const buyPriceValue = buyPrice !== null ? buyPrice : ''; const isCollectorsItem = getBool(item, 'is_collectors_item');
+                        itemHTML += `<div class="actions"><form action="/delete_sealed_product/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/initiate_open_sealed/${originalId}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="${quantity}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="${displayNameEscaped}"><input type="hidden" name="original_buy_price" value="${buyPriceValue}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form></div><details class="update-details"><summary>Update Sealed Details</summary><form action="/update_sealed_product/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="${marketPrice !== null ? marketPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div><div><label for="update_language_sealed_${originalId}">Language:</label><select id="update_language_sealed_${originalId}" name="language"><option value="en" ${getStr(item, 'language') === 'en' ? 'selected' : ''}>English (en)</option><option value="es" ${getStr(item, 'language') === 'es' ? 'selected' : ''}>Spanish (es)</option><option value="fr" ${getStr(item, 'language') === 'fr' ? 'selected' : ''}>French (fr)</option><option value="de" ${getStr(item, 'language') === 'de' ? 'selected' : ''}>German (de)</option><option value="it" ${getStr(item, 'language') === 'it' ? 'selected' : ''}>Italian (it)</option><option value="pt" ${getStr(item, 'language') === 'pt' ? 'selected' : ''}>Portuguese (pt)</option><option value="ja" ${getStr(item, 'language') === 'ja' ? 'selected' : ''}>Japanese (ja)</option><option value="ko" ${getStr(item, 'language') === 'ko' ? 'selected' : ''}>Korean (ko)</option><option value="ru" ${getStr(item, 'language') === 'ru' ? 'selected' : ''}>Russian (ru)</option><option value="zhs" ${getStr(item, 'language') === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option><option value="zht" ${getStr(item, 'language') === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option></select></div><div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>`;
+            }
         }
+        cardEntry.innerHTML = itemHTML; inventoryGrid.appendChild(cardEntry);
+    });
+}
 
-        // --- Render Sales History (Updated for Sale Events) ---
-        function renderSalesHistory() {
-            const tableBody = document.getElementById('salesHistoryTableBody');
-            const noSalesMsg = document.getElementById('noSalesResults');
 
-            if (!tableBody || !noSalesMsg) {
-                console.error("Sales history table elements (salesHistoryTableBody or noSalesResults) not found in HTML.");
+function renderSalesHistory() {
+    const tableBody = document.getElementById('salesHistoryTableBody');
+    const noSalesMsg = document.getElementById('noSalesResults');
+
+    if (!tableBody || !noSalesMsg) {
+        console.error("Sales history table elements (salesHistoryTableBody or noSalesResults) not found in HTML.");
+        return;
+    }
+    tableBody.innerHTML = '';
+
+    const salesEvents = rawSalesHistoryData;
+    const hasSales = salesEvents && salesEvents.length > 0;
+
+    noSalesMsg.style.display = hasSales ? 'none' : 'block';
+
+    const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
+    const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3 + h4, #salesHistoryTab > h4:first-of-type');
+
+    if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
+    if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
+
+    if (hasSales) {
+        salesEvents.forEach(event => {
+            if (!event || typeof event !== 'object') {
+                console.warn("Skipping invalid event data:", event);
                 return;
             }
-            tableBody.innerHTML = '';
 
-            const salesEvents = rawSalesHistoryData; // Assumes rawSalesHistoryData is populated
-            const hasSales = salesEvents && salesEvents.length > 0;
+            const eventRow = tableBody.insertRow();
+            eventRow.insertCell().textContent = getStr(event, 'sale_date', 'N/A');
 
-            noSalesMsg.style.display = hasSales ? 'none' : 'block';
-
-            // Show/hide the monthly summary table and its heading based on whether there are sales
-            const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
-            // Assuming the "Monthly Sales Summaries" heading is the first H4 in the sales history tab if it exists
-            const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3 + h4, #salesHistoryTab > h4:first-of-type');
-
-            if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
-            if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
-
-            if (hasSales) {
-                salesEvents.forEach(event => {
-                    if (!event || typeof event !== 'object') {
-                        console.warn("Skipping invalid event data:", event);
-                        return; // Skip this iteration if event data is not valid
-                    }
-
-                    const eventRow = tableBody.insertRow();
-                    eventRow.insertCell().textContent = getStr(event, 'sale_date', 'N/A');
-
-                    const itemsSummaryCell = eventRow.insertCell();
-                    let totalQtyThisEvent = 0;
-                    (event.items || []).forEach(item => {
-                        totalQtyThisEvent += getNum(item, 'quantity_sold', 0);
-                    });
-                    itemsSummaryCell.innerHTML = `${(event.items || []).length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
-
-                    eventRow.insertCell().textContent = totalQtyThisEvent;
-
-                    // New cells for customer_shipping_charge and platform_fee
-                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'customer_shipping_charge'));
-                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'platform_fee'));
-
-                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost')); // This is YOUR cost
-
-                    const profitLossCell = eventRow.insertCell();
-                    const eventProfitLoss = getNum(event, 'total_profit_loss');
-                    profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
-
-                    eventRow.insertCell().textContent = getStr(event, 'notes', '');
-
-                    // Actions Cell with Delete Button
-                    const actionsCell = eventRow.insertCell();
-                    const deleteForm = document.createElement('form');
-                    // Construct the action URL: ensure event.id is valid
-                    deleteForm.action = `/delete_sale_event/${event.id}`;
-                    deleteForm.method = 'post';
-                    deleteForm.style.display = 'inline';
-
-                    const deleteButton = document.createElement('button');
-                    deleteButton.type = 'submit';
-                    deleteButton.className = 'delete-button';
-                    deleteButton.textContent = 'Delete';
-                    deleteButton.style.padding = '5px 8px';
-                    deleteButton.style.fontSize = '0.8em';
-                    deleteButton.onclick = function () {
-                        return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
-                    };
-
-                    deleteForm.appendChild(deleteButton);
-                    actionsCell.appendChild(deleteForm);
-
-                    // Details Row for items in the sale
-                    const detailsRow = tableBody.insertRow();
-                    detailsRow.id = `event-details-${event.id}`;
-                    detailsRow.style.display = 'none';
-                    const detailsCell = detailsRow.insertCell();
-                    detailsCell.colSpan = 9; // Updated colspan (Date, Summary, Qty, Cust.Ship, Plat.Fee, Your.Ship, P/L, Notes, Actions)
-
-                    let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
-                    (event.items || []).forEach(item => {
-                        if (!item || typeof item !== 'object') {
-                            console.warn("Skipping invalid item data within event:", item);
-                            return; // Skip this iteration if item data is not valid
-                        }
-                        detailsHTML += `<tr>
-                            <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
-                            <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
-                            <td>${formatCurrencyJS(getNum(item, 'sell_price_per_item'))}</td>
-                            <td><span class="${getNum(item, 'item_profit_loss', 0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
-                        </tr>`;
-                    });
-                    detailsHTML += '</tbody></table></div>';
-                    detailsCell.innerHTML = detailsHTML;
-                });
-
-                // Add event listeners for all "Details" buttons after rows are created
-                tableBody.querySelectorAll('.details-btn').forEach(button => {
-                    button.addEventListener('click', function () {
-                        const detailRowId = this.dataset.eventId;
-                        const detailRow = document.getElementById(detailRowId);
-                        if (detailRow) {
-                            detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
-                        }
-                    });
-                });
-            }
-        }
-
-
-        // --- Apply Filters & Sort (Server-Side) ---
-        function applyFiltersAndSort() {
-            const params = new URLSearchParams(window.location.search);
-            params.set('tab', 'inventoryTab');
-            if (inventoryFilterInput) params.set('filter_text', inventoryFilterInput.value);
-            if (inventoryTypeFilter) params.set('filter_type', inventoryTypeFilter.value);
-            if (inventoryLocationFilter) params.set('filter_location', inventoryLocationFilter.value);
-            if (inventorySetFilter) params.set('filter_set', inventorySetFilter.value);
-            if (inventoryFoilFilter) params.set('filter_foil', inventoryFoilFilter.value);
-            if (inventoryRarityFilter) params.set('filter_rarity', inventoryRarityFilter.value);
-            if (inventoryCardLanguageFilter) params.set('filter_card_lang', inventoryCardLanguageFilter.value);
-            if (inventoryConditionFilter) params.set('filter_condition', inventoryConditionFilter.value);
-            if (inventoryCollectorFilter) params.set('filter_collector', inventoryCollectorFilter.value);
-            if (inventorySealedLanguageFilter) params.set('filter_sealed_lang', inventorySealedLanguageFilter.value);
-            if (inventorySortKeySelect) params.set('sort_key', inventorySortKeySelect.value);
-            let currentSortDir = 'asc';
-            if (sortDescBtn && sortDescBtn.classList.contains('active')) currentSortDir = 'desc';
-            else if (sortAscBtn && sortAscBtn.classList.contains('active')) currentSortDir = 'asc';
-            params.set('sort_dir', currentSortDir);
-            params.set('page', '1');
-            window.location.search = params.toString();
-        }
-
-        // --- Clear Filters & Sort ---
-        function clearInventoryFiltersAndSort() { window.location.href = "{{ url_for('index', tab='inventoryTab') }}"; }
-
-        // --- Update Sort Direction Buttons Visual State ---
-        function updateSortDirectionButtonsState(clickedButton) {
-            if (!sortAscBtn || !sortDescBtn) return;
-            if (clickedButton === sortAscBtn) { sortAscBtn.classList.add('active'); sortDescBtn.classList.remove('active'); }
-            else if (clickedButton === sortDescBtn) { sortDescBtn.classList.add('active'); sortAscBtn.classList.remove('active'); }
-        }
-
-        // --- Multi-Item Sale Form Logic ---
-        const saleItemsContainer = document.getElementById('saleItemsContainer');
-        const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
-        const multiItemSaleForm = document.getElementById('multiItemSaleForm');
-        let saleItemRowCounter = 0;
-
-        function createSaleItemRow() {
-            saleItemRowCounter++;
-            const itemRowDiv = document.createElement('div');
-            itemRowDiv.className = 'sale-item-row';
-            itemRowDiv.dataset.rowId = saleItemRowCounter;
-            itemRowDiv.innerHTML = `
-                <h4>Item ${saleItemRowCounter}</h4>
-                <div class="search-input-container">
-                    <label for="sale_item_search_${saleItemRowCounter}">Search Inventory Item:</label>
-                    <input type="text" id="sale_item_search_${saleItemRowCounter}" class="sale-item-search-input" placeholder="Type name, set, location..." autocomplete="off" required>
-                    <input type="hidden" name="inventory_item_id_with_prefix" class="selected-inventory-item-id" required>
-                    <div class="search-results-dropdown sale-item-search-results"></div>
-                </div>
-                <div class="form-grid" style="margin-top:10px;">
-                    <div><label for="sale_item_qty_${saleItemRowCounter}">Quantity Sold:</label><input type="number" id="sale_item_qty_${saleItemRowCounter}" name="quantity_sold" class="sale-item-qty" min="1" required></div>
-                    <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" required placeholder="$0.00"></div>
-                </div>
-                <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
-            if(saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv); // Check if container exists
-            const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
-            if (searchInput) attachSearchListenerToInput(searchInput);
-            const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
-            if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
-        }
-
-        function attachSearchListenerToInput(searchInput) {
-            const resultsDropdown = searchInput.parentElement.querySelector('.sale-item-search-results');
-            const hiddenIdInput = searchInput.parentElement.querySelector('.selected-inventory-item-id');
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase().trim(); resultsDropdown.innerHTML = ''; if(hiddenIdInput) hiddenIdInput.value = '';
-                if (searchTerm.length < 1) { resultsDropdown.style.display = 'none'; return; }
-                const matchedItems = (saleInventoryOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
-                if (matchedItems.length > 0) {
-                    resultsDropdown.style.display = 'block';
-                    matchedItems.slice(0, 10).forEach(opt => {
-                        const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = opt.display; itemDiv.dataset.itemId = opt.id;
-                        itemDiv.addEventListener('click', function() { if(hiddenIdInput) hiddenIdInput.value = this.dataset.itemId; searchInput.value = this.textContent; resultsDropdown.innerHTML = ''; resultsDropdown.style.display = 'none'; });
-                        resultsDropdown.appendChild(itemDiv);
-                    });
-                } else { resultsDropdown.style.display = 'none'; }
+            const itemsSummaryCell = eventRow.insertCell();
+            let totalQtyThisEvent = 0;
+            (event.items || []).forEach(item => {
+                totalQtyThisEvent += getNum(item, 'quantity_sold', 0);
             });
-            document.addEventListener('click', function(event) { if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) { resultsDropdown.style.display = 'none'; }});
+            itemsSummaryCell.innerHTML = `${(event.items || []).length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
+
+            eventRow.insertCell().textContent = totalQtyThisEvent;
+
+            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'customer_shipping_charge'));
+            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'platform_fee'));
+
+            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost'));
+
+            const profitLossCell = eventRow.insertCell();
+            const eventProfitLoss = getNum(event, 'total_profit_loss');
+            profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
+
+            eventRow.insertCell().textContent = getStr(event, 'notes', '');
+
+            const actionsCell = eventRow.insertCell();
+            const deleteForm = document.createElement('form');
+            deleteForm.action = `/delete_sale_event/${event.id}`;
+            deleteForm.method = 'post';
+            deleteForm.style.display = 'inline';
+
+            const deleteButton = document.createElement('button');
+            deleteButton.type = 'submit';
+            deleteButton.className = 'delete-button';
+            deleteButton.textContent = 'Delete';
+            deleteButton.style.padding = '5px 8px';
+            deleteButton.style.fontSize = '0.8em';
+            deleteButton.onclick = function () {
+                return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
+            };
+
+            deleteForm.appendChild(deleteButton);
+            actionsCell.appendChild(deleteForm);
+
+            const detailsRow = tableBody.insertRow();
+            detailsRow.id = `event-details-${event.id}`;
+            detailsRow.style.display = 'none';
+            const detailsCell = detailsRow.insertCell();
+            detailsCell.colSpan = 9;
+
+            let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
+            (event.items || []).forEach(item => {
+                if (!item || typeof item !== 'object') {
+                    console.warn("Skipping invalid item data within event:", item);
+                    return;
+                }
+                detailsHTML += `<tr>
+                    <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
+                    <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
+                    <td>${formatCurrencyJS(getNum(item, 'sell_price_per_item'))}</td>
+                    <td><span class="${getNum(item, 'item_profit_loss', 0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
+                </tr>`;
+            });
+            detailsHTML += '</tbody></table></div>';
+            detailsCell.innerHTML = detailsHTML;
+        });
+
+        tableBody.querySelectorAll('.details-btn').forEach(button => {
+            button.addEventListener('click', function () {
+                const detailRowId = this.dataset.eventId;
+                const detailRow = document.getElementById(detailRowId);
+                if (detailRow) {
+                    detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
+                }
+            });
+        });
+    }
+}
+
+
+function applyFiltersAndSort() {
+    const params = new URLSearchParams(window.location.search);
+    params.set('tab', 'inventoryTab');
+    if (inventoryFilterInput) params.set('filter_text', inventoryFilterInput.value);
+    if (inventoryTypeFilter) params.set('filter_type', inventoryTypeFilter.value);
+    if (inventoryLocationFilter) params.set('filter_location', inventoryLocationFilter.value);
+    if (inventorySetFilter) params.set('filter_set', inventorySetFilter.value);
+    if (inventoryFoilFilter) params.set('filter_foil', inventoryFoilFilter.value);
+    if (inventoryRarityFilter) params.set('filter_rarity', inventoryRarityFilter.value);
+    if (inventoryCardLanguageFilter) params.set('filter_card_lang', inventoryCardLanguageFilter.value);
+    if (inventoryConditionFilter) params.set('filter_condition', inventoryConditionFilter.value);
+    if (inventoryCollectorFilter) params.set('filter_collector', inventoryCollectorFilter.value);
+    if (inventorySealedLanguageFilter) params.set('filter_sealed_lang', inventorySealedLanguageFilter.value);
+    params.set('sort_key', inventorySortKeySelect.value);
+    let currentSortDir = 'asc';
+    if (sortDescBtn && sortDescBtn.classList.contains('active')) currentSortDir = 'desc';
+    else if (sortAscBtn && sortAscBtn.classList.contains('active')) currentSortDir = 'asc';
+    params.set('sort_dir', currentSortDir);
+    params.set('page', '1');
+    window.location.search = params.toString();
+}
+
+function clearInventoryFiltersAndSort() { window.location.href = "{{ url_for('index', tab='inventoryTab') }}"; }
+
+function updateSortDirectionButtonsState(clickedButton) {
+    if (!sortAscBtn || !sortDescBtn) return;
+    if (clickedButton === sortAscBtn) { sortAscBtn.classList.add('active'); sortDescBtn.classList.remove('active'); }
+    else if (clickedButton === sortDescBtn) { sortDescBtn.classList.add('active'); sortAscBtn.classList.remove('active'); }
+}
+
+const saleItemsContainer = document.getElementById('saleItemsContainer');
+const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
+const multiItemSaleForm = document.getElementById('multiItemSaleForm');
+let saleItemRowCounter = 0;
+
+function createSaleItemRow() {
+    saleItemRowCounter++;
+    const itemRowDiv = document.createElement('div');
+    itemRowDiv.className = 'sale-item-row';
+    itemRowDiv.dataset.rowId = saleItemRowCounter;
+    itemRowDiv.innerHTML = `
+        <h4>Item ${saleItemRowCounter}</h4>
+        <div class="search-input-container">
+            <label for="sale_item_search_${saleItemRowCounter}">Search Inventory Item:</label>
+            <input type="text" id="sale_item_search_${saleItemRowCounter}" class="sale-item-search-input" placeholder="Type name, set, location..." autocomplete="off" required>
+            <input type="hidden" name="inventory_item_id_with_prefix" class="selected-inventory-item-id" required>
+            <div class="search-results-dropdown sale-item-search-results"></div>
+        </div>
+        <div class="form-grid" style="margin-top:10px;">
+            <div><label for="sale_item_qty_${saleItemRowCounter}">Quantity Sold:</label><input type="number" id="sale_item_qty_${saleItemRowCounter}" name="quantity_sold" class="sale-item-qty" min="1" required></div>
+            <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" required placeholder="$0.00"></div>
+        </div>
+        <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
+    if(saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv);
+    const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
+    if (searchInput) attachSearchListenerToInput(searchInput);
+    const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
+    if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
+}
+
+function attachSearchListenerToInput(searchInput) {
+    const resultsDropdown = searchInput.parentElement.querySelector('.search-results-dropdown');
+    const hiddenIdInput = searchInput.parentElement.querySelector('.selected-inventory-item-id');
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim(); resultsDropdown.innerHTML = ''; if(hiddenIdInput) hiddenIdInput.value = '';
+        if (searchTerm.length < 1) { resultsDropdown.style.display = 'none'; return; }
+        const matchedItems = (saleInventoryOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
+        if (matchedItems.length > 0) {
+            resultsDropdown.style.display = 'block';
+            matchedItems.slice(0, 10).forEach(opt => {
+                const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = opt.display; itemDiv.dataset.itemId = opt.id;
+                itemDiv.addEventListener('click', function() { if(hiddenIdInput) hiddenIdInput.value = this.dataset.itemId; searchInput.value = this.textContent; resultsDropdown.innerHTML = ''; resultsDropdown.style.display = 'none'; });
+                resultsDropdown.appendChild(itemDiv);
+            });
+        } else { resultsDropdown.style.display = 'none'; }
+    });
+    document.addEventListener('click', function(event) { if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) { resultsDropdown.style.display = 'none'; }});
+}
+
+const shippingSuppliesUsedContainer = document.getElementById('shippingSuppliesUsedContainer');
+const addShippingSupplyToSaleBtn = document.getElementById('addShippingSupplyToSaleBtn');
+let shippingSupplyRowCounter = 0;
+
+function createShippingSupplyRow() {
+    shippingSupplyRowCounter++;
+    const itemRowDiv = document.createElement('div');
+    itemRowDiv.className = 'sale-item-row';
+    itemRowDiv.dataset.rowId = shippingSupplyRowCounter;
+    itemRowDiv.innerHTML = `
+        <h4>Shipping Supply ${shippingSupplyRowCounter}</h4>
+        <div class="search-input-container">
+            <label for="shipping_supply_search_${shippingSupplyRowCounter}">Search Shipping Supply:</label>
+            <input type="text" id="shipping_supply_search_${shippingSupplyRowCounter}" class="shipping-supply-search-input" placeholder="Type name, description..." autocomplete="off" required>
+            <input type="hidden" name="shipping_supply_id" class="selected-shipping-supply-id" required>
+            <div class="search-results-dropdown shipping-supply-search-results"></div>
+        </div>
+        <div class="form-grid" style="margin-top:10px;">
+            <div><label for="shipping_supply_qty_${shippingSupplyRowCounter}">Quantity Used:</label><input type="number" id="shipping_supply_qty_${shippingSupplyRowCounter}" name="quantity_used" class="shipping-supply-qty" min="1" required></div>
+        </div>
+        <button type="button" class="delete-button remove-shipping-supply-btn" style="margin-top:10px; font-size:0.9em;">Remove This Supply</button>`;
+    if(shippingSuppliesUsedContainer) shippingSuppliesUsedContainer.appendChild(itemRowDiv);
+
+    const searchInput = itemRowDiv.querySelector('.shipping-supply-search-input');
+    if (searchInput) attachShippingSupplySearchListener(searchInput);
+
+    const removeBtn = itemRowDiv.querySelector('.remove-shipping-supply-btn');
+    if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
+}
+
+function attachShippingSupplySearchListener(searchInput) {
+    const resultsDropdown = searchInput.parentElement.querySelector('.shipping-supply-search-results');
+    const hiddenIdInput = searchInput.parentElement.querySelector('.selected-shipping-supply-id');
+
+    searchInput.addEventListener('input', function() {
+        const searchTerm = this.value.toLowerCase().trim();
+        resultsDropdown.innerHTML = '';
+        if(hiddenIdInput) hiddenIdInput.value = '';
+
+        if (searchTerm.length < 1) {
+            resultsDropdown.style.display = 'none';
+            return;
         }
 
-        if (addItemToSaleBtn) { addItemToSaleBtn.addEventListener('click', createSaleItemRow); }
-        if (multiItemSaleForm) {
-            multiItemSaleForm.addEventListener('submit', async function(event) {
+        const matchedItems = (shippingSupplyOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
+
+        if (matchedItems.length > 0) {
+            resultsDropdown.style.display = 'block';
+            matchedItems.slice(0, 10).forEach(opt => {
+                const itemDiv = document.createElement('div');
+                itemDiv.classList.add('search-result-item');
+                itemDiv.textContent = opt.display;
+                itemDiv.dataset.supplyId = opt.id;
+                itemDiv.dataset.costPerUnit = opt.cost_per_unit;
+
+                itemDiv.addEventListener('click', function() {
+                    if(hiddenIdInput) hiddenIdInput.value = this.dataset.supplyId;
+                    searchInput.value = this.textContent;
+                    resultsDropdown.innerHTML = '';
+                    resultsDropdown.style.display = 'none';
+                });
+                resultsDropdown.appendChild(itemDiv);
+            });
+        } else {
+            resultsDropdown.style.display = 'none';
+        }
+    });
+
+    document.addEventListener('click', function(event) {
+        if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) {
+            resultsDropdown.style.display = 'none';
+        }
+    });
+}
+
+
+if (addItemToSaleBtn) { addItemToSaleBtn.addEventListener('click', createSaleItemRow); }
+if (addShippingSupplyToSaleBtn) {
+    addShippingSupplyToSaleBtn.addEventListener('click', createShippingSupplyRow);
+}
+
+if (multiItemSaleForm) {
+    multiItemSaleForm.addEventListener('submit', async function(event) {
+        event.preventDefault();
+        const saleData = {
+            sale_date: document.getElementById('sale_event_date').value,
+            total_shipping_cost: document.getElementById('sale_event_shipping_cost').value,
+            notes: document.getElementById('sale_event_notes').value,
+            customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value,
+            platform_fee: document.getElementById('sale_event_platform_fee').value,
+            items: [],
+            shipping_supplies_used: []
+        };
+
+        const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
+        if (itemRows.length === 0) { alert("Please add at least one item to the sale."); return; }
+        let formIsValid = true;
+        itemRows.forEach(row => {
+            const itemIdWithPrefix = row.querySelector('.selected-inventory-item-id').value;
+            const qty = row.querySelector('.sale-item-qty').value;
+            const price = row.querySelector('.sale-item-price').value;
+            if (!itemIdWithPrefix || !qty || qty < 1 || !price || price < 0) { formIsValid = false; }
+            saleData.items.push({ inventory_item_id_with_prefix: itemIdWithPrefix, quantity_sold: qty, sell_price_per_item: price });
+        });
+
+        const shippingSupplyRows = shippingSuppliesUsedContainer ? shippingSuppliesUsedContainer.querySelectorAll('.sale-item-row') : [];
+        shippingSupplyRows.forEach(row => {
+            const supplyId = row.querySelector('.selected-shipping-supply-id').value;
+            const qtyUsed = row.querySelector('.shipping-supply-qty').value;
+            if (!supplyId || !qtyUsed || qtyUsed < 1) { formIsValid = false; }
+            saleData.shipping_supplies_used.push({ supply_item_id: supplyId, quantity_used: qtyUsed });
+        });
+
+        if (!formIsValid) { alert("Please ensure all item and shipping supply details (selected item/supply, valid quantity, valid price) are filled for each entry."); return; }
+        try {
+            const response = await fetch("{{ url_for('record_multi_item_sale_route') }}", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saleData) });
+            const result = await response.json();
+            if (response.ok && result.success) { window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}"; }
+            else { alert("Error recording sale: " + (result.message || "Unknown server error.")); }
+        } catch (error) { console.error("Error submitting sale:", error); alert("An unexpected error occurred."); }
+    });
+        }
+
+        const massEditForm = document.getElementById('massEditForm');
+        const massEditFieldSelect = document.getElementById('massEditField');
+        const massEditValueInput = document.getElementById('massEditValue');
+
+        if (massEditForm) {
+            massEditForm.addEventListener('submit', async function (event) {
                 event.preventDefault();
-                const saleData = {
-                    sale_date: document.getElementById('sale_event_date').value,
-                    total_shipping_cost: document.getElementById('sale_event_shipping_cost').value, // Your cost
-                    notes: document.getElementById('sale_event_notes').value,
-                    customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value, // NEW
-                    platform_fee: document.getElementById('sale_event_platform_fee').value,                         // NEW
-                    items: []
+
+                const selectedItemTypeFilter = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
+                if (selectedItemTypeFilter === 'all') {
+                    alert("For mass edits, you must specify an 'Item Type' other than 'All Types' to prevent unintended changes across different item categories. Please select 'Single Cards', 'Sealed Products', or 'Shipping Supplies'.");
+                    return;
+                }
+
+                const fieldToChange = massEditFieldSelect.value;
+                const newValue = massEditValueInput.value;
+
+                if (!fieldToChange) {
+                    alert("Please select a 'Field to Change'.");
+                    return;
+                }
+                if (newValue.trim() === '') {
+                    alert("Please enter a 'New Value / Percentage'.");
+                    return;
+                }
+
+                const currentFilters = {
+                    item_type: selectedItemTypeFilter,
+                    filter_text: inventoryFilterInput ? inventoryFilterInput.value : '',
+                    filter_location: inventoryLocationFilter ? inventoryLocationFilter.value : 'all',
+                    filter_set: inventorySetFilter ? inventorySetFilter.value : 'all',
+                    filter_foil: inventoryFoilFilter ? inventoryFoilFilter.value : 'all',
+                    filter_rarity: inventoryRarityFilter ? inventoryRarityFilter.value : 'all',
+                    filter_card_lang: inventoryCardLanguageFilter ? inventoryCardLanguageFilter.value : 'all',
+                    filter_condition: inventoryConditionFilter ? inventoryConditionFilter.value : 'all',
+                    filter_collector: inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all',
+                    filter_sealed_lang: inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all'
                 };
 
-                const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
-                if (itemRows.length === 0) { alert("Please add at least one item to the sale."); return; }
-                let formIsValid = true;
-                itemRows.forEach(row => {
-                    const itemIdWithPrefix = row.querySelector('.selected-inventory-item-id').value; const qty = row.querySelector('.sale-item-qty').value; const price = row.querySelector('.sale-item-price').value;
-                    if (!itemIdWithPrefix || !qty || qty < 1 || !price || price < 0) { formIsValid = false; }
-                    saleData.items.push({ inventory_item_id_with_prefix: itemIdWithPrefix, quantity_sold: qty, sell_price_per_item: price });
-                });
-                if (!formIsValid) { alert("Please ensure all item details (selected item, valid quantity, valid price) are filled for each item."); return; }
+                let affectedTypesMessage = "";
+                switch (currentFilters.item_type) {
+                    case 'single_card':
+                        affectedTypesMessage = "Single Cards Only";
+                        break;
+                    case 'sealed_product':
+                        affectedTypesMessage = "Sealed Products Only";
+                        break;
+                    case 'shipping_supply':
+                        affectedTypesMessage = "Shipping Supplies Only";
+                        break;
+                    default:
+                        affectedTypesMessage = "Specific Item Types";
+                }
+
+                let filterSummary = `\nActive Filters:\n`;
+                for (const key in currentFilters) {
+                    if (key === 'item_type') continue;
+                    const displayKey = key.replace(/([A-Z])/g, ' $1').replace('filter ', '').replace('card ', 'Card ').replace('sealed ', 'Sealed ').replace('supply ', 'Supply ').replace('lang', 'Language').replace('foil', 'Foil').replace('collector', 'Collector').trim();
+                    const displayValue = currentFilters[key] === '' ? '[None]' : currentFilters[key];
+                    filterSummary += ` - ${displayKey}: ${displayValue}\n`;
+                }
+
+                const confirmMessage = `!!!! ABSOLUTE WARNING: MASS EDIT ACTION !!!!\n\n` +
+                    `This will apply "${newValue}" to the "${fieldToChange}" field for:\n` +
+                    `>>> ${affectedTypesMessage} <<<\n\n` +
+                    `that match the following current filters:` + filterSummary +
+                    `\nThis action cannot be undone. Are you absolutely sure you want to proceed?`;
+
+
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+
+                const payload = {
+                    filters: currentFilters,
+                    update_data: {
+                        [fieldToChange]: newValue
+                    }
+                };
+
                 try {
-                    const response = await fetch("{{ url_for('record_multi_item_sale_route') }}", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saleData) });
+                    const response = await fetch("{{ url_for('mass_edit_inventory_route') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
                     const result = await response.json();
-                    if (response.ok && result.success) { window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}"; /* Flash messages will be shown by Flask on redirect */ }
-                    else { alert("Error recording sale: " + (result.message || "Unknown server error.")); }
-                } catch (error) { console.error("Error submitting sale:", error); alert("An unexpected error occurred."); }
+
+                    if (response.ok && result.success) {
+                        alert(`Mass edit successful: ${result.message}`);
+                        window.location.reload();
+                    } else {
+                        alert(`Mass edit failed: ${result.message || 'Unknown error'}`);
+                    }
+                } catch (error) {
+                    console.error("Error during mass edit fetch:", error);
+                    alert("An unexpected error occurred during mass edit. Check console for details.");
+                }
             });
         }
 
-        // --- "Find Set by Symbol" Modal Functionality ---
-        const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
-        async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Loading...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Error loading.</p>"; } }
-        function renderSetSymbols(setsToRender) { if(!setSymbolListContainer) return; setSymbolListContainer.innerHTML = ""; if (!setsToRender || setsToRender.length === 0) { setSymbolListContainer.innerHTML = "<p>No sets found.</p>"; return; } setsToRender.forEach(set => { if (set && set.icon_svg_uri) { const itemDiv = document.createElement("div"); itemDiv.className = "set-symbol-item"; itemDiv.onclick = function() { selectSetSymbol(set.code); }; const img = document.createElement("img"); img.src = set.icon_svg_uri; img.alt = (getStr(set, 'name', 'Set')) + " symbol"; const detailsDiv = document.createElement("div"); detailsDiv.className = "set-details"; const nameSpan = document.createElement("span"); nameSpan.className = "set-name"; nameSpan.textContent = getStr(set, 'name', 'N/A'); const codeSpan = document.createElement("span"); codeSpan.className = "set-code"; codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`; detailsDiv.appendChild(nameSpan); detailsDiv.appendChild(codeSpan); itemDiv.appendChild(img); itemDiv.appendChild(detailsDiv); setSymbolListContainer.appendChild(itemDiv); } }); }
-        function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText))); renderSetSymbols(filteredSets); }
-        function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) setCodeAddInput.value = setCode.toUpperCase(); closeSetSymbolModal(); }
-        function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
-        function closeSetSymbolModal() { if (setSymbolModal) setSymbolModal.style.display = "none"; }
-        if (findSetBySymbolBtn) findSetBySymbolBtn.onclick = openSetSymbolModal; if (setSymbolSearchInput) setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); window.onclick = function(event) { if (event.target == setSymbolModal) closeSetSymbolModal(); }
+if (inventoryTypeFilter) {
+    let shippingSupplyOptionExists = false;
+    for (let i = 0; i < inventoryTypeFilter.options.length; i++) {
+        if (inventoryTypeFilter.options[i].value === 'shipping_supply') {
+            shippingSupplyOptionExists = true;
+            break;
+        }
+    }
 
-        // --- DOMContentLoaded ---
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log("DOM Content Loaded. Initializing.");
-            try {
-                openTab(null, activeTabFromFlask);
+    if (!shippingSupplyOptionExists) {
+        let insertBeforeOption = null;
+        for (let i = 0; i < inventoryTypeFilter.options.length; i++) {
+            if (inventoryTypeFilter.options[i].value === 'sealed_product') {
+                insertBeforeOption = inventoryTypeFilter.options[i];
+                break;
+            }
+        }
 
-                const applyBtn = document.getElementById('applyInventoryFiltersBtn');
-                if(applyBtn) applyBtn.addEventListener('click', applyFiltersAndSort);
+        const newOption = document.createElement('option');
+        newOption.value = 'shipping_supply';
+        newOption.textContent = 'Shipping Supplies';
 
-                if (inventoryFilterInput) { inventoryFilterInput.addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); applyFiltersAndSort(); } }); }
+        if (insertBeforeOption) {
+            inventoryTypeFilter.insertBefore(newOption, insertBeforeOption.nextSibling);
+        } else {
+            inventoryTypeFilter.appendChild(newOption);
+        }
 
-                if (sortAscBtn) sortAscBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
-                if (sortDescBtn) sortDescBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
+        const currentFilterType = "{{ filter_type }}";
+        if (currentFilterType === 'shipping_supply') {
+            newOption.selected = true;
+        }
+    }
+}
 
-                // Check if the Enter Sale section is active and if items container is empty
-                const salesHistoryTabDiv = document.getElementById('salesHistoryTab');
-                if (salesHistoryTabDiv && salesHistoryTabDiv.style.display === 'block' && saleItemsContainer && saleItemsContainer.children.length === 0) {
-                    createSaleItemRow();
-                }
+const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
+async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Loading...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Error loading.</p>"; } }
 
-                // --- Collapsible Filters Logic ---
-                const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
-                const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls');
+// Function to render set symbols with theme-aware filter
+function renderSetSymbols(setsToRender) {
+    if(!setSymbolListContainer) return;
+    setSymbolListContainer.innerHTML = "";
+    if (!setsToRender || setsToRender.length === 0) {
+        setSymbolListContainer.innerHTML = "<p>No sets found.</p>";
+        return;
+    }
+    const isClassicMode = document.body.classList.contains('classic-mode');
+    setsToRender.forEach(set => {
+        if (set && set.icon_svg_uri) {
+            const itemDiv = document.createElement("div");
+            itemDiv.className = "set-symbol-item";
+            itemDiv.onclick = function() { selectSetSymbol(set.code); };
 
-                if (toggleInventoryFiltersBtn && filterControlsDiv) {
-                     // Check if any filter is active beyond default 'all' or empty text
-                    let filtersActive = (inventoryFilterInput && inventoryFilterInput.value !== '') ||
-                                        (inventoryTypeFilter && inventoryTypeFilter.value !== 'all') ||
-                                        (inventoryLocationFilter && inventoryLocationFilter.value !== 'all') ||
-                                        (inventorySetFilter && inventorySetFilter.value !== 'all') ||
-                                        (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
-                                        (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
-                                        (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
-                                        (inventoryConditionFilter && inventoryConditionFilter.value !== 'all') ||
-                                        (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
-                                        (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
-
-                    if (filtersActive) {
-                        filterControlsDiv.classList.add('expanded');
-                        toggleInventoryFiltersBtn.textContent = 'Hide Filters';
-                    } else if (window.innerWidth <= 768 && !filterControlsDiv.classList.contains('expanded')) {
-                         filterControlsDiv.classList.remove('expanded'); // Ensure it's collapsed on mobile by default
-                         toggleInventoryFiltersBtn.textContent = 'Show Filters';
-                    } else if (window.innerWidth > 768) {
-                        filterControlsDiv.classList.add('expanded'); // Expanded on desktop by default
-                        toggleInventoryFiltersBtn.style.display = 'none'; // Hide button on desktop
-                    }
+            const img = document.createElement("img");
+            img.src = set.icon_svg_uri;
+            img.alt = (getStr(set, 'name', 'Set')) + " symbol";
+            // Apply filter based on current theme
+            if (!isClassicMode) { // If not in classic mode (i.e., dark mode)
+                img.style.filter = 'brightness(0) invert(1)';
+            } else {
+                img.style.filter = 'none'; // No filter in classic mode
+            }
 
 
-                    toggleInventoryFiltersBtn.addEventListener('click', function() {
-                        const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
-                        if (isCurrentlyExpanded) {
-                            this.textContent = 'Hide Filters';
-                        } else {
-                            this.textContent = 'Show Filters';
-                        }
-                    });
-                }
-                // --- End Collapsible Filters Logic ---
+            const detailsDiv = document.createElement("div");
+            detailsDiv.className = "set-details";
 
-                // --- Hamburger Menu Logic ---
-                const hamburgerBtn = document.getElementById('hamburgerBtn');
-                const mainTabNav = document.getElementById('mainTabNav');
+            const nameSpan = document.createElement("span");
+            nameSpan.className = "set-name";
+            nameSpan.textContent = getStr(set, 'name', 'N/A');
 
-                if (hamburgerBtn && mainTabNav) {
-                    const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
+            const codeSpan = document.createElement("span");
+            codeSpan.className = "set-code";
+            codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`;
 
-                    hamburgerBtn.addEventListener('click', function() {
-                        const isOpen = mainTabNav.classList.toggle('open');
-                        hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
-                        if (isOpen) {
-                            hamburgerBtn.innerHTML = '&times;';
-                        } else {
-                            hamburgerBtn.innerHTML = '&#9776;';
-                        }
-                    });
+            detailsDiv.appendChild(nameSpan);
+            detailsDiv.appendChild(codeSpan);
+            itemDiv.appendChild(img);
+            itemDiv.appendChild(detailsDiv);
+            setSymbolListContainer.appendChild(itemDiv);
+        }
+    });
+}
+function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText))); renderSetSymbols(filteredSets); }
+function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) setCodeAddInput.value = setCode.toUpperCase(); closeSetSymbolModal(); }
+function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
+function closeSetSymbolModal() { if (setSymbolModal) setSymbolModal.style.display = "none"; }
+if (findSetBySymbolBtn) findSetBySymbolBtn.onclick = openSetSymbolModal; if (setSymbolSearchInput) setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); window.onclick = function(event) { if (event.target == setSymbolModal) closeSetSymbolModal(); }
 
-                    tabButtonsInMenu.forEach(button => {
-                        button.addEventListener('click', function() {
-                            if (mainTabNav.classList.contains('open')) {
-                                mainTabNav.classList.remove('open');
-                                hamburgerBtn.setAttribute('aria-expanded', 'false');
-                                hamburgerBtn.innerHTML = '&#9776;';
-                            }
-                        });
-                    });
-                }
-                // --- End Hamburger Menu Logic ---
+document.addEventListener('DOMContentLoaded', function() {
+    console.log("DOM Content Loaded. Initializing.");
+    try {
+        // --- Theme Switch Logic ---
+        const themeToggle = document.getElementById('themeToggle');
+        const currentTheme = localStorage.getItem('theme');
+        const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)"); // System preference
 
-                // --- Enhanced Custom File Input & Drag-Drop Logic ---
-                const csvDropZone = document.getElementById('csvDropZone');
-                const actualCsvFileInput = document.getElementById('csv_file');
-                const csvFileNameDisplay = document.getElementById('fileNameDisplay');
+        // Set initial theme
+        if (currentTheme) {
+            document.body.classList.toggle('classic-mode', currentTheme === 'classic');
+            themeToggle.checked = (currentTheme === 'classic'); // Check the toggle if classic mode is active
+        } else if (prefersDarkScheme.matches) {
+            // If no preference saved, default to dark if system prefers dark
+            document.body.classList.remove('classic-mode');
+            themeToggle.checked = false; // Dark mode is default (toggle unchecked)
+        } else {
+            // If no preference saved and system prefers light, default to classic
+            document.body.classList.add('classic-mode');
+            themeToggle.checked = true; // Classic mode is light (toggle checked)
+        }
 
-                if (actualCsvFileInput && csvFileNameDisplay) {
-                    actualCsvFileInput.addEventListener('change', function() {
-                        if (this.files && this.files.length > 0) {
-                            csvFileNameDisplay.textContent = this.files[0].name;
-                        } else {
-                            csvFileNameDisplay.textContent = 'No file chosen';
-                        }
-                    });
-                }
-
-                if (csvDropZone && actualCsvFileInput) {
-                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                        csvDropZone.addEventListener(eventName, preventDefaults, false);
-                        document.body.addEventListener(eventName, preventDefaults, false);
-                    });
-
-                    function preventDefaults(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                    }
-
-                    ['dragenter', 'dragover'].forEach(eventName => {
-                        csvDropZone.addEventListener(eventName, highlight, false);
-                    });
-
-                    ['dragleave', 'drop'].forEach(eventName => {
-                        csvDropZone.addEventListener(eventName, unhighlight, false);
-                    });
-
-                    function highlight(e) {
-                        csvDropZone.classList.add('dragover');
-                    }
-
-                    function unhighlight(e) {
-                        csvDropZone.classList.remove('dragover');
-                    }
-
-                    csvDropZone.addEventListener('drop', handleDrop, false);
-
-                    function handleDrop(e) {
-                        let dt = e.dataTransfer;
-                        let files = dt.files;
-
-                        if (files.length > 0) {
-                            actualCsvFileInput.files = files;
-                            const event = new Event('change', { bubbles: true });
-                            actualCsvFileInput.dispatchEvent(event);
-                        }
-                    }
-                }
-                // --- End Enhanced Custom File Input & Drag-Drop Logic ---
-
-                renderInventory();
-                renderSalesHistory();
-                console.log("Page initialization complete.");
-            } catch (e) {
-                console.error("Critical error during DOMContentLoaded setup:", e);
-                const body = document.querySelector('body'); if (body) { const errorDiv = document.createElement('div'); errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>"; errorDiv.style.color = "red"; errorDiv.style.padding = "20px"; errorDiv.style.textAlign = "center"; errorDiv.style.border = "2px solid red"; errorDiv.style.margin = "20px"; const h1 = document.querySelector('h1'); if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling); else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild); else body.appendChild(errorDiv); }
+        // Event listener for theme toggle
+        themeToggle.addEventListener('change', function() {
+            if (this.checked) {
+                document.body.classList.add('classic-mode');
+                localStorage.setItem('theme', 'classic');
+            } else {
+                document.body.classList.remove('classic-mode');
+                localStorage.setItem('theme', 'dark');
+            }
+            // Re-render set symbols if modal is open to apply correct filter
+            if (setSymbolModal && setSymbolModal.style.display === 'block') {
+                 renderSetSymbols(allScryfallSets);
             }
         });
-    </script>
 
+
+        openTab(null, activeTabFromFlask);
+
+        const applyBtn = document.getElementById('applyInventoryFiltersBtn');
+        if(applyBtn) applyBtn.addEventListener('click', applyFiltersAndSort);
+
+        if (inventoryFilterInput) { inventoryFilterInput.addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); applyFiltersAndSort(); } }); }
+
+        if (sortAscBtn) sortAscBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
+        if (sortDescBtn) sortDescBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
+
+        const salesHistoryTabDiv = document.getElementById('salesHistoryTab');
+        if (salesHistoryTabDiv && salesHistoryTabDiv.style.display === 'block') {
+            if (saleItemsContainer && saleItemsContainer.children.length === 0) {
+                createSaleItemRow();
+            }
+            if (shippingSuppliesUsedContainer && shippingSuppliesUsedContainer.children.length === 0) {
+                createShippingSupplyRow();
+            }
+        }
+
+        const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
+        const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls');
+
+        if (toggleInventoryFiltersBtn && filterControlsDiv) {
+            let filtersActive = (inventoryFilterInput && inventoryFilterInput.value !== '') ||
+                                (inventoryTypeFilter && inventoryTypeFilter.value !== 'all') ||
+                                (inventoryLocationFilter && inventoryLocationFilter.value !== 'all') ||
+                                (inventorySetFilter && inventorySetFilter.value !== 'all') ||
+                                (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
+                                (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
+                                (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
+                                (inventoryConditionFilter && inventoryConditionFilter.value !== 'all') ||
+                                (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
+                                (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
+
+            if (filtersActive) {
+                filterControlsDiv.classList.add('expanded');
+                toggleInventoryFiltersBtn.textContent = 'Hide Filters';
+            } else if (window.innerWidth <= 768 && !filterControlsDiv.classList.contains('expanded')) {
+                 filterControlsDiv.classList.remove('expanded');
+                 toggleInventoryFiltersBtn.textContent = 'Show Filters';
+            } else if (window.innerWidth > 768) {
+                filterControlsDiv.classList.add('expanded');
+                toggleInventoryFiltersBtn.style.display = 'none';
+            }
+
+            toggleInventoryFiltersBtn.addEventListener('click', function() {
+                const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
+                if (isCurrentlyExpanded) {
+                    this.textContent = 'Hide Filters';
+                } else {
+                    this.textContent = 'Show Filters';
+                }
+            });
+        }
+
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mainTabNav = document.getElementById('mainTabNav');
+
+        if (hamburgerBtn && mainTabNav) {
+            const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
+
+            hamburgerBtn.addEventListener('click', function() {
+                const isOpen = mainTabNav.classList.toggle('open');
+                hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
+                if (isOpen) {
+                    hamburgerBtn.innerHTML = '&times;';
+                } else {
+                    hamburgerBtn.innerHTML = '&#9776;';
+                }
+            });
+
+            tabButtonsInMenu.forEach(button => {
+                button.addEventListener('click', function() {
+                    if (mainTabNav.classList.contains('open')) {
+                        mainTabNav.classList.remove('open');
+                        hamburgerBtn.setAttribute('aria-expanded', 'false');
+                        hamburgerBtn.innerHTML = '&#9776;';
+                    }
+                });
+            });
+        }
+
+        const csvDropZone = document.getElementById('csvDropZone');
+        const actualCsvFileInput = document.getElementById('csv_file');
+        const csvFileNameDisplay = document.getElementById('fileNameDisplay');
+
+        if (actualCsvFileInput && csvFileNameDisplay) {
+            actualCsvFileInput.addEventListener('change', function() {
+                if (this.files && this.files.length > 0) {
+                    csvFileNameDisplay.textContent = this.files[0].name;
+                } else {
+                    csvFileNameDisplay.textContent = 'No file chosen';
+                }
+            });
+        }
+
+        if (csvDropZone && actualCsvFileInput) {
+            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                csvDropZone.addEventListener(eventName, preventDefaults, false);
+                document.body.addEventListener(eventName, preventDefaults, false);
+            });
+
+            function preventDefaults(e) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+
+            ['dragenter', 'dragover'].forEach(eventName => {
+                csvDropZone.addEventListener(eventName, highlight, false);
+            });
+
+            ['dragleave', 'drop'].forEach(eventName => {
+                csvDropZone.addEventListener(eventName, unhighlight, false);
+            });
+
+            function highlight(e) {
+                csvDropZone.classList.add('dragover');
+            }
+
+            function unhighlight(e) {
+                csvDropZone.classList.remove('dragover');
+            }
+
+            csvDropZone.addEventListener('drop', handleDrop, false);
+
+            function handleDrop(e) {
+                let dt = e.dataTransfer;
+                let files = dt.files;
+
+                if (files.length > 0) {
+                    actualCsvFileInput.files = files;
+                    const event = new Event('change', { bubbles: true });
+                    actualCsvFileInput.dispatchEvent(event);
+                }
+            }
+        }
+
+        renderInventory();
+        renderSalesHistory();
+        console.log("Page initialization complete.");
+    } catch (e) {
+        console.error("Critical error during DOMContentLoaded setup:", e);
+        const body = document.querySelector('body'); if (body) { const errorDiv = document.createElement('div'); errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>"; errorDiv.style.color = "red"; errorDiv.style.padding = "20px"; errorDiv.style.textAlign = "center"; errorDiv.style.border = "2px solid red"; errorDiv.style.margin = "20px"; const h1 = document.querySelector('h1'); if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling); else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild); else body.appendChild(errorDiv); }
+    }
+});
+    </script>
 </body>
 </html>

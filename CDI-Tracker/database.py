@@ -1,9 +1,9 @@
 import psycopg2
 import psycopg2.extras
 import datetime
-import os # Recommended for handling connection details securely
-from dotenv import load_dotenv 
-load_dotenv() 
+import os
+from dotenv import load_dotenv
+load_dotenv()
 
 # --- PostgreSQL Connection Details ---
 # It is recommended to use environment variables for security.
@@ -34,8 +34,8 @@ def init_db():
     print("Cursor obtained. Dropping sales table if exists (legacy)...")
     # For development, dropping the old sales table if schema changes.
     # In production, use migrations.
-    cursor.execute("DROP TABLE IF EXISTS sales") # This line was in the original file
-    
+    cursor.execute("DROP TABLE IF EXISTS sales")
+
     print("Attempting to create cards table...")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
@@ -89,13 +89,15 @@ def init_db():
     CREATE TABLE IF NOT EXISTS sale_events (
         id SERIAL PRIMARY KEY,
         sale_date DATE NOT NULL,
-        total_shipping_cost REAL DEFAULT 0.0, -- Your cost to ship
+        total_shipping_cost REAL DEFAULT 0.0, -- Your postage cost + supplies cost for the sale
         notes TEXT,
         total_profit_loss REAL,
         date_recorded TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         customer_shipping_charge REAL DEFAULT 0.0, -- What customer paid for shipping
-        platform_fee REAL DEFAULT 0.0            -- Platform fees for the sale
+        platform_fee REAL DEFAULT 0.0,           -- Platform fees for the sale
+        total_supplies_cost_for_sale REAL DEFAULT 0.0 -- NEW: Cost of shipping supplies used for this specific sale
     )
+
     ''')
     print("Sale_events table creation attempted.")
 
@@ -133,6 +135,25 @@ def init_db():
     ''')
     print("Financial_entries table creation attempted.")
 
+    # NEW TABLE: shipping_supplies_inventory
+    print("Attempting to create shipping_supplies_inventory table...")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shipping_supplies_inventory (
+            id SERIAL PRIMARY KEY,
+            supply_name TEXT NOT NULL,
+            description TEXT,
+            unit_of_measure TEXT NOT NULL DEFAULT 'unit',
+            purchase_date DATE NOT NULL,
+            quantity_on_hand INTEGER NOT NULL,
+            cost_per_unit REAL NOT NULL,
+            location TEXT,
+            date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(supply_name, description, unit_of_measure, purchase_date, cost_per_unit, location)
+        );
+    ''')
+    print("shipping_supplies_inventory table creation attempted.")
+
     # This block fixes the constraint on EXISTING databases.
     try:
         print("Checking for old unique constraint on 'cards' table...")
@@ -146,7 +167,7 @@ def init_db():
             print("Old constraint dropped.")
         else:
             print("Old constraint not found, skipping drop.")
-            
+
         # Check if the NEW constraint exists before trying to add it
         print("Checking for new unique constraint on 'cards' table...")
         cursor.execute("""
@@ -161,12 +182,12 @@ def init_db():
             print("New constraint added.")
         else:
             print("New constraint already exists.")
-            
+
         conn.commit()
     except psycopg2.Error as e:
         print(f"Error during constraint update: {e}")
         conn.rollback()
-    
+
     print("Checking and adding columns if they don't exist...")
     _check_and_add_column(cursor, 'cards', 'last_updated', 'TIMESTAMP')
     _check_and_add_column(cursor, 'cards', 'scryfall_id', 'TEXT')
@@ -174,10 +195,17 @@ def init_db():
     _check_and_add_column(cursor, 'cards', 'language', 'TEXT')
     _check_and_add_column(cursor, 'cards', 'condition', 'TEXT')
     _check_and_add_column(cursor, 'sealed_products', 'last_updated', 'TIMESTAMP')
+    _check_and_add_column(cursor, 'sale_events', 'total_supplies_cost_for_sale', 'REAL DEFAULT 0.0')
     _check_and_add_column(cursor, 'sale_events', 'customer_shipping_charge', 'REAL DEFAULT 0.0')
     _check_and_add_column(cursor, 'sale_events', 'platform_fee', 'REAL DEFAULT 0.0')
     print("All column checks attempted.")
-        
+
+    # NEW: Check and add columns for shipping_supplies_inventory if needed (e.g., if schema evolves)
+    _check_and_add_column(cursor, 'shipping_supplies_inventory', 'description', 'TEXT')
+    _check_and_add_column(cursor, 'shipping_supplies_inventory', 'unit_of_measure', 'TEXT DEFAULT \'unit\'')
+    _check_and_add_column(cursor, 'shipping_supplies_inventory', 'location', 'TEXT')
+
+
     print("Attempting to commit final changes...")
     conn.commit()
     print("Changes committed.")
@@ -197,7 +225,7 @@ def _check_and_add_column(cursor, table_name, column_name, column_type):
             print(f"Added column '{column_name}' to table '{table_name}'.")
     except psycopg2.Error as e:
         print(f"Error checking/adding column '{column_name}' to '{table_name}': {e}")
-        if cursor.connection: 
+        if cursor.connection:
             cursor.connection.rollback()
 
 
@@ -212,7 +240,7 @@ def get_item_by_id(item_type, item_id):
         table_name = 'sealed_products'
     else:
         conn.close()
-        return None 
+        return None
 
     try:
         cursor.execute(f"SELECT * FROM {table_name} WHERE id = %s", (item_id,))
@@ -234,12 +262,12 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
     timestamp = datetime.datetime.now()
     is_foil_db_val = 1 if is_foil else 0
     card_id = None
-    
+
     try:
         # Check if an identical card already exists
         cursor.execute(
             """SELECT id, quantity FROM cards
-               WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s 
+               WHERE set_code = %s AND collector_number = %s AND is_foil = %s AND location = %s
                AND rarity = %s AND language = %s AND buy_price = %s AND condition = %s""",
             (set_code, collector_number, is_foil_db_val, location, rarity, language, buy_price, condition)
         )
@@ -254,7 +282,7 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
                        market_price_usd = %s, foil_market_price_usd = %s, image_uri = %s,
                        sell_price = %s, name = %s, scryfall_id = %s
                    WHERE id = %s""",
-                (new_quantity, timestamp, market_price_usd, foil_market_price_usd, image_uri, 
+                (new_quantity, timestamp, market_price_usd, foil_market_price_usd, image_uri,
                  sell_price, name, scryfall_id, existing_card['id'])
             )
             card_id = existing_card['id']
@@ -262,18 +290,18 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
         else:
             # Card does not exist, so insert a new row
             cursor.execute(
-                """INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil, 
-                                     market_price_usd, foil_market_price_usd, image_uri, sell_price, 
+                """INSERT INTO cards (set_code, collector_number, name, quantity, buy_price, is_foil,
+                                     market_price_usd, foil_market_price_usd, image_uri, sell_price,
                                      location, date_added, last_updated, scryfall_id, rarity, language, condition)
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
-                (set_code, collector_number, name, quantity, buy_price, is_foil_db_val, 
-                 market_price_usd, foil_market_price_usd, image_uri, sell_price, 
+                (set_code, collector_number, name, quantity, buy_price, is_foil_db_val,
+                 market_price_usd, foil_market_price_usd, image_uri, sell_price,
                  location, timestamp, timestamp, scryfall_id, rarity, language, condition)
             )
             card_id = cursor.fetchone()['id']
             print(f"SUCCESS (Inserted): Added {quantity} x {name} ({set_code.upper()}) [{condition}] to inventory.")
-        
+
         conn.commit()
         return card_id
 
@@ -282,6 +310,359 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
         if conn:
             conn.rollback()
         return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchase_date_str, quantity, total_purchase_amount, location): # Change 1: Renamed parameter
+    """
+    Adds a new batch of shipping supplies to inventory or updates an existing identical batch.
+    Calculates cost_per_unit from total_purchase_amount and quantity.
+    An identical batch matches on name, description, unit_of_measure, purchase_date, cost_per_unit, and location.
+    Automatically adds an expense entry to the financial ledger for the total purchase amount.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    timestamp = datetime.datetime.now()
+    supply_batch_id = None
+
+    try:
+        purchase_date_obj = datetime.datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
+
+        # Change 2: Calculate cost_per_unit from total_purchase_amount and quantity
+        calculated_cost_per_unit = round(float(total_purchase_amount) / quantity, 2) if quantity > 0 else 0.0
+
+        # Check if an identical batch already exists (now using calculated_cost_per_unit)
+        cursor.execute(
+            """SELECT id, quantity_on_hand FROM shipping_supplies_inventory
+               WHERE supply_name = %s AND description = %s AND unit_of_measure = %s
+               AND purchase_date = %s AND cost_per_unit = %s AND location = %s""", # Change 3: Used calculated_cost_per_unit in WHERE
+            (supply_name, description, unit_of_measure, purchase_date_obj, calculated_cost_per_unit, location)
+        )
+        existing_batch = cursor.fetchone()
+
+        if existing_batch:
+            # Batch exists, so update its quantity
+            new_quantity = existing_batch['quantity_on_hand'] + quantity
+            cursor.execute(
+                """UPDATE shipping_supplies_inventory
+                   SET quantity_on_hand = %s, last_updated = %s
+                   WHERE id = %s""",
+                (new_quantity, timestamp, existing_batch['id'])
+            )
+            supply_batch_id = existing_batch['id']
+            print(f"SUCCESS (Updated): Added {quantity} x {supply_name} ({description}) to existing batch. New Qty: {new_quantity}")
+        else:
+            # Batch does not exist, so insert a new row
+            cursor.execute(
+                """INSERT INTO shipping_supplies_inventory (supply_name, description, unit_of_measure, purchase_date,
+                                                             quantity_on_hand, cost_per_unit, location, date_added, last_updated)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                   RETURNING id""",
+                (supply_name, description, unit_of_measure, purchase_date_obj,
+                 quantity, calculated_cost_per_unit, location, timestamp, timestamp) # Change 4: Used calculated_cost_per_unit in INSERT
+            )
+            supply_batch_id = cursor.fetchone()['id']
+            print(f"SUCCESS (Inserted): Added new batch of {quantity} x {supply_name} ({description}) at {calculated_cost_per_unit} per unit.")
+
+        # Change 5: Automatic ledger entry for the purchase
+        if supply_batch_id: # Only add to ledger if the supply batch was successfully added/updated
+            entry_description = f"Purchase: {supply_name} ({description}) - {quantity} units"
+            entry_category = "Shipping Supplies"
+            entry_type = "expense"
+            entry_amount = float(total_purchase_amount) # Use the total purchase amount for the ledger
+            notes = f"Auto-generated from adding supply batch ID {supply_batch_id}"
+
+            cursor.execute("""
+                INSERT INTO financial_entries (entry_date, description, category, entry_type, amount, notes)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (purchase_date_obj, entry_description, entry_category, entry_type, entry_amount, notes))
+            print(f"SUCCESS: Added financial entry for shipping supply purchase: {entry_description} - ${entry_amount}")
+
+
+        conn.commit()
+        return supply_batch_id
+
+    except psycopg2.IntegrityError as ie:
+        print(f"DB IntegrityError in add_shipping_supply_batch for {supply_name}: {ie}")
+        if conn: conn.rollback()
+        return None
+    except psycopg2.Error as e:
+        print(f"DB Error in add_shipping_supply_batch for {supply_name}: {e}")
+        if conn: conn.rollback()
+        return None
+    except ValueError as e:
+        print(f"Value Error in add_shipping_supply_batch (e.g., date parsing or quantity/total_purchase_amount): {e}")
+        if conn: conn.rollback()
+        return None
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
+def get_all_shipping_supplies():
+    """Retrieves all shipping supply batches with quantity > 0, ordered by name and purchase date."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    supplies = []
+    try:
+        cursor.execute("SELECT * FROM shipping_supplies_inventory WHERE quantity_on_hand > 0 ORDER BY supply_name, description, purchase_date ASC")
+        supplies = cursor.fetchall()
+    except psycopg2.Error as e:
+        print(f"DB error in get_all_shipping_supplies: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return supplies
+
+def get_shipping_supply_by_id(supply_id):
+    """Retrieves a single shipping supply batch by its ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    supply = None
+    try:
+        cursor.execute("SELECT * FROM shipping_supplies_inventory WHERE id = %s", (supply_id,))
+        supply = cursor.fetchone()
+    except psycopg2.Error as e:
+        print(f"DB error in get_shipping_supply_by_id for ID {supply_id}: {e}")
+    finally:
+        cursor.close()
+        conn.close()
+    return supply
+
+def delete_shipping_supply(supply_id):
+    """Deletes a shipping supply batch by its ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    deleted = False
+    try:
+        cursor.execute("DELETE FROM shipping_supplies_inventory WHERE id = %s", (supply_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB error in delete_shipping_supply for ID {supply_id}: {e}")
+        if conn: conn.rollback()
+    finally:
+        cursor.close()
+        conn.close()
+    return deleted
+
+def update_shipping_supply_fields(supply_id, data_to_update_from_app):
+    """
+    Updates fields of a specific shipping supply batch.
+    Expected fields: quantity_on_hand, cost_per_unit, location, description, unit_of_measure.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    allowed_fields_for_update = {'quantity_on_hand', 'cost_per_unit', 'location', 'description', 'unit_of_measure'}
+    fields_to_set_in_sql = []
+    values_for_sql_query = []
+
+    if not data_to_update_from_app:
+        conn.close()
+        return False, "No changes were submitted."
+
+    for field_key, new_value in data_to_update_from_app.items():
+        if field_key not in allowed_fields_for_update:
+            print(f"DB Warning: Field '{field_key}' not allowed for update_shipping_supply_fields.")
+            continue
+
+        fields_to_set_in_sql.append(f"{field_key} = %s")
+        values_for_sql_query.append(new_value)
+
+    if not fields_to_set_in_sql:
+        conn.close()
+        return False, "No valid data fields for shipping supply update."
+
+    fields_to_set_in_sql.append("last_updated = %s")
+    values_for_sql_query.append(datetime.datetime.now())
+    sql_set_clause = ", ".join(fields_to_set_in_sql)
+    final_sql_values_tuple = tuple(values_for_sql_query + [supply_id])
+    sql_query_string = f"UPDATE shipping_supplies_inventory SET {sql_set_clause} WHERE id = %s"
+
+    try:
+        cursor.execute(sql_query_string, final_sql_values_tuple)
+        conn.commit()
+        updated_rows = cursor.rowcount
+        return (True, "Shipping supply batch updated successfully.") if updated_rows > 0 else (False, "Shipping supply batch not found or data identical.")
+    except psycopg2.IntegrityError as e:
+        print(f"DB IntegrityError update shipping_supply {supply_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"Update failed (integrity): {e}"
+    except psycopg2.Error as e:
+        print(f"DB error update shipping_supply {supply_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"DB error: {e}"
+    finally:
+        cursor.close()
+        conn.close()
+
+def mass_update_inventory_items(filters, update_data):
+    """
+    Performs a mass update on inventory items (cards, sealed products, or shipping supplies)
+    based on provided filters and update data.
+
+    :param filters: A dictionary of filter criteria (e.g., {'item_type': 'single_card', 'location': 'Box 1'}).
+                    Expected keys: item_type, filter_text, filter_location, filter_set, filter_foil,
+                                   filter_rarity, filter_card_lang, filter_condition, filter_collector,
+                                   filter_sealed_lang.
+    :param update_data: A dictionary of fields to update and their new values
+                        (e.g., {'location': 'New Box', 'buy_price_change_percentage': 10}).
+                        Special keys: 'buy_price_change_percentage', 'manual_market_price_change_percentage'.
+    :return: Tuple (success_boolean, message, count_updated)
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    updated_count = 0
+    messages = []
+    
+    item_type = filters.get('item_type', 'all')
+
+    tables_to_update = []
+    if item_type == 'all':
+        tables_to_update = ['cards', 'sealed_products', 'shipping_supplies_inventory']
+    elif item_type == 'single_card':
+        tables_to_update = ['cards']
+    elif item_type == 'sealed_product':
+        tables_to_update = ['sealed_products']
+    elif item_type == 'shipping_supply':
+        tables_to_update = ['shipping_supplies_inventory']
+    else:
+        return False, "Invalid item type specified for mass update.", 0
+
+    try:
+        for table_name in tables_to_update:
+            where_clauses = []
+            where_values = []
+            set_clauses = []
+            set_values = []
+
+            # --- Construct WHERE clauses based on filters ---
+            if filters.get('filter_text'):
+                search_term = f"%{filters['filter_text']}%"
+                if table_name == 'cards':
+                    where_clauses.append("(LOWER(name) LIKE %s OR LOWER(set_code) LIKE %s OR LOWER(location) LIKE %s OR LOWER(collector_number) LIKE %s OR LOWER(rarity) LIKE %s OR LOWER(language) LIKE %s)")
+                    where_values.extend([search_term, search_term, search_term, search_term, search_term, search_term])
+                elif table_name == 'sealed_products':
+                    where_clauses.append("(LOWER(product_name) LIKE %s OR LOWER(set_name) LIKE %s OR LOWER(location) LIKE %s OR LOWER(product_type) LIKE %s OR LOWER(language) LIKE %s)")
+                    where_values.extend([search_term, search_term, search_term, search_term, search_term])
+                elif table_name == 'shipping_supplies_inventory':
+                    where_clauses.append("(LOWER(supply_name) LIKE %s OR LOWER(description) LIKE %s OR LOWER(location) LIKE %s OR LOWER(unit_of_measure) LIKE %s)")
+                    where_values.extend([search_term, search_term, search_term, search_term])
+
+            if filters.get('filter_location') and filters['filter_location'] != 'all':
+                if table_name in ['cards', 'sealed_products', 'shipping_supplies_inventory']:
+                    where_clauses.append("LOWER(location) = LOWER(%s)")
+                    where_values.append(filters['filter_location'])
+
+            # Type-specific filters (only apply if the table matches the filter context)
+            if table_name == 'cards':
+                if filters.get('filter_set') and filters['filter_set'] != 'all':
+                    # CORRECTED LINE: Only reference set_code for the 'cards' table
+                    where_clauses.append("LOWER(set_code) = LOWER(%s)")
+                    where_values.append(filters['filter_set'])
+                if filters.get('filter_foil') != 'all':
+                    is_foil_val = 1 if filters['filter_foil'] == 'yes' else 0
+                    where_clauses.append("is_foil = %s")
+                    where_values.append(is_foil_val)
+                if filters.get('filter_rarity') and filters['filter_rarity'] != 'all':
+                    where_clauses.append("LOWER(rarity) = LOWER(%s)")
+                    where_values.append(filters['filter_rarity'])
+                if filters.get('filter_card_lang') and filters['filter_card_lang'] != 'all':
+                    where_clauses.append("LOWER(language) = LOWER(%s)")
+                    where_values.append(filters['filter_card_lang'])
+                if filters.get('filter_condition') and filters['filter_condition'] != 'all':
+                    where_clauses.append("LOWER(condition) = LOWER(%s)")
+                    where_values.append(filters['filter_condition'])
+            
+            if table_name == 'sealed_products':
+                if filters.get('filter_set') and filters['filter_set'] != 'all':
+                    where_clauses.append("LOWER(set_name) = LOWER(%s)")
+                    where_values.append(filters['filter_set'])
+                if filters.get('filter_collector') != 'all':
+                    is_collector_val = 1 if filters['filter_collector'] == 'yes' else 0
+                    where_clauses.append("is_collectors_item = %s")
+                    where_values.append(is_collector_val)
+                if filters.get('filter_sealed_lang') and filters['filter_sealed_lang'] != 'all':
+                    where_clauses.append("LOWER(language) = LOWER(%s)")
+                    where_values.append(filters['filter_sealed_lang'])
+
+            # No specific filter for shipping supplies beyond general text and location, as per current design.
+
+            # Ensure we only update items that have a quantity > 0
+            if table_name in ['cards', 'sealed_products']:
+                 where_clauses.append("quantity > 0")
+            elif table_name == 'shipping_supplies_inventory':
+                 where_clauses.append("quantity_on_hand > 0")
+
+            # --- Construct SET clauses based on update_data ---
+            for field, value in update_data.items():
+                if field == 'location':
+                    set_clauses.append("location = %s")
+                    set_values.append(value)
+                elif field == 'sell_price': # Applicable to cards and sealed
+                    if table_name in ['cards', 'sealed_products']:
+                        set_clauses.append("sell_price = %s")
+                        set_values.append(value)
+                elif field == 'condition': # Applicable to cards only
+                    if table_name == 'cards':
+                        set_clauses.append("condition = %s")
+                        set_values.append(value)
+                elif field == 'buy_price_change_percentage': # Applicable to cards and sealed
+                    if table_name in ['cards', 'sealed_products']:
+                        # Ensure buy_price is not NULL to avoid errors
+                        set_clauses.append("buy_price = COALESCE(buy_price, 0) * (1 + %s / 100.0)")
+                        set_values.append(value)
+                elif field == 'manual_market_price_change_percentage': # Applicable to sealed only
+                    if table_name == 'sealed_products':
+                        # Ensure manual_market_price is not NULL
+                        set_clauses.append("manual_market_price = COALESCE(manual_market_price, 0) * (1 + %s / 100.0)")
+                        set_values.append(value)
+                elif field == 'cost_per_unit_change_percentage': # Applicable to shipping supplies only
+                    if table_name == 'shipping_supplies_inventory':
+                         set_clauses.append("cost_per_unit = COALESCE(cost_per_unit, 0) * (1 + %s / 100.0)")
+                         set_values.append(value)
+                elif field == 'unit_of_measure': # Applicable to shipping supplies only
+                    if table_name == 'shipping_supplies_inventory':
+                        set_clauses.append("unit_of_measure = %s")
+                        set_values.append(value)
+                elif field == 'description': # Applicable to shipping supplies only
+                    if table_name == 'shipping_supplies_inventory':
+                        set_clauses.append("description = %s")
+                        set_values.append(value)
+                # Add more fields as needed
+
+            if not set_clauses: # If no valid fields to update for this table, skip.
+                continue
+            
+            # Always update last_updated timestamp
+            set_clauses.append("last_updated = CURRENT_TIMESTAMP")
+
+            sql_query = f"UPDATE {table_name} SET {', '.join(set_clauses)}"
+            if where_clauses:
+                sql_query += f" WHERE {' AND '.join(where_clauses)}"
+            
+            cursor.execute(sql_query, set_values + where_values)
+            rows_affected = cursor.rowcount
+            updated_count += rows_affected
+            messages.append(f"Updated {rows_affected} items in {table_name} table.")
+
+        conn.commit()
+        return True, "Mass update completed. " + " ".join(messages), updated_count
+
+    except psycopg2.Error as e:
+        print(f"DB Error during mass update: {e}")
+        if conn:
+            conn.rollback()
+        return False, f"Database error during mass update: {e}", 0
+    except Exception as e:
+        print(f"Unexpected error during mass update: {e}")
+        if conn:
+            conn.rollback()
+        return False, f"An unexpected error occurred during mass update: {e}", 0
     finally:
         if cursor:
             cursor.close()
@@ -307,7 +688,7 @@ def delete_sale_event(sale_event_id):
         # 1. Get all items from the sale event
         cursor.execute("""
             SELECT inventory_item_id, item_type, quantity_sold, original_item_name
-            FROM sale_items 
+            FROM sale_items
             WHERE sale_event_id = %s
         """, (sale_event_id,))
         items_sold = cursor.fetchall()
@@ -337,7 +718,7 @@ def delete_sale_event(sale_event_id):
             # Use the existing helper, ensuring it's suitable for positive quantity_change
             # _update_inventory_item_quantity_with_cursor adds quantity_change
             success_restock, msg_restock = _update_inventory_item_quantity_with_cursor(
-                cursor, item_type, inventory_id, quantity_to_restock 
+                cursor, item_type, inventory_id, quantity_to_restock
             )
             if not success_restock:
                 # If restocking a specific item fails, we'll roll back the whole transaction.
@@ -406,7 +787,7 @@ def get_card_by_id(card_id):
 
 def update_card_quantity(card_id, quantity_change):
     conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     try:
         cursor.execute("SELECT quantity FROM cards WHERE id = %s", (card_id,))
         result = cursor.fetchone()
@@ -514,7 +895,7 @@ def add_sealed_product(product_name, set_name, product_type, language, is_collec
     cursor = conn.cursor()
     timestamp = datetime.datetime.now()
     is_collectors_int = 1 if is_collectors_item else 0
-    prod_id = None 
+    prod_id = None
     try:
         current_buy_price = float(buy_price)
     except (ValueError, TypeError):
@@ -582,7 +963,7 @@ def get_sealed_product_by_id(product_id):
 
 def update_sealed_product_quantity(product_id, quantity_change):
     conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     try:
         cursor.execute("SELECT quantity FROM sealed_products WHERE id = %s", (product_id,))
         result = cursor.fetchone()
@@ -675,7 +1056,7 @@ def update_sealed_product_fields(product_id, data_to_update_from_app):
 def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quantity_change):
     table_name = 'cards' if item_type == 'single_card' else 'sealed_products'
     try:
-        cursor.execute(f"SELECT quantity FROM {table_name} WHERE id = %s", (item_id,))
+        cursor.execute(f"SELECT quantity FROM {table_name} WHERE id = %s FOR UPDATE", (item_id,))
         result = cursor.fetchone() # This cursor might be a plain cursor or DictCursor based on context
         if not result:
             return False, f"{item_type.replace('_', ' ').capitalize()} not found."
@@ -695,18 +1076,17 @@ def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quan
         print(f"DB error in _update_inventory_item_quantity_with_cursor for {table_name} ID {item_id}: {e}")
         return False, f"DB error during quantity update: {e}"
 
-def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app, 
-                           customer_shipping_charge_str, platform_fee_str): # Added new params
+def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app,
+                           customer_shipping_charge_str, platform_fee_str, shipping_supplies_data):
     conn = get_db_connection()
-    cursor = conn.cursor() 
+    cursor = conn.cursor()
     sale_event_id = None
-    total_items_profit_loss = 0.0 # Renamed for clarity
+    total_items_profit_loss = 0.0
+    total_shipping_supplies_cost = 0.0
 
     try:
         sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
-        # Your cost for shipping
-        our_total_shipping_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
-        # New fields
+        our_postage_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
         customer_shipping_charge = float(customer_shipping_charge_str if customer_shipping_charge_str and customer_shipping_charge_str.strip() != '' else 0.0)
         platform_fee = float(platform_fee_str if platform_fee_str and platform_fee_str.strip() != '' else 0.0)
 
@@ -716,20 +1096,51 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
         return None, f"Invalid date/shipping/fee: {e}"
 
     try:
+        # Step 1: Deduct shipping supplies and calculate their cost
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as supply_cursor:
+            for supply_data in shipping_supplies_data:
+                supply_id = supply_data.get('supply_item_id')
+                quantity_used = supply_data.get('quantity_used')
+
+                if not all([supply_id, quantity_used is not None]):
+                    raise ValueError(f"Missing/invalid shipping supply data: {supply_data}")
+
+                quantity_used = int(quantity_used)
+                if quantity_used <= 0:
+                    raise ValueError(f"Quantity used for supply {supply_id} must be positive.")
+
+                supply_cursor.execute("SELECT quantity_on_hand, cost_per_unit, supply_name, description FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (supply_id,))
+                supply_batch = supply_cursor.fetchone()
+
+                if not supply_batch:
+                    raise ValueError(f"Shipping supply ID {supply_id} not found.")
+
+                if supply_batch['quantity_on_hand'] < quantity_used:
+                    raise ValueError(f"Not enough '{supply_batch['supply_name']} ({supply_batch['description']})' in stock (Have: {supply_batch['quantity_on_hand']}, Need: {quantity_used}).")
+
+                cost_of_this_supply = supply_batch['cost_per_unit'] * quantity_used
+                total_shipping_supplies_cost += cost_of_this_supply
+
+                supply_cursor.execute(
+                    "UPDATE shipping_supplies_inventory SET quantity_on_hand = %s, last_updated = %s WHERE id = %s",
+                    (supply_batch['quantity_on_hand'] - quantity_used, datetime.datetime.now(), supply_id)
+                )
+                print(f"DB (sale transaction): Deducted {quantity_used} of supply ID {supply_id}. New Qty: {supply_batch['quantity_on_hand'] - quantity_used}")
+
+
+        # total_shipping_cost for the sale event is now postage + supplies cost
+        final_total_shipping_cost = our_postage_cost + total_shipping_supplies_cost
+
         # Insert new fields into sale_events
-        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes, customer_shipping_charge, platform_fee) 
-                          VALUES (%s, %s, %s, %s, %s) RETURNING id''',
-                       (sale_date_obj, our_total_shipping_cost, overall_notes, customer_shipping_charge, platform_fee))
+        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes, customer_shipping_charge, platform_fee, total_supplies_cost_for_sale)
+                          VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
+                       (sale_date_obj, final_total_shipping_cost, overall_notes, customer_shipping_charge, platform_fee, total_shipping_supplies_cost))
         result = cursor.fetchone()
         if result: sale_event_id = result[0]
         print(f"DB: Created sale_event ID {sale_event_id}")
 
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as item_read_cursor:
             for item_data in items_data_from_app:
-                # ... (existing logic to get item_type, inventory_item_id_int, quantity_sold, sell_price_per_item) ...
-                # Minor change: ensure you're using the correct sell_price_per_item for the calculation
-                # The item_profit_loss stored in sale_items is (sell_price_per_item - buy_price_per_item) * quantity_sold
-
                 inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix')
                 quantity_sold_str = item_data.get('quantity_sold')
                 sell_price_per_item_str = item_data.get('sell_price_per_item')
@@ -755,7 +1166,7 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                     raise ValueError("Qty/Sell Price invalid.")
 
                 table_name_for_read = 'cards' if item_type == 'single_card' else 'sealed_products'
-                item_read_cursor.execute(f"SELECT * FROM {table_name_for_read} WHERE id = %s", (inventory_item_id_int,))
+                item_read_cursor.execute(f"SELECT * FROM {table_name_for_read} WHERE id = %s FOR UPDATE", (inventory_item_id_int,))
                 original_item_db_row = item_read_cursor.fetchone()
 
                 if not original_item_db_row:
@@ -766,9 +1177,8 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
 
                 buy_price_per_item = float(original_item_db_row['buy_price'])
                 item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
-                total_items_profit_loss += item_profit_loss # Accumulate item-specific P/L
+                total_items_profit_loss += item_profit_loss
 
-                # ... (existing logic to get original_item_name_snapshot, original_item_details_snapshot) ...
                 original_item_name_snapshot = ""
                 original_item_details_snapshot = ""
                 if item_type == 'single_card':
@@ -792,8 +1202,8 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
 
         # Calculate the final P/L for the event including new fields
         # total_items_profit_loss = Sum of (item_sell_price - item_buy_price) * quantity_sold
-        # Net Event P/L = total_items_profit_loss + customer_shipping_charge - our_total_shipping_cost - platform_fee
-        final_event_profit_loss = total_items_profit_loss + customer_shipping_charge - our_total_shipping_cost - platform_fee
+        # Net Event P/L = total_items_profit_loss + customer_shipping_charge - final_total_shipping_cost - platform_fee
+        final_event_profit_loss = total_items_profit_loss + customer_shipping_charge - final_total_shipping_cost - platform_fee
 
         cursor.execute('''UPDATE sale_events SET total_profit_loss = %s WHERE id = %s''', (final_event_profit_loss, sale_event_id))
         conn.commit()
@@ -810,18 +1220,18 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
 def get_all_sale_events_with_items():
     conn = get_db_connection()
     # Use DictCursor to access columns by name
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) 
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
     sale_events_processed = []
     try:
         # Select all necessary fields from sale_events, including the new ones
         cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded,
-                                 customer_shipping_charge, platform_fee 
-                          FROM sale_events ORDER BY sale_date DESC, id DESC''')
+                                 customer_shipping_charge, platform_fee, total_supplies_cost_for_sale
+                         FROM sale_events ORDER BY sale_date DESC, id DESC''')
         events = cursor.fetchall()
         for event_row in events:
             # event_row is already a DictRow, so direct dictionary conversion is fine
-            event_dict = dict(event_row) 
-            
+            event_dict = dict(event_row)
+
             # Ensure dates are Python date/datetime objects
             # (PostgreSQL driver usually handles this, but good to be robust)
             if event_dict.get('sale_date') and isinstance(event_dict.get('sale_date'), str):
@@ -830,8 +1240,8 @@ def get_all_sale_events_with_items():
                 except ValueError:
                     # Handle or log cases where date might not be in expected string format
                     print(f"Warning: Could not parse sale_date string: {event_dict.get('sale_date')}")
-                    pass 
-            
+                    pass
+
             if event_dict.get('date_recorded') and isinstance(event_dict.get('date_recorded'), str):
                 try:
                     event_dict['date_recorded'] = datetime.datetime.fromisoformat(event_dict['date_recorded'])
@@ -846,15 +1256,15 @@ def get_all_sale_events_with_items():
                               FROM sale_items WHERE sale_event_id = %s ORDER BY id ASC''', (event_dict['id'],))
             items_raw = cursor.fetchall()
             # Convert item rows to dictionaries
-            event_dict['items'] = [dict(item_row) for item_row in items_raw] 
+            event_dict['items'] = [dict(item_row) for item_row in items_raw]
             sale_events_processed.append(event_dict)
-            
+
     except psycopg2.Error as e:
         print(f"DB Error in get_all_sale_events_with_items: {e}")
     finally:
-        if cursor: 
+        if cursor:
             cursor.close()
-        if conn: 
+        if conn:
             conn.close()
     return sale_events_processed
 
