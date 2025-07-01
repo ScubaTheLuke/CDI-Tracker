@@ -66,6 +66,28 @@ def index():
     financial_entries = database.get_all_financial_entries()
     sales_events_raw = database.get_all_sale_events_with_items()
     shipping_supplies_data = database.get_all_shipping_supplies() # This data contains datetime.date objects
+    shipping_supply_presets = database.get_all_shipping_supply_presets()
+
+
+
+    processed_shipping_supplies = []
+    total_shipping_supplies_quantity = 0
+    total_shipping_supplies_value = 0
+    for supply_row in shipping_supplies_data:
+        supply = dict(supply_row) # Convert DictRow to dict
+        total_shipping_supplies_quantity += supply.get('quantity_on_hand', 0)
+        total_shipping_supplies_value += (supply.get('quantity_on_hand', 0) * supply.get('cost_per_unit', 0))
+
+        # Convert date objects to string for JSON serialization
+        if isinstance(supply.get('purchase_date'), datetime.date):
+            supply['purchase_date'] = supply['purchase_date'].isoformat()
+        if isinstance(supply.get('date_added'), datetime.datetime):
+            supply['date_added'] = supply['date_added'].isoformat()
+        if isinstance(supply.get('last_updated'), datetime.datetime):
+            supply['last_updated'] = supply['last_updated'].isoformat()
+
+        processed_shipping_supplies.append(supply)
+
 
     sales_history_data_for_json = []
     for event in sales_events_raw:
@@ -399,13 +421,20 @@ def index():
 
     sale_inventory_options_json = json.dumps(sale_inventory_options)
 
-    # shipping_supply_options remains as is, as it uses processed_shipping_supplies directly
+      # shipping_supply_options remains as is, as it uses processed_shipping_supplies directly
     shipping_supply_options = []
     temp_sorted_supplies = sorted(processed_shipping_supplies, key=lambda x_sort: x_sort.get('supply_name', '').lower())
     for supply_opt in temp_sorted_supplies:
         display_text_val = f"{supply_opt['supply_name']} ({supply_opt.get('description', 'N/A')}) - Qty: {supply_opt['quantity_on_hand']} {supply_opt['unit_of_measure']} @ {format_currency_with_commas(supply_opt.get('cost_per_unit'))} each"
-        shipping_supply_options.append({"id": supply_opt['id'], "display": display_text_val, "cost_per_unit": supply_opt['cost_per_unit']})
+        shipping_supply_options.append({
+            "id": supply_opt['id'],
+            "display": display_text_val,
+            "cost_per_unit": supply_opt['cost_per_unit'],
+            "quantity_on_hand": supply_opt['quantity_on_hand'] # ADDED THIS LINE
+        })
     shipping_supply_options_json = json.dumps(shipping_supply_options)
+
+    shipping_supply_presets_json = json.dumps(shipping_supply_presets)
 
 
     return render_template('index.html',
@@ -450,8 +479,9 @@ def index():
                            all_conditions=all_conditions_for_template,
                            financial_entries=financial_entries,
                            total_cogs=total_cogs,
+                           shipping_supply_presets_json=shipping_supply_presets_json,
                            total_gross_sales=total_gross_sales,
-                           shipping_supplies_display_json=json.dumps(processed_shipping_supplies), # This is where the error should be resolved
+                           shipping_supplies_display_json=json.dumps(processed_shipping_supplies), 
                            shipping_supply_options_json=shipping_supply_options_json
                            )
 
@@ -501,6 +531,60 @@ def add_shipping_supply_route():
         flash(f"Failed to add/update shipping supply batch. Possible duplicate or DB issue.", 'error')
 
     return redirect(url_for('index', tab='addItemsTab'))
+
+
+@app.route('/add_shipping_supply_preset', methods=['POST'])
+def add_shipping_supply_preset_route():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No data received."}), 400
+
+        preset_name = data.get('name', '').strip()
+        preset_description = data.get('description', '').strip()
+        items = data.get('items', [])
+
+        if not preset_name:
+            return jsonify({"success": False, "message": "Preset name is required."}), 400
+        if not items:
+            return jsonify({"success": False, "message": "At least one supply item is required for a preset."}), 400
+
+        # Validate items: ensure supply_id and quantity are present and valid
+        for item in items:
+            if not isinstance(item, dict) or 'supply_id' not in item or 'quantity' not in item:
+                return jsonify({"success": False, "message": "Invalid item data in preset. Each item needs 'supply_id' and 'quantity'."}), 400
+            try:
+                item['supply_id'] = int(item['supply_id'])
+                item['quantity'] = int(item['quantity'])
+                if item['supply_id'] <= 0 or item['quantity'] <= 0:
+                    return jsonify({"success": False, "message": "Supply ID and quantity must be positive integers."}), 400
+            except ValueError:
+                return jsonify({"success": False, "message": "Supply ID and quantity must be valid integers."}), 400
+
+        preset_id = database.add_shipping_supply_preset(preset_name, preset_description, items) # 
+
+        if preset_id:
+            flash(f"Shipping supply preset '{preset_name}' added successfully!", 'success')
+            return jsonify({"success": True, "message": "Preset added!", "preset_id": preset_id})
+        else:
+            flash(f"Failed to add shipping supply preset '{preset_name}'. Possible duplicate name or DB issue.", 'error')
+            return jsonify({"success": False, "message": "Failed to add preset. Possible duplicate name or DB issue."}), 500
+
+    except Exception as e:
+        print(f"Error in /add_shipping_supply_preset route: {e}")
+        flash(f"An unexpected error occurred: {str(e)}", 'error')
+        return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
+
+@app.route('/delete_shipping_supply_preset/<int:preset_id>', methods=['POST'])
+def delete_shipping_supply_preset_route(preset_id):
+    success = database.delete_shipping_supply_preset(preset_id) # 
+    if success:
+        flash('Shipping supply preset deleted successfully.', 'success')
+        return jsonify({"success": True, "message": "Preset deleted."})
+    else:
+        flash('Failed to delete shipping supply preset.', 'error')
+        return jsonify({"success": False, "message": "Failed to delete preset."}), 500
+
 
 
 @app.route('/initiate_open_sealed/<int:product_id>', methods=['POST'])
@@ -1024,6 +1108,25 @@ def import_csv_route():
         print("--- Detailed CSV Import Errors ---\n" + "\n".join(errors_list) + "\n---------------------------------")
 
     return redirect(url_for('index', tab='addItemsTab'))
+
+
+@app.route('/api/all_shipping_supply_presets', methods=['GET'])
+def api_all_shipping_supply_presets():
+    try:
+        presets = database.get_all_shipping_supply_presets()
+        # Convert any date/datetime objects within preset items to ISO format for JSON serialization
+        for preset in presets:
+            if 'items' in preset and isinstance(preset['items'], list):
+                for item in preset['items']:
+                    # Assuming there might be date/datetime objects if we ever pull more fields
+                    # but for now, just a general check. The database.py function already returns
+                    # cost_per_unit and quantity as numbers, which is good.
+                    pass # No specific date conversion needed for the current item structure
+        return jsonify(presets)
+    except Exception as e:
+        print(f"Error fetching all shipping supply presets via API: {e}")
+        return jsonify({"error": "Failed to fetch shipping supply presets."}), 500
+
 
 @app.route('/mass_edit_inventory', methods=['POST'])
 def mass_edit_inventory_route():

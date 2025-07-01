@@ -36,6 +36,32 @@ def init_db():
     # In production, use migrations.
     cursor.execute("DROP TABLE IF EXISTS sales")
 
+    print("Attempting to create shipping_supply_presets table...")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shipping_supply_presets (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            date_created TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    ''')
+    print("shipping_supply_presets table creation attempted.")
+
+    print("Attempting to create shipping_preset_items table...")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS shipping_preset_items (
+            id SERIAL PRIMARY KEY,
+            preset_id INTEGER NOT NULL,
+            supply_id INTEGER NOT NULL,
+            quantity INTEGER NOT NULL,
+            FOREIGN KEY (preset_id) REFERENCES shipping_supply_presets (id) ON DELETE CASCADE,
+            FOREIGN KEY (supply_id) REFERENCES shipping_supplies_inventory (id) ON DELETE CASCADE,
+            UNIQUE(preset_id, supply_id) -- A supply can only be in a preset once
+        );
+    ''')
+    print("shipping_preset_items table creation attempted.")
+
+
     print("Attempting to create cards table...")
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS cards (
@@ -149,10 +175,28 @@ def init_db():
             location TEXT,
             date_added TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            UNIQUE(supply_name, description, unit_of_measure, purchase_date, cost_per_unit, location)
+            UNIQUE(supply_name, description, unit_of_measure, cost_per_unit, location) -- Removed purchase_date from UNIQUE
         );
     ''')
     print("shipping_supplies_inventory table creation attempted.")
+
+    # NEW TABLE: sale_event_shipping_supplies
+    print("Attempting to create sale_event_shipping_supplies table...")
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS sale_event_shipping_supplies (
+            id SERIAL PRIMARY KEY,
+            sale_event_id INTEGER NOT NULL,
+            supply_id INTEGER NOT NULL,
+            quantity_used INTEGER NOT NULL,
+            cost_per_unit_snapshot REAL NOT NULL, -- Snapshot cost at time of sale
+            supply_name_snapshot TEXT,
+            supply_description_snapshot TEXT,
+            FOREIGN KEY (sale_event_id) REFERENCES sale_events (id) ON DELETE CASCADE,
+            FOREIGN KEY (supply_id) REFERENCES shipping_supplies_inventory (id) ON DELETE RESTRICT
+        );
+    ''')
+    print("sale_event_shipping_supplies table creation attempted.")
+
 
     # This block fixes the constraint on EXISTING databases.
     try:
@@ -182,6 +226,52 @@ def init_db():
             print("New constraint added.")
         else:
             print("New constraint already exists.")
+
+        # --- Handle unique constraint for shipping_supplies_inventory ---
+        print("Checking and updating unique constraint on 'shipping_supplies_inventory' table...")
+        # A bit more complex for existing tables, you'd usually drop the old one and add the new one.
+        # This checks for a constraint matching the OLD signature (with purchase_date)
+        # and attempts to remove it if found.
+        # Then, it attempts to add the NEW one (without purchase_date).
+        cursor.execute("""
+            SELECT conname FROM pg_constraint
+            WHERE conrelid = 'shipping_supplies_inventory'::regclass AND contype = 'u'
+            AND conkey = ARRAY(
+                SELECT attnum FROM pg_attribute
+                WHERE attrelid = 'shipping_supplies_inventory'::regclass
+                AND attname IN ('supply_name', 'description', 'unit_of_measure', 'purchase_date', 'cost_per_unit', 'location')
+                ORDER BY attnum
+            );
+        """)
+        old_ssi_constraint = cursor.fetchone()
+        if old_ssi_constraint:
+            print(f"Dropping old shipping_supplies_inventory unique constraint: {old_ssi_constraint[0]}...")
+            cursor.execute(f"ALTER TABLE shipping_supplies_inventory DROP CONSTRAINT {old_ssi_constraint[0]};")
+            print("Old shipping_supplies_inventory constraint dropped.")
+        else:
+            print("Old shipping_supplies_inventory unique constraint (with purchase_date) not found, skipping drop.")
+
+        # Now, try to add the new one (without purchase_date) if it doesn't already exist by its desired key columns
+        cursor.execute("""
+            SELECT conname FROM pg_constraint
+            WHERE conrelid = 'shipping_supplies_inventory'::regclass AND contype = 'u'
+            AND conkey = ARRAY(
+                SELECT attnum FROM pg_attribute
+                WHERE attrelid = 'shipping_supplies_inventory'::regclass
+                AND attname IN ('supply_name', 'description', 'unit_of_measure', 'cost_per_unit', 'location')
+                ORDER BY attnum
+            );
+        """)
+        new_ssi_constraint_exists = cursor.fetchone()
+        if not new_ssi_constraint_exists:
+            print("Adding new shipping_supplies_inventory unique constraint (without purchase_date)...")
+            cursor.execute("""
+                ALTER TABLE shipping_supplies_inventory ADD CONSTRAINT shipping_supplies_unique_attrs
+                UNIQUE (supply_name, description, unit_of_measure, cost_per_unit, location);
+            """)
+            print("New shipping_supplies_inventory constraint added.")
+        else:
+            print(f"New shipping_supplies_inventory unique constraint ({new_ssi_constraint_exists[0]}) already exists.")
 
         conn.commit()
     except psycopg2.Error as e:
@@ -317,11 +407,11 @@ def add_card(set_code, collector_number, name, quantity, buy_price, is_foil, mar
             conn.close()
 
 
-def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchase_date_str, quantity, total_purchase_amount, location): # Change 1: Renamed parameter
+def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchase_date_str, quantity, total_purchase_amount, location):
     """
     Adds a new batch of shipping supplies to inventory or updates an existing identical batch.
     Calculates cost_per_unit from total_purchase_amount and quantity.
-    An identical batch matches on name, description, unit_of_measure, purchase_date, cost_per_unit, and location.
+    An identical batch matches on name, description, unit_of_measure, cost_per_unit, and location.
     Automatically adds an expense entry to the financial ledger for the total purchase amount.
     """
     conn = get_db_connection()
@@ -332,15 +422,14 @@ def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchas
     try:
         purchase_date_obj = datetime.datetime.strptime(purchase_date_str, '%Y-%m-%d').date()
 
-        # Change 2: Calculate cost_per_unit from total_purchase_amount and quantity
         calculated_cost_per_unit = round(float(total_purchase_amount) / quantity, 2) if quantity > 0 else 0.0
 
-        # Check if an identical batch already exists (now using calculated_cost_per_unit)
+        # Check if an identical batch already exists (now using calculated_cost_per_unit and WITHOUT purchase_date)
         cursor.execute(
             """SELECT id, quantity_on_hand FROM shipping_supplies_inventory
                WHERE supply_name = %s AND description = %s AND unit_of_measure = %s
-               AND purchase_date = %s AND cost_per_unit = %s AND location = %s""", # Change 3: Used calculated_cost_per_unit in WHERE
-            (supply_name, description, unit_of_measure, purchase_date_obj, calculated_cost_per_unit, location)
+               AND cost_per_unit = %s AND location = %s""",
+            (supply_name, description, unit_of_measure, calculated_cost_per_unit, location)
         )
         existing_batch = cursor.fetchone()
 
@@ -363,17 +452,17 @@ def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchas
                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                    RETURNING id""",
                 (supply_name, description, unit_of_measure, purchase_date_obj,
-                 quantity, calculated_cost_per_unit, location, timestamp, timestamp) # Change 4: Used calculated_cost_per_unit in INSERT
+                 quantity, calculated_cost_per_unit, location, timestamp, timestamp)
             )
             supply_batch_id = cursor.fetchone()['id']
             print(f"SUCCESS (Inserted): Added new batch of {quantity} x {supply_name} ({description}) at {calculated_cost_per_unit} per unit.")
 
-        # Change 5: Automatic ledger entry for the purchase
-        if supply_batch_id: # Only add to ledger if the supply batch was successfully added/updated
+        # Automatic ledger entry for the purchase
+        if supply_batch_id:
             entry_description = f"Purchase: {supply_name} ({description}) - {quantity} units"
             entry_category = "Shipping Supplies"
             entry_type = "expense"
-            entry_amount = float(total_purchase_amount) # Use the total purchase amount for the ledger
+            entry_amount = float(total_purchase_amount)
             notes = f"Auto-generated from adding supply batch ID {supply_batch_id}"
 
             cursor.execute("""
@@ -401,6 +490,109 @@ def add_shipping_supply_batch(supply_name, description, unit_of_measure, purchas
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
+
+def add_shipping_supply_preset(preset_name, preset_description, items):
+    """
+    Adds a new shipping supply preset.
+    :param preset_name: Name of the preset.
+    :param preset_description: Description of the preset.
+    :param items: A list of dictionaries, each with 'supply_id' and 'quantity'.
+    :return: The ID of the new preset, or None if failed.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    preset_id = None
+    try:
+        cursor.execute(
+            "INSERT INTO shipping_supply_presets (name, description) VALUES (%s, %s) RETURNING id",
+            (preset_name, preset_description)
+        )
+        preset_id = cursor.fetchone()[0]
+
+        for item in items:
+            cursor.execute(
+                "INSERT INTO shipping_preset_items (preset_id, supply_id, quantity) VALUES (%s, %s, %s)",
+                (preset_id, item['supply_id'], item['quantity'])
+            )
+        conn.commit()
+        print(f"SUCCESS: Added shipping supply preset '{preset_name}' (ID: {preset_id}).")
+        return preset_id
+    except psycopg2.Error as e:
+        print(f"DB Error in add_shipping_supply_preset for {preset_name}: {e}")
+        if conn:
+            conn.rollback()
+        return None
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+def get_all_shipping_supply_presets():
+    """
+    Retrieves all shipping supply presets with their associated items.
+    :return: A list of preset dictionaries.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    presets = []
+    try:
+        cursor.execute("SELECT id, name, description FROM shipping_supply_presets ORDER BY name ASC")
+        raw_presets = cursor.fetchall()
+
+        for preset_row in raw_presets:
+            preset_dict = dict(preset_row)
+            cursor.execute(
+                """SELECT
+                    spi.supply_id,
+                    spi.quantity,
+                    ssi.supply_name,
+                    ssi.description,
+                    ssi.unit_of_measure,
+                    ssi.cost_per_unit,
+                    ssi.quantity_on_hand as current_stock
+                FROM shipping_preset_items spi
+                JOIN shipping_supplies_inventory ssi ON spi.supply_id = ssi.id
+                WHERE spi.preset_id = %s
+                ORDER BY ssi.supply_name ASC""",
+                (preset_dict['id'],)
+            )
+            preset_dict['items'] = [dict(item) for item in cursor.fetchall()]
+            presets.append(preset_dict)
+    except psycopg2.Error as e:
+        print(f"DB Error in get_all_shipping_supply_presets: {e}")
+        return [] # Ensure an empty list is returned on error
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+    return presets
+
+def delete_shipping_supply_preset(preset_id):
+    """
+    Deletes a shipping supply preset and its associated items.
+    :param preset_id: The ID of the preset to delete.
+    :return: True if deleted, False otherwise.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    deleted = False
+    try:
+        cursor.execute("DELETE FROM shipping_preset_items WHERE preset_id = %s", (preset_id,))
+        cursor.execute("DELETE FROM shipping_supply_presets WHERE id = %s", (preset_id,))
+        conn.commit()
+        deleted = cursor.rowcount > 0
+    except psycopg2.Error as e:
+        print(f"DB Error in delete_shipping_supply_preset for ID {preset_id}: {e}")
+        if conn:
+            conn.rollback()
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+    return deleted
 
 
 def get_all_shipping_supplies():
@@ -673,7 +865,8 @@ def mass_update_inventory_items(filters, update_data):
 def delete_sale_event(sale_event_id):
     """
     Deletes a sale event and its associated items.
-    Attempts to add the sold quantities back to the inventory.
+    Attempts to add the sold quantities of inventory items (cards/sealed) and
+    used shipping supplies back to their respective inventories.
     All operations are performed in a single transaction.
     Returns a tuple: (success_boolean, message_string)
     """
@@ -681,11 +874,19 @@ def delete_sale_event(sale_event_id):
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Use DictCursor for easier item access
 
     try:
-        # Start a transaction
-        # In PostgreSQL, a transaction is implicitly started with the first command.
-        # We will explicitly commit or rollback.
+        # Start a transaction (implicitly handled by psycopg2, committed or rolled back explicitly)
 
-        # 1. Get all items from the sale event
+        # Check if the sale event itself exists before proceeding with detailed operations
+        cursor.execute("SELECT id FROM sale_events WHERE id = %s FOR UPDATE", (sale_event_id,)) # Use FOR UPDATE to lock row
+        event_exists = cursor.fetchone()
+
+        if not event_exists:
+            conn.rollback() # Ensure no partial operations
+            return False, f"Sale event ID {sale_event_id} not found or already deleted."
+
+        restocking_messages = []
+
+        # 1. Get all *inventory items* (cards/sealed products) from the sale event
         cursor.execute("""
             SELECT inventory_item_id, item_type, quantity_sold, original_item_name
             FROM sale_items
@@ -693,50 +894,68 @@ def delete_sale_event(sale_event_id):
         """, (sale_event_id,))
         items_sold = cursor.fetchall()
 
-        if not items_sold:
-            # If there are no items (e.g., an empty sale was somehow recorded),
-            # we can just delete the event.
-            cursor.execute("DELETE FROM sale_events WHERE id = %s", (sale_event_id,))
-            if cursor.rowcount == 0:
-                conn.rollback() # Should not happen if items_sold was truly empty for a valid event_id
-                return False, f"Sale event ID {sale_event_id} not found."
-            conn.commit()
-            return True, f"Sale event ID {sale_event_id} (which had no items) deleted."
+        # 2. Get all *shipping supplies* used in this sale event
+        cursor.execute("""
+            SELECT supply_id, quantity_used, cost_per_unit_snapshot, supply_name_snapshot, supply_description_snapshot
+            FROM sale_event_shipping_supplies
+            WHERE sale_event_id = %s
+        """, (sale_event_id,))
+        supplies_used = cursor.fetchall()
 
-        # 2. Attempt to restock inventory for each item
-        restocking_messages = []
+        # 3. Restock inventory items (cards/sealed products)
         for item in items_sold:
             inventory_id = item['inventory_item_id']
             item_type = item['item_type']
             quantity_to_restock = item['quantity_sold']
             item_name_for_msg = item['original_item_name']
 
-            if inventory_id is None: # Should not happen if data is clean
+            if inventory_id is None:
                 restocking_messages.append(f"Warning: Sold item '{item_name_for_msg}' had no inventory ID linked; cannot restock.")
                 continue
 
-            # Use the existing helper, ensuring it's suitable for positive quantity_change
-            # _update_inventory_item_quantity_with_cursor adds quantity_change
             success_restock, msg_restock = _update_inventory_item_quantity_with_cursor(
                 cursor, item_type, inventory_id, quantity_to_restock
             )
             if not success_restock:
-                # If restocking a specific item fails, we'll roll back the whole transaction.
-                # This is a strict approach. Alternatively, you could log failures and continue.
-                conn.rollback()
+                conn.rollback() # Rollback the whole transaction if any restock fails
                 return False, f"Failed to restock '{item_name_for_msg}' (Inv ID: {inventory_id}): {msg_restock}. Sale event not deleted."
             restocking_messages.append(f"Restocked {quantity_to_restock} of '{item_name_for_msg}'.")
 
-        # 3. Delete the sale items records for this event
+        # 4. Restock shipping supplies
+        for supply in supplies_used:
+            supply_id = supply['supply_id']
+            quantity_to_restock = supply['quantity_used']
+            supply_name_for_msg = supply['supply_name_snapshot']
+            supply_desc_for_msg = supply['supply_description_snapshot']
+
+            # Retrieve current quantity and lock the row
+            cursor.execute("SELECT quantity_on_hand FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (supply_id,))
+            current_supply_qty_row = cursor.fetchone()
+            if not current_supply_qty_row:
+                conn.rollback()
+                return False, f"Failed to restock shipping supply '{supply_name_for_msg}' (ID: {supply_id}): Supply not found in inventory. Sale event not deleted."
+
+            new_supply_quantity = current_supply_qty_row['quantity_on_hand'] + quantity_to_restock
+            cursor.execute(
+                "UPDATE shipping_supplies_inventory SET quantity_on_hand = %s, last_updated = %s WHERE id = %s",
+                (new_supply_quantity, datetime.datetime.now(), supply_id)
+            )
+            restocking_messages.append(f"Restocked {quantity_to_restock} of '{supply_name_for_msg} ({supply_desc_for_msg})'.")
+
+
+        # 5. Delete the records from sale_event_shipping_supplies for this event
+        cursor.execute("DELETE FROM sale_event_shipping_supplies WHERE sale_event_id = %s", (sale_event_id,))
+
+        # 6. Delete the sale items records for this event
         cursor.execute("DELETE FROM sale_items WHERE sale_event_id = %s", (sale_event_id,))
 
-        # 4. Delete the sale event record
+        # 7. Delete the sale event record
         cursor.execute("DELETE FROM sale_events WHERE id = %s", (sale_event_id,))
-        if cursor.rowcount == 0: # Should have been caught earlier if items_sold was empty due to invalid event_id
+        if cursor.rowcount == 0:
             conn.rollback()
-            return False, f"Sale event ID {sale_event_id} could not be deleted (was it already deleted?)"
+            return False, f"Sale event ID {sale_event_id} could not be deleted (was it already deleted?)."
 
-        conn.commit()
+        conn.commit() # Commit all changes if everything succeeded
         final_message = f"Sale event ID {sale_event_id} deleted. " + " ".join(restocking_messages)
         return True, final_message
 
@@ -745,10 +964,12 @@ def delete_sale_event(sale_event_id):
             conn.rollback()
         print(f"DB error in delete_sale_event for event ID {sale_event_id}: {e}")
         return False, f"Database error during sale event deletion: {e}"
-    except Exception as e: # Catch any other unexpected errors
+    except Exception as e:
         if conn:
             conn.rollback()
         print(f"Unexpected error in delete_sale_event for event ID {sale_event_id}: {e}")
+        import traceback # For more detailed error info in logs
+        traceback.print_exc()
         return False, f"An unexpected error occurred: {e}"
     finally:
         if cursor:
@@ -1079,10 +1300,10 @@ def _update_inventory_item_quantity_with_cursor(cursor, item_type, item_id, quan
 def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes, items_data_from_app,
                            customer_shipping_charge_str, platform_fee_str, shipping_supplies_data):
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor() # Use a plain cursor here for DML that doesn't need DictCursor
     sale_event_id = None
     total_items_profit_loss = 0.0
-    total_shipping_supplies_cost = 0.0
+    total_shipping_supplies_cost = 0.0 # This will be the sum of snapshot costs
 
     try:
         sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
@@ -1096,8 +1317,21 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
         return None, f"Invalid date/shipping/fee: {e}"
 
     try:
-        # Step 1: Deduct shipping supplies and calculate their cost
-        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as supply_cursor:
+        # Step 1: Insert into sale_events first to get sale_event_id
+        # We will update total_profit_loss later after calculating it
+        # and total_supplies_cost_for_sale after iterating through supplies.
+        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes, customer_shipping_charge, platform_fee)
+                          VALUES (%s, %s, %s, %s, %s) RETURNING id''',
+                       (sale_date_obj, our_postage_cost, overall_notes, customer_shipping_charge, platform_fee))
+        result = cursor.fetchone()
+        if result: sale_event_id = result[0]
+        else: raise Exception("Failed to create sale event.") # Should always return an ID
+
+        print(f"DB: Created sale_event ID {sale_event_id}")
+
+        # Step 2: Deduct shipping supplies from inventory and record in new table
+        # Using a separate cursor with DictCursor capabilities for reading supply details
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as supply_read_cursor:
             for supply_data in shipping_supplies_data:
                 supply_id = supply_data.get('supply_item_id')
                 quantity_used = supply_data.get('quantity_used')
@@ -1109,8 +1343,9 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                 if quantity_used <= 0:
                     raise ValueError(f"Quantity used for supply {supply_id} must be positive.")
 
-                supply_cursor.execute("SELECT quantity_on_hand, cost_per_unit, supply_name, description FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (supply_id,))
-                supply_batch = supply_cursor.fetchone()
+                # Get current supply details for snapshot and stock check
+                supply_read_cursor.execute("SELECT quantity_on_hand, cost_per_unit, supply_name, description FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (supply_id,))
+                supply_batch = supply_read_cursor.fetchone() # Fetches as DictRow
 
                 if not supply_batch:
                     raise ValueError(f"Shipping supply ID {supply_id} not found.")
@@ -1121,24 +1356,22 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                 cost_of_this_supply = supply_batch['cost_per_unit'] * quantity_used
                 total_shipping_supplies_cost += cost_of_this_supply
 
-                supply_cursor.execute(
+                # Update quantity in inventory (using the main transaction cursor)
+                cursor.execute(
                     "UPDATE shipping_supplies_inventory SET quantity_on_hand = %s, last_updated = %s WHERE id = %s",
                     (supply_batch['quantity_on_hand'] - quantity_used, datetime.datetime.now(), supply_id)
                 )
                 print(f"DB (sale transaction): Deducted {quantity_used} of supply ID {supply_id}. New Qty: {supply_batch['quantity_on_hand'] - quantity_used}")
 
+                # NEW: Record used supplies in sale_event_shipping_supplies table
+                cursor.execute('''
+                    INSERT INTO sale_event_shipping_supplies (sale_event_id, supply_id, quantity_used, cost_per_unit_snapshot, supply_name_snapshot, supply_description_snapshot)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                ''', (sale_event_id, supply_id, quantity_used, supply_batch['cost_per_unit'], supply_batch['supply_name'], supply_batch['description']))
+                print(f"DB: Recorded usage of {quantity_used}x Supply ID {supply_id} for Sale {sale_event_id}")
 
-        # total_shipping_cost for the sale event is now postage + supplies cost
-        final_total_shipping_cost = our_postage_cost + total_shipping_supplies_cost
 
-        # Insert new fields into sale_events
-        cursor.execute('''INSERT INTO sale_events (sale_date, total_shipping_cost, notes, customer_shipping_charge, platform_fee, total_supplies_cost_for_sale)
-                          VALUES (%s, %s, %s, %s, %s, %s) RETURNING id''',
-                       (sale_date_obj, final_total_shipping_cost, overall_notes, customer_shipping_charge, platform_fee, total_shipping_supplies_cost))
-        result = cursor.fetchone()
-        if result: sale_event_id = result[0]
-        print(f"DB: Created sale_event ID {sale_event_id}")
-
+        # Step 3: Process inventory items (cards/sealed products)
         with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as item_read_cursor:
             for item_data in items_data_from_app:
                 inventory_id_with_prefix = item_data.get('inventory_item_id_with_prefix')
@@ -1196,16 +1429,15 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
                                (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
 
+                # Use the helper function to update inventory quantity
                 success_inv_update, msg_inv_update = _update_inventory_item_quantity_with_cursor(cursor, item_type, inventory_item_id_int, -quantity_sold)
                 if not success_inv_update:
                     raise Exception(f"Inv update failed: {msg_inv_update}")
 
-        # Calculate the final P/L for the event including new fields
-        # total_items_profit_loss = Sum of (item_sell_price - item_buy_price) * quantity_sold
-        # Net Event P/L = total_items_profit_loss + customer_shipping_charge - final_total_shipping_cost - platform_fee
-        final_event_profit_loss = total_items_profit_loss + customer_shipping_charge - final_total_shipping_cost - platform_fee
+        # Final Update to sale_events: Calculate total_profit_loss and update total_supplies_cost_for_sale
+        final_event_profit_loss = total_items_profit_loss + customer_shipping_charge - our_postage_cost - total_shipping_supplies_cost - platform_fee
 
-        cursor.execute('''UPDATE sale_events SET total_profit_loss = %s WHERE id = %s''', (final_event_profit_loss, sale_event_id))
+        cursor.execute('''UPDATE sale_events SET total_profit_loss = %s, total_supplies_cost_for_sale = %s WHERE id = %s''', (final_event_profit_loss, total_shipping_supplies_cost, sale_event_id))
         conn.commit()
         print(f"DB: Committed sale_event ID {sale_event_id} with total P/L: {final_event_profit_loss}")
         return sale_event_id, "Sale event recorded successfully."
@@ -1216,6 +1448,7 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
     finally:
         if cursor: cursor.close()
         if conn: conn.close()
+
 
 def get_all_sale_events_with_items():
     conn = get_db_connection()

@@ -6,6 +6,9 @@
     <title>CDI Tracker</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
+        /* These styles were previously inline or in style.css. Keeping them here for completeness
+           as part of the request to re-type the entire index.html.
+           You can move these back to style.css if you prefer to keep styling separate. */
         .filter-controls {
             background-color: var(--bg-secondary);
             padding: 15px;
@@ -483,12 +486,9 @@
             </div>
         </div>
     </div>
-
     <div id="inventoryTab" class="tab-content">
         <h2>Current Inventory</h2>
-
         <button id="toggleInventoryFiltersBtn" class="button" type="button">Show Filters</button>
-
         <div class="filter-controls">
             <div>
                 <label for="inventoryFilterInput">Text Search:</label>
@@ -500,6 +500,7 @@
                     <option value="all" {% if filter_type=='all' %}selected{% endif %}>All Types</option>
                     <option value="single_card" {% if filter_type=='single_card' %}selected{% endif %}>Single Cards</option>
                     <option value="sealed_product" {% if filter_type=='sealed_product' %}selected{% endif %}>Sealed Products</option>
+                    <option value="shipping_supply" {% if filter_type=='shipping_supply' %}selected{% endif %}>Shipping Supplies</option>
                 </select>
             </div>
             <div>
@@ -594,7 +595,6 @@
                 <button id="sortDescBtn" data-direction="desc" class="{% if sort_dir == 'desc' %}active{% endif %}">Descending &#x25BC;</button>
             </div>
         </div>
-
         {# NEW SECTION: Mass Edit #}
         <h3>Mass Edit Filtered Inventory Items</h3>
         <form id="massEditForm" class="card-form">
@@ -633,11 +633,9 @@
             </div>
             <button type="submit" class="button delete-button" style="margin-top:15px;">Apply Mass Edit</button>
         </form>
-
         <div class="card-grid" id="inventoryGrid">
         </div>
         <p id="noInventoryResults" style="display: none; color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">No inventory items match the current filters.</p>
-
         {% if total_pages > 1 %}
         <nav aria-label="Inventory Page Navigation">
             <ul class="pagination">
@@ -647,20 +645,17 @@
                 {% set page_window = 2 %}
                 {% set start_page = current_page - page_window if current_page - page_window > 0 else 1 %}
                 {% set end_page = current_page + page_window if current_page + page_window < total_pages else total_pages %}
-
                 {% if start_page > 1 %}
                 <li class="page-item"><a class="page-link" href="{{ url_for('index', tab=active_tab, page=1, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">1</a></li>
                 {% if start_page > 2 %}
                 <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
                 {% endif %}
                 {% endif %}
-
                 {% for page_num in range(start_page, end_page + 1) %}
                 <li class="page-item {% if page_num == current_page %}active{% endif %}">
                     <a class="page-link" href="{{ url_for('index', tab=active_tab, page=page_num, filter_text=filter_text, filter_type=filter_type, filter_location=filter_location, filter_set=filter_set, filter_foil=filter_foil, filter_rarity=filter_rarity, filter_card_lang=filter_card_lang, filter_condition=filter_condition, filter_collector=filter_collector, filter_sealed_lang=filter_sealed_lang, sort_key=sort_key, sort_dir=sort_dir) }}">{{ page_num }}</a>
                 </li>
                 {% endfor %}
-
                 {% if end_page < total_pages %}
                 {% if end_page < total_pages - 1 %}
                 <li class="page-item disabled"><a class="page-link" href="#">...</a></li>
@@ -674,11 +669,9 @@
         </nav>
         {% endif %}
     </div>
-
     <div id="addItemsTab" class="tab-content">
         <h2>Add Items to Inventory</h2>
-
-        <h3 style="margin-top: 0;">Add Single Card</h3>
+        <h3>Add Single Card</h3>
         {% if from_pack_details and suggested_buy_price is not none %}
         <div class="info-box">
             <p>
@@ -743,7 +736,6 @@
             <button type="submit" style="margin-top:10px;">Add Card to Inventory</button>
         </form>
         <p style="font-size: 0.9em; color: var(--text-secondary); margin-top: 10px;"><em>Lookup: (Set & CN), (Set & Name), (Name & CN), or (Name only). Qty, Buy Price, Location required. Rarity/Language will be auto-filled by Scryfall if found, or use your input.</em></p>
-
         <h3>Add Sealed Product</h3>
         <form action="{{ url_for('add_sealed_product_route') }}" method="post" class="card-form">
             <div class="form-grid">
@@ -776,7 +768,6 @@
             <div><input type="checkbox" id="is_collectors_item_sealed" name="is_collectors_item" value="true" style="margin-top:10px;"><label for="is_collectors_item_sealed">Collector's Version?</label></div>
             <button type="submit" style="margin-top:10px;">Add Sealed Product</button>
         </form>
-
         <h3>Add Shipping Supplies</h3>
         <form action="{{ url_for('add_shipping_supply_route') }}" method="post" class="card-form">
             <div class="form-grid">
@@ -801,13 +792,11 @@
             </div>
             <button type="submit" style="margin-top:10px;">Add Shipping Supply Batch</button>
         </form>
-
         <h3>Import Collection from CSV</h3>
         <form action="{{ url_for('import_csv_route') }}" method="post" enctype="multipart/form-data" class="card-form">
             <p style="font-size: 0.9em; color: var(--text-secondary);">
                 Upload a CSV file. Expected columns: 'Quantity', 'Name', 'Set', 'Card Number', 'Set Code', 'Printing', 'Rarity', 'Language'.
             </p>
-
             <div id="csvDropZone" class="custom-file-drop-zone">
                 <input type="file" id="csv_file" name="csv_file" accept=".csv" required> <p class="drop-zone-text">Drag & drop your CSV file here, or</p>
                 <label for="csv_file" class="button file-upload-button">Click to Choose File</label>
@@ -850,10 +839,8 @@
             <button type="submit" style="margin-top:20px;">Import Cards from CSV</button>
         </form>
     </div>
-
     <div id="salesHistoryTab" class="tab-content">
         <h2>Sales & History</h2>
-
         <h3>Record a New Multi-Item Sale</h3>
         <form id="multiItemSaleForm" class="card-form">
             <div class="form-grid">
@@ -878,21 +865,52 @@
                 <label for="sale_event_notes">Overall Sale Notes (Optional):</label>
                 <input type="text" id="sale_event_notes" name="sale_event_notes" placeholder="e.g., Sold on TCGPlayer, order #123" style="width:100%;">
             </div>
-
             <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Items in this Sale</h4>
             <div id="saleItemsContainer">
             </div>
             <button type="button" id="addItemToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Item to Sale</button>
-
             <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Shipping Supplies Used</h4>
-            <div id="shippingSuppliesUsedContainer">
+            <div style="margin-bottom: 15px;">
+                <label for="shippingPresetSelect" style="font-weight: bold; color: var(--text-secondary);">Load Shipping Preset:</label>
+                <select id="shippingPresetSelect" style="width: calc(100% - 2px); margin-top: 5px; padding: 10px 12px; border: 1px solid var(--border-color); background-color: var(--bg-tertiary); color: var(--text-primary); border-radius: 4px; box-sizing: border-box;">
+                    <option value="">-- Select a Preset --</option>
+                </select>
+                <button type="button" id="clearShippingSuppliesBtn" class="delete-button" style="margin-top: 10px; font-size: 0.9em; padding: 8px 12px;">Clear All Selected Supplies</button>
             </div>
-            <button type="button" id="addShippingSupplyToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Shipping Supply</button>
-
+            <div id="shippingSuppliesInventoryList" style="margin-top: 20px;">
+                <p style="text-align: center; color: var(--text-secondary);">Loading shipping supplies...</p>
+            </div>
             <hr style="margin: 20px 0; border-color: var(--border-color);">
             <button type="submit" style="margin-top:15px; font-size: 1.1em;">Record Entire Sale Transaction</button>
         </form>
-
+        <h3 style="margin-top:30px;">Shipping Supply Presets</h3>
+        <p style="font-size: 0.9em; color: var(--text-secondary); margin-bottom: 15px;">
+            Create reusable combinations of shipping supplies for quick entry during sales.
+        </p>
+        <h4>Create New Preset</h4>
+        <form id="addShippingPresetForm" class="card-form">
+            <div class="form-grid">
+                <div>
+                    <label for="new_preset_name">Preset Name:</label>
+                    <input type="text" id="new_preset_name" name="name" required placeholder="e.g., Standard Mailer, Box Shipment">
+                </div>
+                <div style="grid-column: span 2;">
+                    <label for="new_preset_description">Description (Optional):</label>
+                    <input type="text" id="new_preset_description" name="description" placeholder="e.g., Small envelope, top loader, team bag">
+                </div>
+            </div>
+            <h5 style="margin-top: 15px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Supplies in this Preset</h5>
+            <div id="newPresetSuppliesContainer">
+            </div>
+            <button type="button" id="addSupplyToPresetBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);">
+                <span style="font-size: 1.2em;">+</span> Add Supply to Preset
+            </button>
+            <button type="submit" class="button" style="margin-top:15px;">Save New Preset</button>
+        </form>
+        <h4>Existing Presets</h4>
+        <div id="existingShippingPresetsContainer">
+            <p style="text-align: center; color: var(--text-secondary);">No shipping supply presets found.</p>
+        </div>
         <h3 style="margin-top:30px;">Sales History</h3>
         {% if historical_monthly_sales_summary %}
         <h4>Monthly Sales Summaries</h4>
@@ -935,11 +953,9 @@
         </div>
         <p id="noSalesResults" style="display: none;">No sales recorded yet.</p>
     </div>
-
     <div id="businessLedgerTab" class="tab-content">
         <h2>Business Ledger</h2>
         <p>Record other business income and expenses here, such as shipping supplies, platform fees, or software subscriptions.</p>
-
         <h3 style="margin-top: 20px;">Add New Financial Entry</h3>
         <form action="{{ url_for('add_financial_entry_route') }}" method="post" class="card-form">
             <div class="form-grid">
@@ -972,7 +988,6 @@
             </div>
             <button type="submit" style="margin-top:20px;">Add Entry to Ledger</button>
         </form>
-
         <h3 style="margin-top: 30px;">Recorded Ledger Entries</h3>
         <div class="table-responsive-wrapper">
             <table class="sales-event-table">
@@ -1015,7 +1030,6 @@
             </table>
         </div>
     </div>
-
     <div id="setSymbolModal" class="modal">
         <div class="modal-content">
             <span class="modal-close-button" onclick="closeSetSymbolModal()">&times;</span>
@@ -1024,32 +1038,109 @@
             <div id="setSymbolListContainer" class="set-symbol-list"><p>Loading set symbols...</p></div>
         </div>
     </div>
-
     <script type="application/json" id="inventory_items_json_data">{{ inventory_items_json | safe }}</script>
     <script type="application/json" id="sales_history_json_data">{{ sales_history_json | safe }}</script>
     <script type="application/json" id="sale_inventory_options_json_data">{{ sale_inventory_options_json | safe }}</script>
     <script type="application/json" id="shipping_supplies_display_json_data">{{ shipping_supplies_display_json | safe }}</script>
     <script type="application/json" id="shipping_supply_options_json_data">{{ shipping_supply_options_json | safe }}</script>
-
+    <script type="application/json" id="shipping_supply_presets_json_data">{{ shipping_supply_presets_json | safe }}</script>
     <script>
-        function getStr(obj, key, defaultVal = '') { if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) { return String(obj[key]); } return defaultVal; }
-        function getNum(obj, key, defaultVal = null) { if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) { const num = parseFloat(obj[key]); if (!isNaN(num)) return num; } return defaultVal; }
-        function getBool(obj, key, defaultVal = false) { if (obj && typeof obj === 'object' && obj !== null && typeof obj[key] === 'boolean') return obj[key]; return defaultVal; }
-        function formatCurrencyJS(value) { const numValue = parseFloat(value); if (value === null || value === undefined || isNaN(numValue)) return "$0.00"; try { if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; } catch (e) { return String(value); }}
+        // --- Utility Functions ---
+        function getStr(obj, key, defaultVal = '') {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                return String(obj[key]);
+            }
+            return defaultVal;
+        }
 
+        function getNum(obj, key, defaultVal = null) {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                const num = parseFloat(obj[key]);
+                if (!isNaN(num)) return num;
+            }
+            return defaultVal;
+        }
+
+        function getBool(obj, key, defaultVal = false) {
+            if (obj && typeof obj === 'object' && obj !== null && typeof obj[key] === 'boolean') return obj[key];
+            return defaultVal;
+        }
+
+        function formatCurrencyJS(value) {
+            const numValue = parseFloat(value);
+            if (value === null || value === undefined || isNaN(numValue)) return "$0.00";
+            try {
+                if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            } catch (e) {
+                return String(value);
+            }
+        }
+
+        // --- Global Data Variables ---
         let rawInventoryItemsData = [];
         let rawSalesHistoryData = [];
         let saleInventoryOptionsData = [];
         let allScryfallSets = [];
         let rawShippingSuppliesData = [];
         let shippingSupplyOptionsData = [];
+        let shippingSupplyPresetsData = [];
 
-        try { const invJsonEl = document.getElementById('inventory_items_json_data'); rawInventoryItemsData = JSON.parse(invJsonEl ? invJsonEl.textContent : '[]'); if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = [];} catch (e) { console.error("Error parsing inventory_items_json:", e); rawInventoryItemsData = [];}
-        try { const salesJsonEl = document.getElementById('sales_history_json_data'); rawSalesHistoryData = JSON.parse(salesJsonEl ? salesJsonEl.textContent : '[]'); if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];} catch (e) { console.error("Error parsing sales_history_json:", e); rawSalesHistoryData = [];}
-        try { const saleOptsJsonEl = document.getElementById('sale_inventory_options_json_data'); saleInventoryOptionsData = JSON.parse(saleOptsJsonEl ? saleOptsJsonEl.textContent : '[]'); if (!Array.isArray(saleInventoryOptionsData)) saleInventoryOptionsData = [];} catch (e) { console.error("Error parsing sale_inventory_options_json:", e); saleInventoryOptionsData = [];}
-        try { const shippingSuppliesDisplayEl = document.getElementById('shipping_supplies_display_json_data'); rawShippingSuppliesData = JSON.parse(shippingSuppliesDisplayEl ? shippingSuppliesDisplayEl.textContent : '[]'); if (!Array.isArray(rawShippingSuppliesData)) rawShippingSuppliesData = [];} catch (e) { console.error("Error parsing shipping_supplies_display_json_data:", e); rawShippingSuppliesData = [];}
-        try { const shippingSupplyOptionsEl = document.getElementById('shipping_supply_options_json_data'); shippingSupplyOptionsData = JSON.parse(shippingSupplyOptionsEl ? shippingSupplyOptionsEl.textContent : '[]'); if (!Array.isArray(shippingSupplyOptionsData)) shippingSupplyOptionsData = [];} catch (e) { console.error("Error parsing shipping_supply_options_json_data:", e); shippingSupplyOptionsData = [];}
+        // NEW Global Variable to track selected quantities for the sale form
+        // Key: supply_id, Value: quantity
+        let selectedShippingSuppliesForSale = {};
 
+        // --- JSON Data Parsing ---
+        try {
+            const invJsonEl = document.getElementById('inventory_items_json_data');
+            rawInventoryItemsData = JSON.parse(invJsonEl ? invJsonEl.textContent : '[]');
+            if (!Array.isArray(rawInventoryItemsData)) rawInventoryItemsData = [];
+        } catch (e) {
+            console.error("Error parsing inventory_items_json:", e);
+            rawInventoryItemsData = [];
+        }
+        try {
+            const salesJsonEl = document.getElementById('sales_history_json_data');
+            rawSalesHistoryData = JSON.parse(salesJsonEl ? salesJsonEl.textContent : '[]');
+            if (!Array.isArray(rawSalesHistoryData)) rawSalesHistoryData = [];
+        } catch (e) {
+            console.error("Error parsing sales_history_json:", e);
+            rawSalesHistoryData = [];
+        }
+        try {
+            const saleOptsJsonEl = document.getElementById('sale_inventory_options_json_data');
+            saleInventoryOptionsData = JSON.parse(saleOptsJsonEl ? saleOptsJsonEl.textContent : '[]');
+            if (!Array.isArray(saleInventoryOptionsData)) saleInventoryOptionsData = [];
+        } catch (e) {
+            console.error("Error parsing sale_inventory_options_json:", e);
+            saleInventoryOptionsData = [];
+        }
+        try {
+            const shippingSuppliesDisplayEl = document.getElementById('shipping_supplies_display_json_data');
+            rawShippingSuppliesData = JSON.parse(shippingSuppliesDisplayEl ? shippingSuppliesDisplayEl.textContent : '[]');
+            if (!Array.isArray(rawShippingSuppliesData)) rawShippingSuppliesData = [];
+        } catch (e) {
+            console.error("Error parsing shipping_supplies_display_json_data:", e);
+            rawShippingSuppliesData = [];
+        }
+        try {
+            const shippingSupplyOptionsEl = document.getElementById('shipping_supply_options_json_data');
+            shippingSupplyOptionsData = JSON.parse(shippingSupplyOptionsEl ? shippingSupplyOptionsEl.textContent : '[]');
+            if (!Array.isArray(shippingSupplyOptionsData)) shippingSupplyOptionsData = [];
+        } catch (e) {
+            console.error("Error parsing shipping_supply_options_json_data:", e);
+            shippingSupplyOptionsData = [];
+        }
+        try {
+            const shippingPresetEl = document.getElementById('shipping_supply_presets_json_data');
+            shippingSupplyPresetsData = JSON.parse(shippingPresetEl ? shippingPresetEl.textContent : '[]');
+            if (!Array.isArray(shippingSupplyPresetsData)) shippingSupplyPresetsData = [];
+        } catch (e) {
+            console.error("Error parsing shipping_supply_presets_json_data:", e);
+            shippingSupplyPresetsData = [];
+        }
+
+        // --- Core Tab Navigation ---
         function openTab(evt, tabName) {
             if (evt) {
                 const currentParams = new URLSearchParams(window.location.search);
@@ -1080,6 +1171,7 @@
         }
         var activeTabFromFlask = "{{ active_tab|default('dashboardTab') }}";
 
+        // --- Inventory Tab Logic ---
         const inventoryFilterInput = document.getElementById('inventoryFilterInput');
         const inventoryTypeFilter = document.getElementById('inventoryTypeFilter');
         const inventoryLocationFilter = document.getElementById('inventoryLocationFilter');
@@ -1097,7 +1189,10 @@
         const noInventoryResultsMsg = document.getElementById('noInventoryResults');
 
         function renderInventory() {
-            if (!inventoryGrid) { console.error("inventoryGrid not found"); return; }
+            if (!inventoryGrid) {
+                console.error("inventoryGrid not found");
+                return;
+            }
             const currentFilterType = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
             let itemsToDisplay = [];
 
@@ -1129,7 +1224,7 @@
                     itemHTML += `<div class="card-image-placeholder" style="background-color: var(--mtg-blue);"><span style="color:var(--bg-primary); font-weight:bold; font-size:1.5em;">📦</span></div><h3>${supplyName}</h3><p>`;
                     itemHTML += `<strong>Description:</strong> ${description || 'N/A'}<br>`;
                     itemHTML += `<strong>Unit:</strong> ${unitOfMeasure.charAt(0).toUpperCase() + unitOfMeasure.slice(1)}<br>`;
-                    itemHTML += `<strong>Purchase Date:</strong> ${purchaseDate}<br>`;
+                   // itemHTML += `<strong>Purchase Date:</strong> ${purchaseDate}<br>`;
                     itemHTML += `<strong>Quantity on Hand:</strong> ${quantityOnHand}<br>`;
                     itemHTML += `<strong>Cost Per Unit:</strong> ${formatCurrencyJS(costPerUnit)}<br>`;
                     itemHTML += `<strong>Location:</strong> ${location}<br>`;
@@ -1138,31 +1233,52 @@
                     itemHTML += `<div class="actions"><form action="/delete_shipping_supply/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Shipping Supply Batch (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form></div><details class="update-details"><summary>Update Supply Batch</summary><form action="/update_shipping_supply/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity_on_hand" value="${quantityOnHand}" min="0"></div><div><label>Cost Per Unit:</label><input type="number" name="cost_per_unit" value="${costPerUnit !== null ? costPerUnit.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label for="update_description_supply_${originalId}">Description:</label><input type="text" id="update_description_supply_${originalId}" name="description" value="${description || ''}" placeholder="Optional"></div><div><label for="update_unit_of_measure_supply_${originalId}">Unit of Measure:</label><select id="update_unit_of_measure_supply_${originalId}" name="unit_of_measure"><option value="unit" ${unitOfMeasure === 'unit' ? 'selected' : ''}>Unit (Default)</option><option value="box" ${unitOfMeasure === 'box' ? 'selected' : ''}>Box</option><option value="roll" ${unitOfMeasure === 'roll' ? 'selected' : ''}>Roll</option><option value="sheet" ${unitOfMeasure === 'sheet' ? 'selected' : ''}>Sheet</option><option value="envelope" ${unitOfMeasure === 'envelope' ? 'selected' : ''}>Envelope</option><option value="mailer" ${unitOfMeasure === 'mailer' ? 'selected' : ''}>Mailer</option><option value="other" ${unitOfMeasure === 'other' ? 'selected' : ''}>Other</option></select></div><button type="submit">Save Supply</button></form></details>`;
 
                 } else {
-                    const displayName = getStr(item, 'display_name', 'N/A'); const imageUri = getStr(item, 'image_uri');
-                    const location = getStr(item, 'location', 'N/A'); const quantity = getNum(item, 'quantity', 0);
-                    const buyPrice = getNum(item, 'buy_price'); const marketPrice = getNum(item, 'current_market_price');
-                    const sellPrice = getNum(item, 'sell_price'); const originalId = item.original_id;
+                    const displayName = getStr(item, 'display_name', 'N/A');
+                    const imageUri = getStr(item, 'image_uri');
+                    const location = getStr(item, 'location', 'N/A');
+                    const quantity = getNum(item, 'quantity', 0);
+                    const buyPrice = getNum(item, 'buy_price');
+                    const marketPrice = getNum(item, 'current_market_price');
+                    const sellPrice = getNum(item, 'sell_price');
+                    const originalId = item.original_id;
                     itemHTML = `${imageUri ? `<img src="${imageUri}" alt="${displayName}" class="card-image">` : '<div class="card-image-placeholder">No Image</div>'}<h3>${displayName}</h3><p>`;
                     if (item.type === 'single_card') {
-                        const setCode = getStr(item, 'set_code', 'N/A'); const collectorNum = getStr(item, 'collector_number', 'N/A');
-                        const rarity = getStr(item, 'rarity', 'N/A'); const language = getStr(item, 'language', 'N/A'); const isFoil = getBool(item, 'is_foil');
+                        const setCode = getStr(item, 'set_code', 'N/A');
+                        const collectorNum = getStr(item, 'collector_number', 'N/A');
+                        const rarity = getStr(item, 'rarity', 'N/A');
+                        const language = getStr(item, 'language', 'N/A');
+                        const isFoil = getBool(item, 'is_foil');
                         const condition = getStr(item, 'condition', 'N/A');
                         const marketVsBuyPercentageDisplay = getStr(item, 'market_vs_buy_percentage_display', 'N/A');
                         const potentialPLAtAskingPriceDisplay = item.potential_pl_at_asking_price_display;
                         let marketVsBuyPercentageHTML = 'N/A';
                         if (marketVsBuyPercentageDisplay === "Infinite") marketVsBuyPercentageHTML = `<span class="profit">Infinite%</span>`;
-                        else if (marketVsBuyPercentageDisplay !== "N/A") { const numericVal = parseFloat(marketVsBuyPercentageDisplay); if (!isNaN(numericVal)) { const className = numericVal >= 0 ? 'profit' : 'loss'; marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`; } else marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay; }
+                        else if (marketVsBuyPercentageDisplay !== "N/A") {
+                            const numericVal = parseFloat(marketVsBuyPercentageDisplay);
+                            if (!isNaN(numericVal)) {
+                                const className = numericVal >= 0 ? 'profit' : 'loss';
+                                marketVsBuyPercentageHTML = `<span class="${className}">${numericVal.toFixed(2)}%</span>`;
+                            } else marketVsBuyPercentageHTML = marketVsBuyPercentageDisplay;
+                        }
                         let potentialPLHTML = 'N/A (No asking price)';
-                        if (typeof potentialPLAtAskingPriceDisplay === 'number') { const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss'; potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`; } else potentialPLHTML = potentialPLAtAskingPriceDisplay;
+                        if (typeof potentialPLAtAskingPriceDisplay === 'number') {
+                            const className = potentialPLAtAskingPriceDisplay >= 0 ? 'profit' : 'loss';
+                            potentialPLHTML = `<span class="${className}">${formatCurrencyJS(potentialPLAtAskingPriceDisplay)}</span>`;
+                        } else potentialPLHTML = potentialPLAtAskingPriceDisplay;
                         itemHTML += `<strong>Set:</strong> ${setCode.toUpperCase()}-${collectorNum} ${isFoil ? '(Foil)' : ''}<br><strong>Rarity:</strong> ${rarity ? rarity.charAt(0).toUpperCase() + rarity.slice(1) : 'N/A'}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Condition:</strong> ${condition}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyPercentageHTML}<br><strong>Potential P/L (Asking):</strong> ${potentialPLHTML}<br>`;
                     } else if (item.type === 'sealed_product') {
-                        const setName = getStr(item, 'set_name', 'N/A'); const productType = getStr(item, 'product_type', 'N/A');
-                        const language = getStr(item, 'language', 'N/A'); const isCollectorsItem = getBool(item, 'is_collectors_item');
+                        const setName = getStr(item, 'set_name', 'N/A');
+                        const productType = getStr(item, 'product_type', 'N/A');
+                        const language = getStr(item, 'language', 'N/A');
+                        const isCollectorsItem = getBool(item, 'is_collectors_item');
                         const marketVsBuyDisplay = getStr(item, 'market_vs_buy_percentage_display', "N/A (Manual Price)");
                         const potentialPLDisplay = item.potential_pl_at_asking_price_display;
                         let potentialPLSealedHTML = 'N/A (No asking price)';
-                        if (typeof potentialPLDisplay === 'number') { const className = potentialPLDisplay >= 0 ? 'profit' : 'loss'; potentialPLSealedHTML = `<span class="${className}">${formatCurrencyJS(potentialPLDisplay)}</span>`; } else potentialPLSealedHTML = potentialPLDisplay;
-                        itemHTML += `<strong>Set:</strong> ${setName}<br><strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) + ' <em style="font-size:0.9em;">(Manual)</em>' : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyDisplay}<br><strong>Potential P/L (Asking):</strong> ${potentialPLSealedHTML}<br>`;
+                        if (typeof potentialPLDisplay === 'number') {
+                            const className = potentialPLDisplay >= 0 ? 'profit' : 'loss';
+                            potentialPLSealedHTML = `<span class="${className}">${formatCurrencyJS(potentialPLDisplay)}</span>`;
+                        } else potentialPLSealedHTML = potentialPLDisplay;
+                        itemHTML += `<strong>Set:</strong> ${setName}<br><strong>Type:</strong> ${productType} ${isCollectorsItem ? '<span style="font-style: italic;">(Collector\'s Item)</span>' : ''}<br><strong>Language:</strong> ${language ? language.toUpperCase() : 'N/A'}<br><strong>Location:</strong> ${location}<br><strong>Quantity:</strong> ${quantity}<br><strong>Buy Price (ea):</strong> ${formatCurrencyJS(buyPrice)}<br><strong>Market Price (ea):</strong> ${marketPrice !== null ? formatCurrencyJS(marketPrice) : 'N/A'}<br><strong>Asking Price (ea):</strong> ${sellPrice !== null ? formatCurrencyJS(sellPrice) : 'Not Set'}<br><strong>Market vs. Buy %:</strong> ${marketVsBuyDisplay}<br><strong>Potential P/L (Asking):</strong> ${potentialPLSealedHTML}<br>`;
                     }
                     itemHTML += `</p>`;
                     const displayNameEscaped = displayName.replace(/"/g, '&quot;');
@@ -1173,408 +1289,644 @@
 
                         itemHTML += `<div class="actions"><form action="/delete_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Card Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/refresh_card/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="refresh-button">Refresh Market Data</button></form></div><details class="update-details"><summary>Update Card Details</summary><form action="/update_card/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Condition:</label><select name="condition">${conditionOptions}</select></div><button type="submit">Save Card</button></form></details>`;
                     } else if (item.type === 'sealed_product') {
-                        const buyPriceValue = buyPrice !== null ? buyPrice : ''; const isCollectorsItem = getBool(item, 'is_collectors_item');
+                        const buyPriceValue = buyPrice !== null ? buyPrice : '';
+                        const isCollectorsItem = getBool(item, 'is_collectors_item');
                         itemHTML += `<div class="actions"><form action="/delete_sealed_product/${originalId}?page={{current_page}}" method="post" style="display:inline;"><button type="submit" class="delete-button" onclick="return confirm('Delete Sealed Product Entry (ID: ${originalId}) for ${displayNameEscaped}?');">Delete</button></form><form action="/initiate_open_sealed/${originalId}" method="post" class="open-product-form" style="display:inline-block; margin-left:5px; vertical-align: top;"><div style="display:flex; align-items:center; gap:5px;"><input type="number" name="quantity_to_open" value="1" min="1" max="${quantity}" required style="width: 50px; padding: 7px;"><input type="hidden" name="original_product_name" value="${displayNameEscaped}"><input type="hidden" name="original_buy_price" value="${buyPriceValue}"><button type="submit" class="refresh-button" style="padding:8px 12px; font-size:0.9em;">Open</button></div></form></div><details class="update-details"><summary>Update Sealed Details</summary><form action="/update_sealed_product/${originalId}?page={{current_page}}" method="post" class="update-form"><div><label>Qty:</label><input type="number" name="quantity" value="${quantity}" min="0"></div><div><label>Buy Price:</label><input type="number" name="buy_price" value="${buyPrice !== null ? buyPrice.toFixed(2) : ''}" step="0.01" min="0" placeholder="$0.00"></div><div><label>Market Price:</label><input type="number" name="manual_market_price" value="${marketPrice !== null ? marketPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Asking Price:</label><input type="number" name="asking_price" value="${sellPrice !== null ? sellPrice.toFixed(2) : ''}" placeholder="Blank to clear" step="0.01" min="0"></div><div><label>Location:</label><input type="text" name="location" value="${location}" required></div><div><label>Image URL:</label><input type="text" name="image_uri" value="${imageUri || ''}" placeholder="http://... Blank to clear"></div><div><label for="update_language_sealed_${originalId}">Language:</label><select id="update_language_sealed_${originalId}" name="language"><option value="en" ${getStr(item, 'language') === 'en' ? 'selected' : ''}>English (en)</option><option value="es" ${getStr(item, 'language') === 'es' ? 'selected' : ''}>Spanish (es)</option><option value="fr" ${getStr(item, 'language') === 'fr' ? 'selected' : ''}>French (fr)</option><option value="de" ${getStr(item, 'language') === 'de' ? 'selected' : ''}>German (de)</option><option value="it" ${getStr(item, 'language') === 'it' ? 'selected' : ''}>Italian (it)</option><option value="pt" ${getStr(item, 'language') === 'pt' ? 'selected' : ''}>Portuguese (pt)</option><option value="ja" ${getStr(item, 'language') === 'ja' ? 'selected' : ''}>Japanese (ja)</option><option value="ko" ${getStr(item, 'language') === 'ko' ? 'selected' : ''}>Korean (ko)</option><option value="ru" ${getStr(item, 'language') === 'ru' ? 'selected' : ''}>Russian (ru)</option><option value="zhs" ${getStr(item, 'language') === 'zhs' ? 'selected' : ''}>Simplified Chinese (zhs)</option><option value="zht" ${getStr(item, 'language') === 'zht' ? 'selected' : ''}>Traditional Chinese (zht)</option></select></div><div><input type="checkbox" id="update_is_collectors_item_sealed_${originalId}" name="is_collectors_item" value="true" ${isCollectorsItem ? 'checked' : ''}><label for="update_is_collectors_item_sealed_${originalId}">Collector's Item?</label></div><button type="submit">Save Sealed</button></form></details>`;
+                    }
+                }
+                cardEntry.innerHTML = itemHTML;
+                inventoryGrid.appendChild(cardEntry);
+            });
+        }
+
+        // --- Sales History Tab Logic ---
+        function renderSalesHistory() {
+            const tableBody = document.getElementById('salesHistoryTableBody');
+            const noSalesMsg = document.getElementById('noSalesResults');
+
+            if (!tableBody || !noSalesMsg) {
+                console.error("Sales history table elements (salesHistoryTableBody or noSalesResults) not found in HTML.");
+                return;
+            }
+            tableBody.innerHTML = '';
+
+            const salesEvents = rawSalesHistoryData;
+            const hasSales = salesEvents && salesEvents.length > 0;
+
+            noSalesMsg.style.display = hasSales ? 'none' : 'block';
+
+            const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
+            const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3 + h4, #salesHistoryTab > h4:first-of-type');
+
+            if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
+            if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
+
+            if (hasSales) {
+                salesEvents.forEach(event => {
+                    if (!event || typeof event !== 'object') {
+                        console.warn("Skipping invalid event data:", event);
+                        return;
+                    }
+
+                    const eventRow = tableBody.insertRow();
+                    eventRow.insertCell().textContent = getStr(event, 'sale_date', 'N/A');
+
+                    const itemsSummaryCell = eventRow.insertCell();
+                    let totalQtyThisEvent = 0;
+                    (event.items || []).forEach(item => {
+                        totalQtyThisEvent += getNum(item, 'quantity_sold', 0);
+                    });
+                    itemsSummaryCell.innerHTML = `${(event.items || []).length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
+
+                    eventRow.insertCell().textContent = totalQtyThisEvent;
+
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'customer_shipping_charge'));
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'platform_fee'));
+
+                    eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost'));
+
+                    const profitLossCell = eventRow.insertCell();
+                    const eventProfitLoss = getNum(event, 'total_profit_loss');
+                    profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
+
+                    eventRow.insertCell().textContent = getStr(event, 'notes', '');
+
+                    const actionsCell = eventRow.insertCell();
+                    const deleteForm = document.createElement('form');
+                    deleteForm.action = `/delete_sale_event/${event.id}`;
+                    deleteForm.method = 'post';
+                    deleteForm.style.display = 'inline';
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'submit';
+                    deleteButton.className = 'delete-button';
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.style.padding = '5px 8px';
+                    deleteButton.style.fontSize = '0.8em';
+                    deleteButton.onclick = function () {
+                        return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
+                    };
+
+                    deleteForm.appendChild(deleteButton);
+                    actionsCell.appendChild(deleteForm); // Keep the form as the parent for proper submission
+
+
+                    const detailsRow = tableBody.insertRow();
+                    detailsRow.id = `event-details-${event.id}`;
+                    detailsRow.style.display = 'none';
+                    const detailsCell = detailsRow.insertCell();
+                    detailsCell.colSpan = 9;
+
+                    let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
+                    (event.items || []).forEach(item => {
+                        if (!item || typeof item !== 'object') {
+                            console.warn("Skipping invalid item data within event:", item);
+                            return;
+                        }
+                        detailsHTML += `<tr>
+                            <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
+                            <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
+                            <td>${formatCurrencyJS(getNum(item, 'sell_price_per_item'))}</td>
+                            <td><span class="${getNum(item, 'item_profit_loss', 0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
+                        </tr>`;
+                    });
+                    detailsHTML += '</tbody></table></div>';
+                    detailsCell.innerHTML = detailsHTML;
+                });
+
+                tableBody.querySelectorAll('.details-btn').forEach(button => {
+                    button.addEventListener('click', function () {
+                        const detailRowId = this.dataset.eventId;
+                        const detailRow = document.getElementById(detailRowId);
+                        if (detailRow) {
+                            detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
+                        }
+                    });
+                });
             }
         }
-        cardEntry.innerHTML = itemHTML; inventoryGrid.appendChild(cardEntry);
-    });
-}
 
+        // --- Inventory Filter & Sort Logic ---
+        function applyFiltersAndSort() {
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', 'inventoryTab');
+            if (inventoryFilterInput) params.set('filter_text', inventoryFilterInput.value);
+            if (inventoryTypeFilter) params.set('filter_type', inventoryTypeFilter.value);
+            if (inventoryLocationFilter) params.set('filter_location', inventoryLocationFilter.value);
+            if (inventorySetFilter) params.set('filter_set', inventorySetFilter.value);
+            if (inventoryFoilFilter) params.set('filter_foil', inventoryFoilFilter.value);
+            if (inventoryRarityFilter) params.set('filter_rarity', inventoryRarityFilter.value);
+            if (inventoryCardLanguageFilter) params.set('filter_card_lang', inventoryCardLanguageFilter.value);
+            if (inventoryConditionFilter) params.set('filter_condition', inventoryConditionFilter.value);
+            if (inventoryCollectorFilter) params.set('filter_collector', inventoryCollectorFilter.value);
+            if (inventorySealedLanguageFilter) params.set('filter_sealed_lang', inventorySealedLanguageFilter.value);
+            params.set('sort_key', inventorySortKeySelect.value);
+            let currentSortDir = 'asc';
+            if (sortDescBtn && sortDescBtn.classList.contains('active')) currentSortDir = 'desc';
+            else if (sortAscBtn && sortAscBtn.classList.contains('active')) currentSortDir = 'asc';
+            params.set('sort_dir', currentSortDir);
+            params.set('page', '1');
+            window.location.search = params.toString();
+        }
 
-function renderSalesHistory() {
-    const tableBody = document.getElementById('salesHistoryTableBody');
-    const noSalesMsg = document.getElementById('noSalesResults');
+        function clearInventoryFiltersAndSort() {
+            window.location.href = "{{ url_for('index', tab='inventoryTab') }}";
+        }
 
-    if (!tableBody || !noSalesMsg) {
-        console.error("Sales history table elements (salesHistoryTableBody or noSalesResults) not found in HTML.");
-        return;
-    }
-    tableBody.innerHTML = '';
+        function updateSortDirectionButtonsState(clickedButton) {
+            if (!sortAscBtn || !sortDescBtn) return;
+            if (clickedButton === sortAscBtn) {
+                sortAscBtn.classList.add('active');
+                sortDescBtn.classList.remove('active');
+            } else if (clickedButton === sortDescBtn) {
+                sortDescBtn.classList.add('active');
+                sortAscBtn.classList.remove('active');
+            }
+        }
 
-    const salesEvents = rawSalesHistoryData;
-    const hasSales = salesEvents && salesEvents.length > 0;
+        // --- Sale Item Management (non-shipping) ---
+        const saleItemsContainer = document.getElementById('saleItemsContainer');
+        const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
+        const multiItemSaleForm = document.getElementById('multiItemSaleForm');
+        let saleItemRowCounter = 0;
 
-    noSalesMsg.style.display = hasSales ? 'none' : 'block';
+        function createSaleItemRow() {
+            saleItemRowCounter++;
+            const itemRowDiv = document.createElement('div');
+            itemRowDiv.className = 'sale-item-row';
+            itemRowDiv.dataset.rowId = saleItemRowCounter;
+            itemRowDiv.innerHTML = `
+                <h4>Item ${saleItemRowCounter}</h4>
+                <div class="search-input-container">
+                    <label for="sale_item_search_${saleItemRowCounter}">Search Inventory Item:</label>
+                    <input type="text" id="sale_item_search_${saleItemRowCounter}" class="sale-item-search-input" placeholder="Type name, set, location..." autocomplete="off" required>
+                    <input type="hidden" name="inventory_item_id_with_prefix" class="selected-inventory-item-id" required>
+                    <div class="search-results-dropdown sale-item-search-results"></div>
+                </div>
+                <div class="form-grid" style="margin-top:10px;">
+                    <div><label for="sale_item_qty_${saleItemRowCounter}">Quantity Sold:</label><input type="number" id="sale_item_qty_${saleItemRowCounter}" name="quantity_sold" class="sale-item-qty" min="1" required></div>
+                    <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" required placeholder="$0.00"></div>
+                </div>
+                <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
+            if (saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv);
+            const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
+            if (searchInput) attachSearchListenerToInput(searchInput);
+            const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
+            if (removeBtn) removeBtn.addEventListener('click', function () {
+                itemRowDiv.remove();
+            });
+        }
 
-    const monthlySummaryTable = document.querySelector('#salesHistoryTab .monthly-summary-table');
-    const monthlySummaryHeading = document.querySelector('#salesHistoryTab > h3 + h4, #salesHistoryTab > h4:first-of-type');
+        function attachSearchListenerToInput(searchInput) {
+            const resultsDropdown = searchInput.parentElement.querySelector('.search-results-dropdown');
+            const hiddenIdInput = searchInput.parentElement.querySelector('.selected-inventory-item-id');
+            searchInput.addEventListener('input', function () {
+                const searchTerm = this.value.toLowerCase().trim();
+                resultsDropdown.innerHTML = '';
+                if (hiddenIdInput) hiddenIdInput.value = '';
+                if (searchTerm.length < 1) {
+                    resultsDropdown.style.display = 'none';
+                    return;
+                }
+                const matchedItems = (saleInventoryOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
+                if (matchedItems.length > 0) {
+                    resultsDropdown.style.display = 'block';
+                    matchedItems.slice(0, 10).forEach(opt => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.classList.add('search-result-item');
+                        itemDiv.textContent = opt.display;
+                        itemDiv.dataset.itemId = opt.id;
+                        itemDiv.addEventListener('click', function () {
+                            if (hiddenIdInput) hiddenIdInput.value = this.dataset.itemId;
+                            searchInput.value = this.textContent;
+                            resultsDropdown.innerHTML = '';
+                            resultsDropdown.style.display = 'none';
+                        });
+                        resultsDropdown.appendChild(itemDiv);
+                    });
+                } else {
+                    resultsDropdown.style.display = 'none';
+                }
+            });
+            document.addEventListener('click', function (event) {
+                if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) {
+                    resultsDropdown.style.display = 'none';
+                }
+            });
+        }
 
-    if (monthlySummaryTable) monthlySummaryTable.style.display = hasSales ? '' : 'none';
-    if (monthlySummaryHeading) monthlySummaryHeading.style.display = hasSales ? '' : 'none';
+        // --- Shipping Supply Selection and Preset Management ---
 
-    if (hasSales) {
-        salesEvents.forEach(event => {
-            if (!event || typeof event !== 'object') {
-                console.warn("Skipping invalid event data:", event);
+        const shippingSuppliesInventoryList = document.getElementById('shippingSuppliesInventoryList');
+        const shippingPresetSelect = document.getElementById('shippingPresetSelect');
+        const clearShippingSuppliesBtn = document.getElementById('clearShippingSuppliesBtn');
+
+        // Main function to render ALL shipping supplies in a list with quantity controls
+        function renderAllShippingSuppliesForSale() {
+            if (!shippingSuppliesInventoryList) return;
+            shippingSuppliesInventoryList.innerHTML = ''; // Clear previous list
+
+            if (!shippingSupplyOptionsData || shippingSupplyOptionsData.length === 0) {
+                shippingSuppliesInventoryList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No shipping supplies available in inventory.</p>';
                 return;
             }
 
-            const eventRow = tableBody.insertRow();
-            eventRow.insertCell().textContent = getStr(event, 'sale_date', 'N/A');
-
-            const itemsSummaryCell = eventRow.insertCell();
-            let totalQtyThisEvent = 0;
-            (event.items || []).forEach(item => {
-                totalQtyThisEvent += getNum(item, 'quantity_sold', 0);
+            // Sort supplies alphabetically for better user experience
+            const sortedSupplies = [...shippingSupplyOptionsData].sort((a, b) => {
+                const nameA = (a.display || '').toLowerCase();
+                const nameB = (b.display || '').toLowerCase();
+                return nameA.localeCompare(nameB);
             });
-            itemsSummaryCell.innerHTML = `${(event.items || []).length} item type(s) <button class="details-btn" data-event-id="event-details-${event.id}" style="font-size:0.8em; padding:2px 5px; margin-left:5px; vertical-align:middle;">Details</button>`;
 
-            eventRow.insertCell().textContent = totalQtyThisEvent;
+            sortedSupplies.forEach(supply => {
+                const supplyId = supply.id;
+                const supplyName = supply.display.split(' (')[0]; // Extract just the name
+                const description = supply.display.match(/\((.*?)\)/)?.[1] || 'N/A'; // Extract description from parenthesis
+                const quantityOnHand = supply.quantity_on_hand;
+                const costPerUnit = supply.cost_per_unit;
 
-            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'customer_shipping_charge'));
-            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'platform_fee'));
+                // Get the currently selected quantity from our tracking object
+                const currentSelectedQty = selectedShippingSuppliesForSale[supplyId] || 0;
 
-            eventRow.insertCell().innerHTML = formatCurrencyJS(getNum(event, 'total_shipping_cost'));
+                const supplyCardDiv = document.createElement('div');
+                supplyCardDiv.className = 'card-entry shipping-supply-selector-card'; // Reuse card-entry for styling
+                supplyCardDiv.style.marginBottom = '10px';
+                supplyCardDiv.style.padding = '15px'; // Adjust padding to fit controls
+                supplyCardDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+                        <h3 style="margin: 0; padding-bottom: 0; border-bottom: none; flex-basis: 100%; margin-bottom: 8px;">${supplyName}</h3>
+                        <p style="font-size: 0.9em; color: var(--text-secondary); margin: 0; flex-basis: 100%; margin-bottom: 10px;">
+                            ${description} &ndash; Qty on Hand: ${quantityOnHand} @ ${formatCurrencyJS(costPerUnit)} each
+                        </p>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                            <button type="button" class="qty-minus-btn button" data-supply-id="${supplyId}" style="width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;">-</button>
+                            <input type="number" class="selected-supply-qty" data-supply-id="${supplyId}" value="${currentSelectedQty}" min="0" max="${quantityOnHand}" style="width: 60px; text-align: center; font-size: 1em; padding: 5px;">
+                            <button type="button" class="qty-plus-btn button" data-supply-id="${supplyId}" style="width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;">+</button>
+                        </div>
+                    </div>
+                `;
+                shippingSuppliesInventoryList.appendChild(supplyCardDiv);
 
-            const profitLossCell = eventRow.insertCell();
-            const eventProfitLoss = getNum(event, 'total_profit_loss');
-            profitLossCell.innerHTML = `<span class="${(typeof eventProfitLoss === 'number' && eventProfitLoss >= 0) ? 'profit' : 'loss'}">${formatCurrencyJS(eventProfitLoss)}</span>`;
+                const qtyInput = supplyCardDiv.querySelector(`.selected-supply-qty[data-supply-id="${supplyId}"]`);
+                const minusBtn = supplyCardDiv.querySelector(`.qty-minus-btn[data-supply-id="${supplyId}"]`);
+                const plusBtn = supplyCardDiv.querySelector(`.qty-plus-btn[data-supply-id="${supplyId}"]`);
 
-            eventRow.insertCell().textContent = getStr(event, 'notes', '');
+                // Event listeners for plus/minus buttons
+                minusBtn.addEventListener('click', () => {
+                    let currentVal = parseInt(qtyInput.value);
+                    if (currentVal > 0) {
+                        qtyInput.value = currentVal - 1;
+                        updateSelectedSupplyQuantity(supplyId, currentVal - 1);
+                    }
+                });
 
-            const actionsCell = eventRow.insertCell();
-            const deleteForm = document.createElement('form');
-            deleteForm.action = `/delete_sale_event/${event.id}`;
-            deleteForm.method = 'post';
-            deleteForm.style.display = 'inline';
+                plusBtn.addEventListener('click', () => {
+                    let currentVal = parseInt(qtyInput.value);
+                    // Ensure we don't exceed quantity on hand
+                    if (currentVal < quantityOnHand) {
+                        qtyInput.value = currentVal + 1;
+                        updateSelectedSupplyQuantity(supplyId, currentVal + 1);
+                    } else {
+                        alert(`Cannot select more than available quantity (${quantityOnHand}).`);
+                    }
+                });
 
-            const deleteButton = document.createElement('button');
-            deleteButton.type = 'submit';
-            deleteButton.className = 'delete-button';
-            deleteButton.textContent = 'Delete';
-            deleteButton.style.padding = '5px 8px';
-            deleteButton.style.fontSize = '0.8em';
-            deleteButton.onclick = function () {
-                return confirm(`Are you sure you want to delete sale event ID ${event.id}? This will also attempt to add sold items back to inventory. This action cannot be undone.`);
-            };
+                // Event listener for direct input change
+                qtyInput.addEventListener('change', () => {
+                    let enteredVal = parseInt(qtyInput.value);
+                    if (isNaN(enteredVal) || enteredVal < 0) {
+                        enteredVal = 0;
+                    }
+                    if (enteredVal > quantityOnHand) {
+                        alert(`Cannot select more than available quantity (${quantityOnHand}). Setting to max available.`);
+                        enteredVal = quantityOnHand;
+                    }
+                    qtyInput.value = enteredVal;
+                    updateSelectedSupplyQuantity(supplyId, enteredVal);
+                });
+            });
+        }
 
-            deleteForm.appendChild(deleteButton);
-            actionsCell.appendChild(deleteForm);
+        // Function to update the global tracking object for selected supplies
+        function updateSelectedSupplyQuantity(supplyId, quantity) {
+            if (quantity > 0) {
+                selectedShippingSuppliesForSale[supplyId] = quantity;
+            } else {
+                delete selectedShippingSuppliesForSale[supplyId]; // Remove if quantity is 0
+            }
+            console.log("Selected Supplies:", selectedShippingSuppliesForSale); // For debugging
+        }
 
-            const detailsRow = tableBody.insertRow();
-            detailsRow.id = `event-details-${event.id}`;
-            detailsRow.style.display = 'none';
-            const detailsCell = detailsRow.insertCell();
-            detailsCell.colSpan = 9;
+        // Function to populate the presets dropdown
+        function populateShippingPresetSelect() {
+            if (!shippingPresetSelect) return;
+            shippingPresetSelect.innerHTML = '<option value="">-- Select a Preset --</option>'; // Clear and add default
 
-            let detailsHTML = '<div class="table-responsive-wrapper"><table class="nested-items-table"><thead><tr><th>Item Name</th><th>Details</th><th>Qty</th><th>Buy (ea)</th><th>Sell (ea)</th><th>Item P/L</th></tr></thead><tbody>';
-            (event.items || []).forEach(item => {
-                if (!item || typeof item !== 'object') {
-                    console.warn("Skipping invalid item data within event:", item);
+            if (shippingSupplyPresetsData && shippingSupplyPresetsData.length > 0) {
+                shippingSupplyPresetsData.forEach(preset => {
+                    const option = document.createElement('option');
+                    option.value = preset.id;
+                    option.textContent = preset.name + (preset.description ? ` (${preset.description})` : '');
+                    shippingPresetSelect.appendChild(option);
+                });
+            }
+        }
+
+        // Event listener for preset selection
+        if (shippingPresetSelect) {
+            shippingPresetSelect.addEventListener('change', (event) => {
+                const selectedPresetId = parseInt(event.target.value);
+                if (selectedPresetId) {
+                    loadShippingPresetIntoSaleForm(selectedPresetId);
+                } else {
+                    // If "-- Select a Preset --" is chosen, clear all selected supplies
+                    clearAllSelectedShippingSupplies();
+                }
+            });
+        }
+
+        // Function to load a selected preset into the sale form
+        function loadShippingPresetIntoSaleForm(presetId) {
+            const selectedPreset = shippingSupplyPresetsData.find(p => p.id === presetId);
+            if (!selectedPreset) {
+                alert("Preset not found.");
+                return;
+            }
+
+            clearAllSelectedShippingSupplies(); // Clear current selections
+
+            if (selectedPreset.items && selectedPreset.items.length > 0) {
+                let lowStockWarning = '';
+                selectedPreset.items.forEach(item => {
+                    const supply = shippingSupplyOptionsData.find(s => s.id === item.supply_id);
+                    if (supply) {
+                        let qtyToLoad = item.quantity;
+                        if (qtyToLoad > supply.quantity_on_hand) {
+                            lowStockWarning += `\n- ${supply.display.split(' (')[0]} (Need: ${qtyToLoad}, Have: ${supply.quantity_on_hand})`;
+                            qtyToLoad = supply.quantity_on_hand; // Load only what's available
+                        }
+                        updateSelectedSupplyQuantity(supply.id, qtyToLoad);
+                    } else {
+                        console.warn(`Supply ID ${item.supply_id} from preset not found in inventory options.`);
+                    }
+                });
+                renderAllShippingSuppliesForSale(); // Re-render to reflect new selections
+                if (lowStockWarning) {
+                    alert(`Preset loaded, but some items had low stock and were adjusted to max available:${lowStockWarning}`);
+                }
+            } else {
+                alert("This preset contains no supplies.");
+            }
+            // Reset dropdown to default after loading
+            if (shippingPresetSelect) shippingPresetSelect.value = '';
+        }
+
+        // Function to clear all selected supplies
+        if (clearShippingSuppliesBtn) {
+            clearShippingSuppliesBtn.addEventListener('click', clearAllSelectedShippingSupplies);
+        }
+
+        function clearAllSelectedShippingSupplies() {
+            selectedShippingSuppliesForSale = {}; // Reset the tracking object
+            renderAllShippingSuppliesForSale(); // Re-render the list to show all quantities as 0
+            alert('All selected shipping supplies cleared.');
+            // Reset dropdown to default
+            if (shippingPresetSelect) shippingPresetSelect.value = '';
+        }
+
+        // --- New Preset Creation and Management ---
+        const newPresetSuppliesContainer = document.getElementById('newPresetSuppliesContainer');
+        const addSupplyToPresetBtn = document.getElementById('addSupplyToPresetBtn');
+        const addShippingPresetForm = document.getElementById('addShippingPresetForm');
+        const existingShippingPresetsContainer = document.getElementById('existingShippingPresetsContainer');
+        let newPresetSupplyRowCounter = 0;
+
+        function createSupplyRowForNewPreset(initialSupplyId = null, initialQuantity = 1) {
+            newPresetSupplyRowCounter++;
+            const rowId = `preset-supply-row-${newPresetSupplyRowCounter}`;
+            const itemRowDiv = document.createElement('div');
+            itemRowDiv.className = 'sale-item-row preset-supply-item-row';
+            itemRowDiv.dataset.rowId = newPresetSupplyRowCounter;
+
+            // Create H5
+            const h5 = document.createElement('h5');
+            h5.textContent = `Supply ${newPresetSupplyRowCounter}`;
+            itemRowDiv.appendChild(h5);
+
+            // Create search input container
+            const searchInputContainer = document.createElement('div');
+            searchInputContainer.className = 'search-input-container';
+            itemRowDiv.appendChild(searchInputContainer);
+
+            const searchLabel = document.createElement('label');
+            searchLabel.htmlFor = `new_preset_supply_search_${newPresetSupplyRowCounter}`;
+            searchLabel.textContent = 'Search Shipping Supply:';
+            searchInputContainer.appendChild(searchLabel);
+
+            const searchInput = document.createElement('input');
+            searchInput.type = 'text';
+            searchInput.id = `new_preset_supply_search_${newPresetSupplyRowCounter}`;
+            searchInput.className = 'new-preset-supply-search-input';
+            searchInput.placeholder = 'Type name, description...';
+            searchInput.autocomplete = 'off';
+            searchInput.required = true;
+            searchInputContainer.appendChild(searchInput);
+
+            const hiddenIdInput = document.createElement('input');
+            hiddenIdInput.type = 'hidden';
+            hiddenIdInput.name = 'preset_supply_id';
+            hiddenIdInput.className = 'selected-preset-supply-id';
+            hiddenIdInput.required = true;
+            searchInputContainer.appendChild(hiddenIdInput);
+
+            const searchResultsDropdown = document.createElement('div');
+            searchResultsDropdown.className = 'search-results-dropdown new-preset-supply-search-results';
+            searchInputContainer.appendChild(searchResultsDropdown);
+
+            // Create form-grid for quantity
+            const formGridDiv = document.createElement('div');
+            formGridDiv.className = 'form-grid';
+            formGridDiv.style.marginTop = '10px';
+            itemRowDiv.appendChild(formGridDiv);
+
+            const qtyDiv = document.createElement('div');
+            formGridDiv.appendChild(qtyDiv);
+
+            const qtyLabel = document.createElement('label');
+            qtyLabel.htmlFor = `new_preset_supply_qty_${newPresetSupplyRowCounter}`;
+            qtyLabel.textContent = 'Quantity in Preset:';
+            qtyDiv.appendChild(qtyLabel);
+
+            const qtyControlsDiv = document.createElement('div');
+            qtyControlsDiv.style.display = 'flex';
+            qtyControlsDiv.style.alignItems = 'center';
+            qtyControlsDiv.style.gap = '5px';
+            qtyDiv.appendChild(qtyControlsDiv);
+
+            const minusButton = document.createElement('button');
+            minusButton.type = 'button';
+            minusButton.className = 'qty-minus-btn button';
+            minusButton.style.cssText = 'width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;';
+            minusButton.textContent = '-';
+            qtyControlsDiv.appendChild(minusButton);
+
+            const quantityInput = document.createElement('input');
+            quantityInput.type = 'number';
+            quantityInput.id = `new_preset_supply_qty_${newPresetSupplyRowCounter}`;
+            quantityInput.name = 'preset_quantity';
+            quantityInput.className = 'new-preset-supply-qty';
+            quantityInput.min = '1';
+            quantityInput.value = initialQuantity;
+            quantityInput.required = true;
+            quantityInput.style.cssText = 'flex-grow: 1; text-align: center;';
+            qtyControlsDiv.appendChild(quantityInput);
+
+            const plusButton = document.createElement('button');
+            plusButton.type = 'button';
+            plusButton.className = 'qty-plus-btn button';
+            plusButton.style.cssText = 'width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;';
+            plusButton.textContent = '+';
+            qtyControlsDiv.appendChild(plusButton);
+
+            // Create remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'delete-button remove-preset-supply-btn';
+            removeBtn.style.cssText = 'margin-top:10px; font-size:0.9em;';
+            removeBtn.textContent = 'Remove This Supply';
+            itemRowDiv.appendChild(removeBtn);
+
+            // Append the whole row to the container
+            if (newPresetSuppliesContainer) newPresetSuppliesContainer.appendChild(itemRowDiv);
+
+            // Attach listeners after all elements are created and appended
+            if (searchInput && hiddenIdInput && searchResultsDropdown) {
+                attachShippingSupplySearchListener(searchInput, hiddenIdInput, searchResultsDropdown);
+            }
+
+            minusButton.addEventListener('click', () => {
+                let currentVal = parseInt(quantityInput.value);
+                if (currentVal > 1) quantityInput.value = currentVal - 1;
+            });
+            plusButton.addEventListener('click', () => {
+                let currentVal = parseInt(quantityInput.value);
+                quantityInput.value = currentVal + 1;
+            });
+
+            removeBtn.addEventListener('click', function () {
+                itemRowDiv.remove();
+            });
+
+            // Pre-select if initialSupplyId is provided
+            if (initialSupplyId) {
+                const selectedSupply = shippingSupplyOptionsData.find(opt => opt.id === initialSupplyId);
+                if (selectedSupply) {
+                    hiddenIdInput.value = selectedSupply.id;
+                    searchInput.value = selectedSupply.display;
+                }
+            }
+        }
+
+        // Search listener for both sale and preset supply inputs
+        function attachShippingSupplySearchListener(searchInput, hiddenIdInput, resultsDropdown) {
+            if (!resultsDropdown) {
+                console.error("Critical Error: resultsDropdown was not passed or is null to attachShippingSupplySearchListener.");
+                return;
+            }
+
+            searchInput.addEventListener('input', function () {
+                const searchTerm = this.value.toLowerCase().trim();
+
+                resultsDropdown.innerHTML = '';
+                if (hiddenIdInput) {
+                    hiddenIdInput.value = ''; // Clear selected ID if text changes
+                }
+
+                if (searchTerm.length < 1) {
+                    resultsDropdown.style.display = 'none';
                     return;
                 }
-                detailsHTML += `<tr>
-                    <td>${getStr(item, 'original_item_name')}</td><td>${getStr(item, 'original_item_details')}</td>
-                    <td>${getNum(item, 'quantity_sold', 0)}</td><td>${formatCurrencyJS(getNum(item, 'buy_price_per_item'))}</td>
-                    <td>${formatCurrencyJS(getNum(item, 'sell_price_per_item'))}</td>
-                    <td><span class="${getNum(item, 'item_profit_loss', 0) >= 0 ? 'profit' : 'loss'}">${formatCurrencyJS(getNum(item, 'item_profit_loss'))}</span></td>
-                </tr>`;
-            });
-            detailsHTML += '</tbody></table></div>';
-            detailsCell.innerHTML = detailsHTML;
-        });
 
-        tableBody.querySelectorAll('.details-btn').forEach(button => {
-            button.addEventListener('click', function () {
-                const detailRowId = this.dataset.eventId;
-                const detailRow = document.getElementById(detailRowId);
-                if (detailRow) {
-                    detailRow.style.display = detailRow.style.display === 'none' ? 'table-row' : 'none';
+                const matchedItems = (shippingSupplyOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
+
+                if (matchedItems.length > 0) {
+                    resultsDropdown.style.display = 'block';
+                    matchedItems.slice(0, 10).forEach(opt => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.classList.add('search-result-item');
+                        itemDiv.textContent = opt.display;
+                        itemDiv.dataset.supplyId = opt.id;
+
+                        itemDiv.addEventListener('click', function () {
+                            if (hiddenIdInput) hiddenIdInput.value = this.dataset.supplyId;
+                            searchInput.value = this.textContent;
+                            resultsDropdown.innerHTML = '';
+                            resultsDropdown.style.display = 'none';
+                        });
+                        resultsDropdown.appendChild(itemDiv);
+                    });
+                } else {
+                    resultsDropdown.style.display = 'none';
                 }
             });
-        });
-    }
-}
 
-
-function applyFiltersAndSort() {
-    const params = new URLSearchParams(window.location.search);
-    params.set('tab', 'inventoryTab');
-    if (inventoryFilterInput) params.set('filter_text', inventoryFilterInput.value);
-    if (inventoryTypeFilter) params.set('filter_type', inventoryTypeFilter.value);
-    if (inventoryLocationFilter) params.set('filter_location', inventoryLocationFilter.value);
-    if (inventorySetFilter) params.set('filter_set', inventorySetFilter.value);
-    if (inventoryFoilFilter) params.set('filter_foil', inventoryFoilFilter.value);
-    if (inventoryRarityFilter) params.set('filter_rarity', inventoryRarityFilter.value);
-    if (inventoryCardLanguageFilter) params.set('filter_card_lang', inventoryCardLanguageFilter.value);
-    if (inventoryConditionFilter) params.set('filter_condition', inventoryConditionFilter.value);
-    if (inventoryCollectorFilter) params.set('filter_collector', inventoryCollectorFilter.value);
-    if (inventorySealedLanguageFilter) params.set('filter_sealed_lang', inventorySealedLanguageFilter.value);
-    params.set('sort_key', inventorySortKeySelect.value);
-    let currentSortDir = 'asc';
-    if (sortDescBtn && sortDescBtn.classList.contains('active')) currentSortDir = 'desc';
-    else if (sortAscBtn && sortAscBtn.classList.contains('active')) currentSortDir = 'asc';
-    params.set('sort_dir', currentSortDir);
-    params.set('page', '1');
-    window.location.search = params.toString();
-}
-
-function clearInventoryFiltersAndSort() { window.location.href = "{{ url_for('index', tab='inventoryTab') }}"; }
-
-function updateSortDirectionButtonsState(clickedButton) {
-    if (!sortAscBtn || !sortDescBtn) return;
-    if (clickedButton === sortAscBtn) { sortAscBtn.classList.add('active'); sortDescBtn.classList.remove('active'); }
-    else if (clickedButton === sortDescBtn) { sortDescBtn.classList.add('active'); sortAscBtn.classList.remove('active'); }
-}
-
-const saleItemsContainer = document.getElementById('saleItemsContainer');
-const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
-const multiItemSaleForm = document.getElementById('multiItemSaleForm');
-let saleItemRowCounter = 0;
-
-function createSaleItemRow() {
-    saleItemRowCounter++;
-    const itemRowDiv = document.createElement('div');
-    itemRowDiv.className = 'sale-item-row';
-    itemRowDiv.dataset.rowId = saleItemRowCounter;
-    itemRowDiv.innerHTML = `
-        <h4>Item ${saleItemRowCounter}</h4>
-        <div class="search-input-container">
-            <label for="sale_item_search_${saleItemRowCounter}">Search Inventory Item:</label>
-            <input type="text" id="sale_item_search_${saleItemRowCounter}" class="sale-item-search-input" placeholder="Type name, set, location..." autocomplete="off" required>
-            <input type="hidden" name="inventory_item_id_with_prefix" class="selected-inventory-item-id" required>
-            <div class="search-results-dropdown sale-item-search-results"></div>
-        </div>
-        <div class="form-grid" style="margin-top:10px;">
-            <div><label for="sale_item_qty_${saleItemRowCounter}">Quantity Sold:</label><input type="number" id="sale_item_qty_${saleItemRowCounter}" name="quantity_sold" class="sale-item-qty" min="1" required></div>
-            <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" required placeholder="$0.00"></div>
-        </div>
-        <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
-    if(saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv);
-    const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
-    if (searchInput) attachSearchListenerToInput(searchInput);
-    const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
-    if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
-}
-
-function attachSearchListenerToInput(searchInput) {
-    const resultsDropdown = searchInput.parentElement.querySelector('.search-results-dropdown');
-    const hiddenIdInput = searchInput.parentElement.querySelector('.selected-inventory-item-id');
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase().trim(); resultsDropdown.innerHTML = ''; if(hiddenIdInput) hiddenIdInput.value = '';
-        if (searchTerm.length < 1) { resultsDropdown.style.display = 'none'; return; }
-        const matchedItems = (saleInventoryOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
-        if (matchedItems.length > 0) {
-            resultsDropdown.style.display = 'block';
-            matchedItems.slice(0, 10).forEach(opt => {
-                const itemDiv = document.createElement('div'); itemDiv.classList.add('search-result-item'); itemDiv.textContent = opt.display; itemDiv.dataset.itemId = opt.id;
-                itemDiv.addEventListener('click', function() { if(hiddenIdInput) hiddenIdInput.value = this.dataset.itemId; searchInput.value = this.textContent; resultsDropdown.innerHTML = ''; resultsDropdown.style.display = 'none'; });
-                resultsDropdown.appendChild(itemDiv);
-            });
-        } else { resultsDropdown.style.display = 'none'; }
-    });
-    document.addEventListener('click', function(event) { if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) { resultsDropdown.style.display = 'none'; }});
-}
-
-const shippingSuppliesUsedContainer = document.getElementById('shippingSuppliesUsedContainer');
-const addShippingSupplyToSaleBtn = document.getElementById('addShippingSupplyToSaleBtn');
-let shippingSupplyRowCounter = 0;
-
-function createShippingSupplyRow() {
-    shippingSupplyRowCounter++;
-    const itemRowDiv = document.createElement('div');
-    itemRowDiv.className = 'sale-item-row';
-    itemRowDiv.dataset.rowId = shippingSupplyRowCounter;
-    itemRowDiv.innerHTML = `
-        <h4>Shipping Supply ${shippingSupplyRowCounter}</h4>
-        <div class="search-input-container">
-            <label for="shipping_supply_search_${shippingSupplyRowCounter}">Search Shipping Supply:</label>
-            <input type="text" id="shipping_supply_search_${shippingSupplyRowCounter}" class="shipping-supply-search-input" placeholder="Type name, description..." autocomplete="off" required>
-            <input type="hidden" name="shipping_supply_id" class="selected-shipping-supply-id" required>
-            <div class="search-results-dropdown shipping-supply-search-results"></div>
-        </div>
-        <div class="form-grid" style="margin-top:10px;">
-            <div><label for="shipping_supply_qty_${shippingSupplyRowCounter}">Quantity Used:</label><input type="number" id="shipping_supply_qty_${shippingSupplyRowCounter}" name="quantity_used" class="shipping-supply-qty" min="1" required></div>
-        </div>
-        <button type="button" class="delete-button remove-shipping-supply-btn" style="margin-top:10px; font-size:0.9em;">Remove This Supply</button>`;
-    if(shippingSuppliesUsedContainer) shippingSuppliesUsedContainer.appendChild(itemRowDiv);
-
-    const searchInput = itemRowDiv.querySelector('.shipping-supply-search-input');
-    if (searchInput) attachShippingSupplySearchListener(searchInput);
-
-    const removeBtn = itemRowDiv.querySelector('.remove-shipping-supply-btn');
-    if(removeBtn) removeBtn.addEventListener('click', function() { itemRowDiv.remove(); });
-}
-
-function attachShippingSupplySearchListener(searchInput) {
-    const resultsDropdown = searchInput.parentElement.querySelector('.shipping-supply-search-results');
-    const hiddenIdInput = searchInput.parentElement.querySelector('.selected-shipping-supply-id');
-
-    searchInput.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase().trim();
-        resultsDropdown.innerHTML = '';
-        if(hiddenIdInput) hiddenIdInput.value = '';
-
-        if (searchTerm.length < 1) {
-            resultsDropdown.style.display = 'none';
-            return;
-        }
-
-        const matchedItems = (shippingSupplyOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
-
-        if (matchedItems.length > 0) {
-            resultsDropdown.style.display = 'block';
-            matchedItems.slice(0, 10).forEach(opt => {
-                const itemDiv = document.createElement('div');
-                itemDiv.classList.add('search-result-item');
-                itemDiv.textContent = opt.display;
-                itemDiv.dataset.supplyId = opt.id;
-                itemDiv.dataset.costPerUnit = opt.cost_per_unit;
-
-                itemDiv.addEventListener('click', function() {
-                    if(hiddenIdInput) hiddenIdInput.value = this.dataset.supplyId;
-                    searchInput.value = this.textContent;
-                    resultsDropdown.innerHTML = '';
+            document.addEventListener('click', function (event) {
+                if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) {
                     resultsDropdown.style.display = 'none';
-                });
-                resultsDropdown.appendChild(itemDiv);
+                }
             });
-        } else {
-            resultsDropdown.style.display = 'none';
-        }
-    });
-
-    document.addEventListener('click', function(event) {
-        if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) {
-            resultsDropdown.style.display = 'none';
-        }
-    });
-}
-
-
-if (addItemToSaleBtn) { addItemToSaleBtn.addEventListener('click', createSaleItemRow); }
-if (addShippingSupplyToSaleBtn) {
-    addShippingSupplyToSaleBtn.addEventListener('click', createShippingSupplyRow);
-}
-
-if (multiItemSaleForm) {
-    multiItemSaleForm.addEventListener('submit', async function(event) {
-        event.preventDefault();
-        const saleData = {
-            sale_date: document.getElementById('sale_event_date').value,
-            total_shipping_cost: document.getElementById('sale_event_shipping_cost').value,
-            notes: document.getElementById('sale_event_notes').value,
-            customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value,
-            platform_fee: document.getElementById('sale_event_platform_fee').value,
-            items: [],
-            shipping_supplies_used: []
-        };
-
-        const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
-        if (itemRows.length === 0) { alert("Please add at least one item to the sale."); return; }
-        let formIsValid = true;
-        itemRows.forEach(row => {
-            const itemIdWithPrefix = row.querySelector('.selected-inventory-item-id').value;
-            const qty = row.querySelector('.sale-item-qty').value;
-            const price = row.querySelector('.sale-item-price').value;
-            if (!itemIdWithPrefix || !qty || qty < 1 || !price || price < 0) { formIsValid = false; }
-            saleData.items.push({ inventory_item_id_with_prefix: itemIdWithPrefix, quantity_sold: qty, sell_price_per_item: price });
-        });
-
-        const shippingSupplyRows = shippingSuppliesUsedContainer ? shippingSuppliesUsedContainer.querySelectorAll('.sale-item-row') : [];
-        shippingSupplyRows.forEach(row => {
-            const supplyId = row.querySelector('.selected-shipping-supply-id').value;
-            const qtyUsed = row.querySelector('.shipping-supply-qty').value;
-            if (!supplyId || !qtyUsed || qtyUsed < 1) { formIsValid = false; }
-            saleData.shipping_supplies_used.push({ supply_item_id: supplyId, quantity_used: qtyUsed });
-        });
-
-        if (!formIsValid) { alert("Please ensure all item and shipping supply details (selected item/supply, valid quantity, valid price) are filled for each entry."); return; }
-        try {
-            const response = await fetch("{{ url_for('record_multi_item_sale_route') }}", { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(saleData) });
-            const result = await response.json();
-            if (response.ok && result.success) { window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}"; }
-            else { alert("Error recording sale: " + (result.message || "Unknown server error.")); }
-        } catch (error) { console.error("Error submitting sale:", error); alert("An unexpected error occurred."); }
-    });
         }
 
-        const massEditForm = document.getElementById('massEditForm');
-        const massEditFieldSelect = document.getElementById('massEditField');
-        const massEditValueInput = document.getElementById('massEditValue');
 
-        if (massEditForm) {
-            massEditForm.addEventListener('submit', async function (event) {
+        if (addSupplyToPresetBtn) {
+            addSupplyToPresetBtn.addEventListener('click', () => createSupplyRowForNewPreset());
+        }
+
+        if (addShippingPresetForm) {
+            addShippingPresetForm.addEventListener('submit', async function (event) {
                 event.preventDefault();
 
-                const selectedItemTypeFilter = inventoryTypeFilter ? inventoryTypeFilter.value : 'all';
-                if (selectedItemTypeFilter === 'all') {
-                    alert("For mass edits, you must specify an 'Item Type' other than 'All Types' to prevent unintended changes across different item categories. Please select 'Single Cards', 'Sealed Products', or 'Shipping Supplies'.");
-                    return;
+                const presetName = document.getElementById('new_preset_name').value.trim();
+                const presetDescription = document.getElementById('new_preset_description').value.trim();
+
+                const presetItems = [];
+                const itemRows = newPresetSuppliesContainer.querySelectorAll('.preset-supply-item-row');
+
+                let formIsValid = true;
+                if (itemRows.length === 0) {
+                    alert("Please add at least one supply item to the preset.");
+                    formIsValid = false;
                 }
 
-                const fieldToChange = massEditFieldSelect.value;
-                const newValue = massEditValueInput.value;
+                itemRows.forEach(row => {
+                    const supplyId = row.querySelector('.selected-preset-supply-id').value;
+                    const quantity = row.querySelector('.new-preset-supply-qty').value;
 
-                if (!fieldToChange) {
-                    alert("Please select a 'Field to Change'.");
-                    return;
-                }
-                if (newValue.trim() === '') {
-                    alert("Please enter a 'New Value / Percentage'.");
-                    return;
-                }
+                    if (!supplyId || !quantity || parseInt(quantity) <= 0) {
+                        formIsValid = false;
+                    }
+                    presetItems.push({
+                        supply_id: supplyId,
+                        quantity: quantity
+                    });
+                });
 
-                const currentFilters = {
-                    item_type: selectedItemTypeFilter,
-                    filter_text: inventoryFilterInput ? inventoryFilterInput.value : '',
-                    filter_location: inventoryLocationFilter ? inventoryLocationFilter.value : 'all',
-                    filter_set: inventorySetFilter ? inventorySetFilter.value : 'all',
-                    filter_foil: inventoryFoilFilter ? inventoryFoilFilter.value : 'all',
-                    filter_rarity: inventoryRarityFilter ? inventoryRarityFilter.value : 'all',
-                    filter_card_lang: inventoryCardLanguageFilter ? inventoryCardLanguageFilter.value : 'all',
-                    filter_condition: inventoryConditionFilter ? inventoryConditionFilter.value : 'all',
-                    filter_collector: inventoryCollectorFilter ? inventoryCollectorFilter.value : 'all',
-                    filter_sealed_lang: inventorySealedLanguageFilter ? inventorySealedLanguageFilter.value : 'all'
-                };
-
-                let affectedTypesMessage = "";
-                switch (currentFilters.item_type) {
-                    case 'single_card':
-                        affectedTypesMessage = "Single Cards Only";
-                        break;
-                    case 'sealed_product':
-                        affectedTypesMessage = "Sealed Products Only";
-                        break;
-                    case 'shipping_supply':
-                        affectedTypesMessage = "Shipping Supplies Only";
-                        break;
-                    default:
-                        affectedTypesMessage = "Specific Item Types";
-                }
-
-                let filterSummary = `\nActive Filters:\n`;
-                for (const key in currentFilters) {
-                    if (key === 'item_type') continue;
-                    const displayKey = key.replace(/([A-Z])/g, ' $1').replace('filter ', '').replace('card ', 'Card ').replace('sealed ', 'Sealed ').replace('supply ', 'Supply ').replace('lang', 'Language').replace('foil', 'Foil').replace('collector', 'Collector').trim();
-                    const displayValue = currentFilters[key] === '' ? '[None]' : currentFilters[key];
-                    filterSummary += ` - ${displayKey}: ${displayValue}\n`;
-                }
-
-                const confirmMessage = `!!!! ABSOLUTE WARNING: MASS EDIT ACTION !!!!\n\n` +
-                    `This will apply "${newValue}" to the "${fieldToChange}" field for:\n` +
-                    `>>> ${affectedTypesMessage} <<<\n\n` +
-                    `that match the following current filters:` + filterSummary +
-                    `\nThis action cannot be undone. Are you absolutely sure you want to proceed?`;
-
-
-                if (!confirm(confirmMessage)) {
+                if (!formIsValid) {
+                    alert("Please ensure all preset supply items have a selected supply and a valid quantity.");
                     return;
                 }
 
                 const payload = {
-                    filters: currentFilters,
-                    update_data: {
-                        [fieldToChange]: newValue
-                    }
+                    name: presetName,
+                    description: presetDescription,
+                    items: presetItems
                 };
 
                 try {
-                    const response = await fetch("{{ url_for('mass_edit_inventory_route') }}", {
+                    const response = await fetch("{{ url_for('add_shipping_supply_preset_route') }}", {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json',
+                            'Content-Type': 'application/json'
                         },
                         body: JSON.stringify(payload)
                     });
@@ -1582,291 +1934,521 @@ if (multiItemSaleForm) {
                     const result = await response.json();
 
                     if (response.ok && result.success) {
-                        alert(`Mass edit successful: ${result.message}`);
-                        window.location.reload();
+                        alert(result.message);
+                        addShippingPresetForm.reset();
+                        newPresetSuppliesContainer.innerHTML = '';
+                        newPresetSupplyRowCounter = 0;
+                        createSupplyRowForNewPreset();
+                        await refreshShippingSupplyPresets();
                     } else {
-                        alert(`Mass edit failed: ${result.message || 'Unknown error'}`);
+                        alert("Error saving preset: " + (result.message || "Unknown server error."));
                     }
                 } catch (error) {
-                    console.error("Error during mass edit fetch:", error);
-                    alert("An unexpected error occurred during mass edit. Check console for details.");
+                    console.error("Error submitting new preset:", error);
+                    alert("An unexpected error occurred while saving the preset.");
                 }
             });
         }
 
-if (inventoryTypeFilter) {
-    let shippingSupplyOptionExists = false;
-    for (let i = 0; i < inventoryTypeFilter.options.length; i++) {
-        if (inventoryTypeFilter.options[i].value === 'shipping_supply') {
-            shippingSupplyOptionExists = true;
-            break;
-        }
-    }
-
-    if (!shippingSupplyOptionExists) {
-        let insertBeforeOption = null;
-        for (let i = 0; i < inventoryTypeFilter.options.length; i++) {
-            if (inventoryTypeFilter.options[i].value === 'sealed_product') {
-                insertBeforeOption = inventoryTypeFilter.options[i];
-                break;
-            }
-        }
-
-        const newOption = document.createElement('option');
-        newOption.value = 'shipping_supply';
-        newOption.textContent = 'Shipping Supplies';
-
-        if (insertBeforeOption) {
-            inventoryTypeFilter.insertBefore(newOption, insertBeforeOption.nextSibling);
-        } else {
-            inventoryTypeFilter.appendChild(newOption);
-        }
-
-        const currentFilterType = "{{ filter_type }}";
-        if (currentFilterType === 'shipping_supply') {
-            newOption.selected = true;
-        }
-    }
-}
-
-const setSymbolModal = document.getElementById("setSymbolModal"); const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn"); const setSymbolListContainer = document.getElementById("setSymbolListContainer"); const setCodeAddInput = document.getElementById("set_code_add"); const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
-async function fetchAndDisplaySetSymbols() { if (allScryfallSets.length > 0) { renderSetSymbols(allScryfallSets); return; } if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Loading...</p>"; try { const response = await fetch("{{ url_for('api_all_sets_info') }}"); if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`); allScryfallSets = await response.json(); if(!Array.isArray(allScryfallSets)) allScryfallSets = []; renderSetSymbols(allScryfallSets); } catch (error) { console.error("Could not fetch set symbols:", error); if(setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Error loading.</p>"; } }
-
-// Function to render set symbols with theme-aware filter
-function renderSetSymbols(setsToRender) {
-    if(!setSymbolListContainer) return;
-    setSymbolListContainer.innerHTML = "";
-    if (!setsToRender || setsToRender.length === 0) {
-        setSymbolListContainer.innerHTML = "<p>No sets found.</p>";
-        return;
-    }
-    const isClassicMode = document.body.classList.contains('classic-mode');
-    setsToRender.forEach(set => {
-        if (set && set.icon_svg_uri) {
-            const itemDiv = document.createElement("div");
-            itemDiv.className = "set-symbol-item";
-            itemDiv.onclick = function() { selectSetSymbol(set.code); };
-
-            const img = document.createElement("img");
-            img.src = set.icon_svg_uri;
-            img.alt = (getStr(set, 'name', 'Set')) + " symbol";
-            // Apply filter based on current theme
-            if (!isClassicMode) { // If not in classic mode (i.e., dark mode)
-                img.style.filter = 'brightness(0) invert(1)';
-            } else {
-                img.style.filter = 'none'; // No filter in classic mode
-            }
-
-
-            const detailsDiv = document.createElement("div");
-            detailsDiv.className = "set-details";
-
-            const nameSpan = document.createElement("span");
-            nameSpan.className = "set-name";
-            nameSpan.textContent = getStr(set, 'name', 'N/A');
-
-            const codeSpan = document.createElement("span");
-            codeSpan.className = "set-code";
-            codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`;
-
-            detailsDiv.appendChild(nameSpan);
-            detailsDiv.appendChild(codeSpan);
-            itemDiv.appendChild(img);
-            itemDiv.appendChild(detailsDiv);
-            setSymbolListContainer.appendChild(itemDiv);
-        }
-    });
-}
-function filterSetSymbols() { if (!setSymbolSearchInput) return; const filterText = setSymbolSearchInput.value.toLowerCase(); const filteredSets = (allScryfallSets || []).filter(set => set && ((getStr(set,'name')).toLowerCase().includes(filterText) || (getStr(set,'code')).toLowerCase().includes(filterText))); renderSetSymbols(filteredSets); }
-function selectSetSymbol(setCode) { if (setCodeAddInput && setCode) setCodeAddInput.value = setCode.toUpperCase(); closeSetSymbolModal(); }
-function openSetSymbolModal() { if (setSymbolModal) { setSymbolModal.style.display = "block"; fetchAndDisplaySetSymbols(); } }
-function closeSetSymbolModal() { if (setSymbolModal) setSymbolModal.style.display = "none"; }
-if (findSetBySymbolBtn) findSetBySymbolBtn.onclick = openSetSymbolModal; if (setSymbolSearchInput) setSymbolSearchInput.addEventListener('keyup', filterSetSymbols); window.onclick = function(event) { if (event.target == setSymbolModal) closeSetSymbolModal(); }
-
-document.addEventListener('DOMContentLoaded', function() {
-    console.log("DOM Content Loaded. Initializing.");
-    try {
-        // --- Theme Switch Logic ---
-        const themeToggle = document.getElementById('themeToggle');
-        const currentTheme = localStorage.getItem('theme');
-        const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)"); // System preference
-
-        // Set initial theme
-        if (currentTheme) {
-            document.body.classList.toggle('classic-mode', currentTheme === 'classic');
-            themeToggle.checked = (currentTheme === 'classic'); // Check the toggle if classic mode is active
-        } else if (prefersDarkScheme.matches) {
-            // If no preference saved, default to dark if system prefers dark
-            document.body.classList.remove('classic-mode');
-            themeToggle.checked = false; // Dark mode is default (toggle unchecked)
-        } else {
-            // If no preference saved and system prefers light, default to classic
-            document.body.classList.add('classic-mode');
-            themeToggle.checked = true; // Classic mode is light (toggle checked)
-        }
-
-        // Event listener for theme toggle
-        themeToggle.addEventListener('change', function() {
-            if (this.checked) {
-                document.body.classList.add('classic-mode');
-                localStorage.setItem('theme', 'classic');
-            } else {
-                document.body.classList.remove('classic-mode');
-                localStorage.setItem('theme', 'dark');
-            }
-            // Re-render set symbols if modal is open to apply correct filter
-            if (setSymbolModal && setSymbolModal.style.display === 'block') {
-                 renderSetSymbols(allScryfallSets);
-            }
-        });
-
-
-        openTab(null, activeTabFromFlask);
-
-        const applyBtn = document.getElementById('applyInventoryFiltersBtn');
-        if(applyBtn) applyBtn.addEventListener('click', applyFiltersAndSort);
-
-        if (inventoryFilterInput) { inventoryFilterInput.addEventListener('keypress', function(event) { if (event.key === 'Enter') { event.preventDefault(); applyFiltersAndSort(); } }); }
-
-        if (sortAscBtn) sortAscBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
-        if (sortDescBtn) sortDescBtn.addEventListener('click', function() { updateSortDirectionButtonsState(this); });
-
-        const salesHistoryTabDiv = document.getElementById('salesHistoryTab');
-        if (salesHistoryTabDiv && salesHistoryTabDiv.style.display === 'block') {
-            if (saleItemsContainer && saleItemsContainer.children.length === 0) {
-                createSaleItemRow();
-            }
-            if (shippingSuppliesUsedContainer && shippingSuppliesUsedContainer.children.length === 0) {
-                createShippingSupplyRow();
-            }
-        }
-
-        const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
-        const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls');
-
-        if (toggleInventoryFiltersBtn && filterControlsDiv) {
-            let filtersActive = (inventoryFilterInput && inventoryFilterInput.value !== '') ||
-                                (inventoryTypeFilter && inventoryTypeFilter.value !== 'all') ||
-                                (inventoryLocationFilter && inventoryLocationFilter.value !== 'all') ||
-                                (inventorySetFilter && inventorySetFilter.value !== 'all') ||
-                                (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
-                                (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
-                                (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
-                                (inventoryConditionFilter && inventoryConditionFilter.value !== 'all') ||
-                                (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
-                                (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
-
-            if (filtersActive) {
-                filterControlsDiv.classList.add('expanded');
-                toggleInventoryFiltersBtn.textContent = 'Hide Filters';
-            } else if (window.innerWidth <= 768 && !filterControlsDiv.classList.contains('expanded')) {
-                 filterControlsDiv.classList.remove('expanded');
-                 toggleInventoryFiltersBtn.textContent = 'Show Filters';
-            } else if (window.innerWidth > 768) {
-                filterControlsDiv.classList.add('expanded');
-                toggleInventoryFiltersBtn.style.display = 'none';
-            }
-
-            toggleInventoryFiltersBtn.addEventListener('click', function() {
-                const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
-                if (isCurrentlyExpanded) {
-                    this.textContent = 'Hide Filters';
+        async function refreshShippingSupplyPresets() {
+            try {
+                const response = await fetch('/api/all_shipping_supply_presets');
+                if (!response.ok) throw new Error('Failed to fetch presets.');
+                const presets = await response.json();
+                if (!Array.isArray(presets)) {
+                    console.error("Fetched presets are not an array:", presets);
+                    shippingSupplyPresetsData = [];
                 } else {
-                    this.textContent = 'Show Filters';
+                    shippingSupplyPresetsData = presets;
                 }
+                renderShippingSupplyPresets();
+                populateShippingPresetSelect(); // Also re-populate the selection dropdown
+            } catch (error) {
+                console.error("Error refreshing shipping supply presets:", error);
+                alert("Failed to refresh shipping supply presets. Please try reloading the page.");
+            }
+        }
+
+        function renderShippingSupplyPresets() {
+            if (!existingShippingPresetsContainer) return;
+            existingShippingPresetsContainer.innerHTML = '';
+
+            if (!shippingSupplyPresetsData || shippingSupplyPresetsData.length === 0) {
+                existingShippingPresetsContainer.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No shipping supply presets found.</p>';
+                return;
+            }
+
+            shippingSupplyPresetsData.forEach(preset => {
+                const presetDiv = document.createElement('div');
+                presetDiv.className = 'card-entry';
+                presetDiv.style.marginBottom = '15px';
+
+                let itemsHtml = '<ul style="list-style: none; padding: 0;">';
+                if (preset.items && preset.items.length > 0) {
+                    preset.items.forEach(item => {
+                        const supplyName = getStr(item, 'supply_name', 'N/A');
+                        const description = getStr(item, 'description', '');
+                        const unitOfMeasure = getStr(item, 'unit_of_measure', 'unit');
+                        const quantity = getNum(item, 'quantity', 0);
+                        const currentStock = getNum(item, 'current_stock', 0);
+                        const stockWarning = (item.hasOwnProperty('current_stock') && currentStock < quantity)
+                            ? `<span style="color:red; font-size:0.8em; margin-left:5px;">(Low Stock: ${currentStock} left)</span>`
+                            : '';
+
+                        itemsHtml += `<li>- ${supplyName} (${description || unitOfMeasure}): <strong>${quantity}</strong> units ${stockWarning}</li>`;
+                    });
+                } else {
+                    itemsHtml += '<li>No supplies defined for this preset.</li>';
+                }
+                itemsHtml += '</ul>';
+
+                presetDiv.innerHTML = `
+                    <h3>${getStr(preset, 'name')}</h3>
+                    <p style="font-size: 0.95em; color: var(--text-secondary);">
+                        ${getStr(preset, 'description') || 'No description provided.'}
+                    </p>
+                    ${itemsHtml}
+                    <div class="actions">
+                        <button type="button" class="button" onclick="loadShippingPresetIntoSaleForm(${preset.id})" style="background-color: var(--mtg-blue);">
+                            Load into Sale Form
+                        </button>
+                        <button type="button" class="delete-button" onclick="deleteShippingPreset(${preset.id}, '${getStr(preset, 'name').replace(/'/g, "\\'")}')">
+                            Delete Preset
+                        </button>
+                    </div>
+                `;
+                existingShippingPresetsContainer.appendChild(presetDiv);
             });
         }
 
-        const hamburgerBtn = document.getElementById('hamburgerBtn');
-        const mainTabNav = document.getElementById('mainTabNav');
+        async function deleteShippingPreset(presetId, presetName) {
+            if (!confirm(`Are you sure you want to delete the preset "${presetName}"? This action cannot be undone.`)) {
+                return;
+            }
 
-        if (hamburgerBtn && mainTabNav) {
-            const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
-
-            hamburgerBtn.addEventListener('click', function() {
-                const isOpen = mainTabNav.classList.toggle('open');
-                hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
-                if (isOpen) {
-                    hamburgerBtn.innerHTML = '&times;';
-                } else {
-                    hamburgerBtn.innerHTML = '&#9776;';
-                }
-            });
-
-            tabButtonsInMenu.forEach(button => {
-                button.addEventListener('click', function() {
-                    if (mainTabNav.classList.contains('open')) {
-                        mainTabNav.classList.remove('open');
-                        hamburgerBtn.setAttribute('aria-expanded', 'false');
-                        hamburgerBtn.innerHTML = '&#9776;';
+            try {
+                const response = await fetch(`/delete_shipping_supply_preset/${presetId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
                     }
                 });
-            });
-        }
+                const result = await response.json();
 
-        const csvDropZone = document.getElementById('csvDropZone');
-        const actualCsvFileInput = document.getElementById('csv_file');
-        const csvFileNameDisplay = document.getElementById('fileNameDisplay');
-
-        if (actualCsvFileInput && csvFileNameDisplay) {
-            actualCsvFileInput.addEventListener('change', function() {
-                if (this.files && this.files.length > 0) {
-                    csvFileNameDisplay.textContent = this.files[0].name;
+                if (response.ok && result.success) {
+                    alert(result.message);
+                    await refreshShippingSupplyPresets();
                 } else {
-                    csvFileNameDisplay.textContent = 'No file chosen';
+                    alert("Error deleting preset: " + (result.message || "Unknown error."));
+                }
+            } catch (error) {
+                console.error("Error deleting preset:", error);
+                alert("An unexpected error occurred while deleting the preset.");
+            }
+        }
+
+
+        // --- Scryfall Set Symbol Modal Logic ---
+        const setSymbolModal = document.getElementById("setSymbolModal");
+        const findSetBySymbolBtn = document.getElementById("findSetBySymbolBtn");
+        const setSymbolListContainer = document.getElementById("setSymbolListContainer");
+        const setCodeAddInput = document.getElementById("set_code_add");
+        const setSymbolSearchInput = document.getElementById("setSymbolSearchInput");
+
+        async function fetchAndDisplaySetSymbols() {
+            if (allScryfallSets.length > 0) {
+                renderSetSymbols(allScryfallSets);
+                return;
+            }
+            if (setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Loading...</p>";
+            try {
+                const response = await fetch("{{ url_for('api_all_sets_info') }}");
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                allScryfallSets = await response.json();
+                if (!Array.isArray(allScryfallSets)) allScryfallSets = [];
+                renderSetSymbols(allScryfallSets);
+            } catch (error) {
+                console.error("Could not fetch set symbols:", error);
+                if (setSymbolListContainer) setSymbolListContainer.innerHTML = "<p>Error loading.</p>";
+            }
+        }
+
+        function renderSetSymbols(setsToRender) {
+            if (!setSymbolListContainer) return;
+            setSymbolListContainer.innerHTML = "";
+            if (!setsToRender || setsToRender.length === 0) {
+                setSymbolListContainer.innerHTML = "<p>No sets found.</p>";
+                return;
+            }
+            const isClassicMode = document.body.classList.contains('classic-mode');
+            setsToRender.forEach(set => {
+                if (set && set.icon_svg_uri) {
+                    const itemDiv = document.createElement("div");
+                    itemDiv.className = "set-symbol-item";
+                    itemDiv.onclick = function () {
+                        selectSetSymbol(set.code);
+                    };
+
+                    const img = document.createElement("img");
+                    img.src = set.icon_svg_uri;
+                    img.alt = (getStr(set, 'name', 'Set')) + " symbol";
+                    if (!isClassicMode) {
+                        img.style.filter = 'brightness(0) invert(1)';
+                    } else {
+                        img.style.filter = 'none';
+                    }
+
+
+                    const detailsDiv = document.createElement("div");
+                    detailsDiv.className = "set-details";
+
+                    const nameSpan = document.createElement("span");
+                    nameSpan.className = "set-name";
+                    nameSpan.textContent = getStr(set, 'name', 'N/A');
+
+                    const codeSpan = document.createElement("span");
+                    codeSpan.className = "set-code";
+                    codeSpan.textContent = `(${(getStr(set, 'code', 'N/A')).toUpperCase()})`;
+
+                    detailsDiv.appendChild(nameSpan);
+                    detailsDiv.appendChild(codeSpan);
+                    itemDiv.appendChild(img);
+                    itemDiv.appendChild(detailsDiv);
+                    setSymbolListContainer.appendChild(itemDiv);
                 }
             });
         }
 
-        if (csvDropZone && actualCsvFileInput) {
-            ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-                csvDropZone.addEventListener(eventName, preventDefaults, false);
-                document.body.addEventListener(eventName, preventDefaults, false);
-            });
+        function filterSetSymbols() {
+            if (!setSymbolSearchInput) return;
+            const filterText = setSymbolSearchInput.value.toLowerCase();
+            const filteredSets = (allScryfallSets || []).filter(set => set && ((getStr(set, 'name')).toLowerCase().includes(filterText) || (getStr(set, 'code')).toLowerCase().includes(filterText)));
+            renderSetSymbols(filteredSets);
+        }
 
-            function preventDefaults(e) {
-                e.preventDefault();
-                e.stopPropagation();
-            }
+        function selectSetSymbol(setCode) {
+            if (setCodeAddInput && setCode) setCodeAddInput.value = setCode.toUpperCase();
+            closeSetSymbolModal();
+        }
 
-            ['dragenter', 'dragover'].forEach(eventName => {
-                csvDropZone.addEventListener(eventName, highlight, false);
-            });
-
-            ['dragleave', 'drop'].forEach(eventName => {
-                csvDropZone.addEventListener(eventName, unhighlight, false);
-            });
-
-            function highlight(e) {
-                csvDropZone.classList.add('dragover');
-            }
-
-            function unhighlight(e) {
-                csvDropZone.classList.remove('dragover');
-            }
-
-            csvDropZone.addEventListener('drop', handleDrop, false);
-
-            function handleDrop(e) {
-                let dt = e.dataTransfer;
-                let files = dt.files;
-
-                if (files.length > 0) {
-                    actualCsvFileInput.files = files;
-                    const event = new Event('change', { bubbles: true });
-                    actualCsvFileInput.dispatchEvent(event);
-                }
+        function openSetSymbolModal() {
+            if (setSymbolModal) {
+                setSymbolModal.style.display = "block";
+                fetchAndDisplaySetSymbols();
             }
         }
 
-        renderInventory();
-        renderSalesHistory();
-        console.log("Page initialization complete.");
-    } catch (e) {
-        console.error("Critical error during DOMContentLoaded setup:", e);
-        const body = document.querySelector('body'); if (body) { const errorDiv = document.createElement('div'); errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>"; errorDiv.style.color = "red"; errorDiv.style.padding = "20px"; errorDiv.style.textAlign = "center"; errorDiv.style.border = "2px solid red"; errorDiv.style.margin = "20px"; const h1 = document.querySelector('h1'); if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling); else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild); else body.appendChild(errorDiv); }
-    }
-});
+        function closeSetSymbolModal() {
+            if (setSymbolModal) setSymbolModal.style.display = "none";
+        }
+
+        if (findSetBySymbolBtn) findSetBySymbolBtn.onclick = openSetSymbolModal;
+        if (setSymbolSearchInput) setSymbolSearchInput.addEventListener('keyup', filterSetSymbols);
+        window.onclick = function (event) {
+            if (event.target == setSymbolModal) closeSetSymbolModal();
+        }
+
+        // --- Sale Form Submission Logic ---
+        if (multiItemSaleForm) {
+            multiItemSaleForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                const saleData = {
+                    sale_date: document.getElementById('sale_event_date').value,
+                    total_shipping_cost: document.getElementById('sale_event_shipping_cost').value,
+                    notes: document.getElementById('sale_event_notes').value,
+                    customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value,
+                    platform_fee: document.getElementById('sale_event_platform_fee').value,
+                    items: [],
+                    shipping_supplies_used: []
+                };
+
+                const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row:not(.shipping-supply-item-row)') : [];
+                if (itemRows.length === 0) {
+                    alert("Please add at least one item to the sale.");
+                    return;
+                }
+                let formIsValid = true;
+                itemRows.forEach(row => {
+                    const itemIdWithPrefix = row.querySelector('.selected-inventory-item-id').value;
+                    const qty = row.querySelector('.sale-item-qty').value;
+                    const price = row.querySelector('.sale-item-price').value;
+                    if (!itemIdWithPrefix || !qty || parseInt(qty) < 1 || !price || parseFloat(price) < 0) {
+                        formIsValid = false;
+                    }
+                    saleData.items.push({
+                        inventory_item_id_with_prefix: itemIdWithPrefix,
+                        quantity_sold: qty,
+                        sell_price_per_item: price
+                    });
+                });
+
+                // Populate shipping_supplies_used from selectedShippingSuppliesForSale
+                for (const supplyId in selectedShippingSuppliesForSale) {
+                    const quantityUsed = selectedShippingSuppliesForSale[supplyId];
+                    if (quantityUsed > 0) {
+                        saleData.shipping_supplies_used.push({
+                            supply_item_id: parseInt(supplyId),
+                            quantity_used: quantityUsed
+                        });
+                    }
+                }
+
+                if (!formIsValid) {
+                    alert("Please ensure all item details (selected item, valid quantity, valid price) are filled for each entry.");
+                    return;
+                }
+
+                try {
+                    const response = await fetch("{{ url_for('record_multi_item_sale_route') }}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(saleData)
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.success) {
+                        clearAllSelectedShippingSupplies(); // Clear selections visually and in data
+                        window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}";
+                    } else {
+                        alert("Error recording sale: " + (result.message || "Unknown server error."));
+                    }
+                } catch (error) {
+                    console.error("Error submitting sale:", error);
+                    alert("An unexpected error occurred.");
+                }
+            });
+        }
+
+        // --- DOM Content Loaded Event Listener ---
+        document.addEventListener('DOMContentLoaded', function () {
+            console.log("DOM Content Loaded. Initializing.");
+            try {
+                // --- Theme Switch Logic ---
+                const themeToggle = document.getElementById('themeToggle');
+                const currentTheme = localStorage.getItem('theme');
+                const prefersDarkScheme = window.matchMedia("(prefers-color-scheme: dark)");
+
+                // Set initial theme
+                if (currentTheme) {
+                    document.body.classList.toggle('classic-mode', currentTheme === 'classic');
+                    themeToggle.checked = (currentTheme === 'classic'); // Check the toggle if classic mode is active
+                } else if (prefersDarkScheme.matches) {
+                    // If no preference saved, default to dark if system prefers dark
+                    document.body.classList.remove('classic-mode');
+                    themeToggle.checked = false; // Dark mode is default (toggle unchecked)
+                } else {
+                    // If no preference saved and system prefers light, default to classic
+                    document.body.classList.add('classic-mode');
+                    themeToggle.checked = true; // Classic mode is light (toggle checked)
+                }
+
+                // Event listener for theme toggle
+                themeToggle.addEventListener('change', function () {
+                    if (this.checked) {
+                        document.body.classList.add('classic-mode');
+                        localStorage.setItem('theme', 'classic');
+                    } else {
+                        document.body.classList.remove('classic-mode');
+                        localStorage.setItem('theme', 'dark');
+                    }
+                    // Re-render set symbols if modal is open to apply correct filter
+                    if (setSymbolModal && setSymbolModal.style.display === 'block') {
+                        renderSetSymbols(allScryfallSets);
+                    }
+                });
+
+                // Open the correct tab based on Flask's active_tab variable
+                openTab(null, activeTabFromFlask);
+
+                // Attach event listeners for inventory filters and sorting
+                const applyBtn = document.getElementById('applyInventoryFiltersBtn');
+                if (applyBtn) {
+                    applyBtn.addEventListener('click', applyFiltersAndSort);
+                }
+
+                if (inventoryFilterInput) {
+                    inventoryFilterInput.addEventListener('keypress', function (event) {
+                        if (event.key === 'Enter') {
+                            event.preventDefault();
+                            applyFiltersAndSort();
+                        }
+                    });
+                }
+
+                if (sortAscBtn) sortAscBtn.addEventListener('click', function () {
+                    updateSortDirectionButtonsState(this);
+                });
+                if (sortDescBtn) sortDescBtn.addEventListener('click', function () {
+                    updateSortDirectionButtonsState(this);
+                });
+
+                // Initialize content for specific tabs if they are active
+                const salesHistoryTabDiv = document.getElementById('salesHistoryTab');
+                if (salesHistoryTabDiv && salesHistoryTabDiv.style.display === 'block') {
+                    // Initialize item rows for sale
+                    if (saleItemsContainer && saleItemsContainer.children.length === 0) {
+                        createSaleItemRow();
+                    }
+                    // Initialize ALL shipping supplies for selection
+                    renderAllShippingSuppliesForSale();
+                    // Populate and render shipping supply presets
+                    populateShippingPresetSelect();
+                    refreshShippingSupplyPresets(); // Call this to initially render existing presets
+
+                    // Note: renderShippingSupplyPresets is also called within refreshShippingSupplyPresets
+                    // so calling both directly might be redundant depending on desired initial state.
+                    // If you want all presets displayed in the "Existing Presets" section
+                    // right when the tab loads, `refreshShippingSupplyPresets()` is the correct call.
+                }
+
+                // --- Mobile Filter Toggle Logic ---
+                const toggleInventoryFiltersBtn = document.getElementById('toggleInventoryFiltersBtn');
+                const filterControlsDiv = document.querySelector('#inventoryTab .filter-controls');
+
+                if (toggleInventoryFiltersBtn && filterControlsDiv) {
+                    let filtersActive = (inventoryFilterInput && inventoryFilterInput.value !== '') ||
+                        (inventoryTypeFilter && inventoryTypeFilter.value !== 'all') ||
+                        (inventoryLocationFilter && inventoryLocationFilter.value !== 'all') ||
+                        (inventorySetFilter && inventorySetFilter.value !== 'all') ||
+                        (inventoryFoilFilter && inventoryFoilFilter.value !== 'all') ||
+                        (inventoryRarityFilter && inventoryRarityFilter.value !== 'all') ||
+                        (inventoryCardLanguageFilter && inventoryCardLanguageFilter.value !== 'all') ||
+                        (inventoryConditionFilter && inventoryConditionFilter.value !== 'all') ||
+                        (inventoryCollectorFilter && inventoryCollectorFilter.value !== 'all') ||
+                        (inventorySealedLanguageFilter && inventorySealedLanguageFilter.value !== 'all');
+
+                    if (filtersActive) {
+                        filterControlsDiv.classList.add('expanded');
+                        toggleInventoryFiltersBtn.textContent = 'Hide Filters';
+                    } else if (window.innerWidth <= 768 && !filterControlsDiv.classList.contains('expanded')) {
+                        filterControlsDiv.classList.remove('expanded');
+                        toggleInventoryFiltersBtn.textContent = 'Show Filters';
+                    } else if (window.innerWidth > 768) {
+                        filterControlsDiv.classList.add('expanded');
+                        toggleInventoryFiltersBtn.style.display = 'none';
+                    }
+
+                    toggleInventoryFiltersBtn.addEventListener('click', function () {
+                        const isCurrentlyExpanded = filterControlsDiv.classList.toggle('expanded');
+                        if (isCurrentlyExpanded) {
+                            this.textContent = 'Hide Filters';
+                        } else {
+                            this.textContent = 'Show Filters';
+                        }
+                    });
+                }
+
+                // --- Hamburger Navigation Logic ---
+                const hamburgerBtn = document.getElementById('hamburgerBtn');
+                const mainTabNav = document.getElementById('mainTabNav');
+
+                if (hamburgerBtn && mainTabNav) {
+                    const tabButtonsInMenu = mainTabNav.querySelectorAll('.tab-button');
+
+                    hamburgerBtn.addEventListener('click', function () {
+                        const isOpen = mainTabNav.classList.toggle('open');
+                        hamburgerBtn.setAttribute('aria-expanded', String(isOpen));
+                        if (isOpen) {
+                            hamburgerBtn.innerHTML = '&times;';
+                        } else {
+                            hamburgerBtn.innerHTML = '&#9776;';
+                        }
+                    });
+
+                    tabButtonsInMenu.forEach(button => {
+                        button.addEventListener('click', function () {
+                            if (mainTabNav.classList.contains('open')) {
+                                mainTabNav.classList.remove('open');
+                                hamburgerBtn.setAttribute('aria-expanded', 'false');
+                                hamburgerBtn.innerHTML = '&#9776;';
+                            }
+                        });
+                    });
+                }
+
+                // --- CSV Drag & Drop Logic ---
+                const csvDropZone = document.getElementById('csvDropZone');
+                const actualCsvFileInput = document.getElementById('csv_file');
+                const csvFileNameDisplay = document.getElementById('fileNameDisplay');
+
+                if (actualCsvFileInput && csvFileNameDisplay) {
+                    actualCsvFileInput.addEventListener('change', function () {
+                        if (this.files && this.files.length > 0) {
+                            csvFileNameDisplay.textContent = this.files[0].name;
+                        } else {
+                            csvFileNameDisplay.textContent = 'No file chosen';
+                        }
+                    });
+                }
+
+                if (csvDropZone && actualCsvFileInput) {
+                    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, preventDefaults, false);
+                        document.body.addEventListener(eventName, preventDefaults, false);
+                    });
+
+                    function preventDefaults(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }
+
+                    ['dragenter', 'dragover'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, highlight, false);
+                    });
+
+                    ['dragleave', 'drop'].forEach(eventName => {
+                        csvDropZone.addEventListener(eventName, unhighlight, false);
+                    });
+
+                    function highlight(e) {
+                        csvDropZone.classList.add('dragover');
+                    }
+
+                    function unhighlight(e) {
+                        csvDropZone.classList.remove('dragover');
+                    }
+
+                    csvDropZone.addEventListener('drop', handleDrop, false);
+
+                    function handleDrop(e) {
+                        let dt = e.dataTransfer;
+                        let files = dt.files;
+
+                        if (files.length > 0) {
+                            actualCsvFileInput.files = files;
+                            const event = new Event('change', {
+                                bubbles: true
+                            });
+                            actualCsvFileInput.dispatchEvent(event);
+                        }
+                    }
+                }
+
+                // --- Initial Render Calls for other tabs ---
+                renderInventory();
+                renderSalesHistory();
+                console.log("Page initialization complete.");
+
+            } catch (e) {
+                // Generic error display if a critical JS error occurs during setup
+                console.error("Critical error during DOMContentLoaded setup:", e);
+                const body = document.querySelector('body');
+                if (body) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.innerHTML = "<h2>Error Loading Page Content</h2><p>A JavaScript error occurred. Please open the browser's developer console (usually F12, then click 'Console') for more details and report the error.</p>";
+                    errorDiv.style.color = "red";
+                    errorDiv.style.padding = "20px";
+                    errorDiv.style.textAlign = "center";
+                    errorDiv.style.border = "2px solid red";
+                    errorDiv.style.margin = "20px";
+                    const h1 = document.querySelector('h1');
+                    if (h1 && h1.nextSibling) body.insertBefore(errorDiv, h1.nextSibling);
+                    else if (body.firstChild) body.insertBefore(errorDiv, body.firstChild);
+                    else body.appendChild(errorDiv);
+                }
+            }
+        });
     </script>
 </body>
 </html>
