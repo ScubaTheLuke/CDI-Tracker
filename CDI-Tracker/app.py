@@ -45,6 +45,7 @@ def index():
     query_filter_rarity = request.args.get('filter_rarity', 'all')
     query_filter_card_lang = request.args.get('filter_card_lang', 'all')
     query_filter_condition = request.args.get('filter_condition', 'all')
+    # Corrected variable names defined here:
     query_filter_collector = request.args.get('filter_collector', 'all')
     query_filter_sealed_lang = request.args.get('filter_sealed_lang', 'all')
     query_sort_key = request.args.get('sort_key', 'display_name')
@@ -65,6 +66,25 @@ def index():
     sales_events_raw = database.get_all_sale_events_with_items()
     shipping_supplies_data = database.get_all_shipping_supplies()
     shipping_supply_presets = database.get_all_shipping_supply_presets()
+
+
+    processed_shipping_supplies = []
+    total_shipping_supplies_quantity = 0
+    total_shipping_supplies_value = 0
+    for supply_row in shipping_supplies_data:
+        supply = dict(supply_row) # Convert DictRow to dict
+        total_shipping_supplies_quantity += supply.get('quantity_on_hand', 0)
+        total_shipping_supplies_value += (supply.get('quantity_on_hand', 0) * supply.get('cost_per_unit', 0))
+
+        # Convert date objects to string for JSON serialization
+        if isinstance(supply.get('purchase_date'), datetime.date):
+            supply['purchase_date'] = supply['purchase_date'].isoformat()
+        if isinstance(supply.get('date_added'), datetime.datetime):
+            supply['date_added'] = supply['date_added'].isoformat()
+        if isinstance(supply.get('last_updated'), datetime.datetime):
+            supply['last_updated'] = supply['last_updated'].isoformat()
+
+        processed_shipping_supplies.append(supply)
 
 
     sales_history_data_for_json = []
@@ -163,6 +183,7 @@ def index():
     total_other_expenses = sum(entry['amount'] for entry in financial_entries if entry['entry_type'] == 'expense') # Keep this for ledger display
 
 
+
     net_business_pl = sales_pl + total_other_income - total_other_expenses + total_supplies_cost_deducted_in_sales_pl
 
     processed_inventory_cards = []
@@ -173,7 +194,7 @@ def index():
         card = dict(card_row)
         total_single_cards_quantity += card.get('quantity', 0)
         item = {'type': 'single_card', 'original_id': card['id']}
-        item['display_name'] = card.get('name', 'N/A') # Set display_name for cards
+        item['display_name'] = card.get('name', 'N/A')
         item['quantity'] = card.get('quantity', 0)
         item['location'] = card.get('location', 'N/A')
         item['buy_price'] = card.get('buy_price')
@@ -210,7 +231,7 @@ def index():
         product = dict(product_row)
         total_sealed_products_quantity += product.get('quantity', 0)
         item = {'type': 'sealed_product', 'original_id': product['id']}
-        item['display_name'] = product.get('product_name', 'N/A') # Set display_name for sealed products
+        item['display_name'] = product.get('product_name', 'N/A')
         item['quantity'] = product.get('quantity', 0)
         item['location'] = product.get('location', 'N/A')
         item['buy_price'] = product.get('buy_price')
@@ -236,7 +257,7 @@ def index():
         supply = dict(supply_row) # Convert DictRow to dict
         total_shipping_supplies_quantity += supply.get('quantity_on_hand', 0)
         total_shipping_supplies_value += (supply.get('quantity_on_hand', 0) * supply.get('cost_per_unit', 0))
-        supply['display_name'] = supply.get('supply_name', 'N/A') # Set display_name for supplies
+
         # Convert date objects to string for JSON serialization
         if isinstance(supply.get('purchase_date'), datetime.date):
             supply['purchase_date'] = supply['purchase_date'].isoformat()
@@ -250,13 +271,14 @@ def index():
     # 1. Combine all raw inventory items into one list for initial filtering
     all_combined_inventory_items_for_filtering = []
     for item in processed_inventory_cards:
-        item['internal_type'] = 'single_card' # Add a consistent type identifier for filtering
+        item['internal_type'] = 'single_card'
         all_combined_inventory_items_for_filtering.append(item)
     for item in processed_sealed_products:
-        item['internal_type'] = 'sealed_product' # Add a consistent type identifier for filtering
+        item['internal_type'] = 'sealed_product'
         all_combined_inventory_items_for_filtering.append(item)
     for item in processed_shipping_supplies:
-        item['internal_type'] = 'shipping_supply' # Add a consistent type identifier for filtering
+        item['internal_type'] = 'shipping_supply'
+        item['display_name'] = item.get('supply_name', 'N/A') # Ensure display_name for supplies here
         all_combined_inventory_items_for_filtering.append(item)
 
 
@@ -274,7 +296,7 @@ def index():
     # 3. Apply text search filter
     if query_filter_text:
         filtered_inventory_items = [item for item in filtered_inventory_items if
-            query_filter_text in str(item.get('display_name', item.get('supply_name', '') if item.get('internal_type') == 'shipping_supply' else '')).lower() or # More robust name check
+            query_filter_text in str(item.get('display_name', '')).lower() or # Use display_name here
             (item.get('internal_type') == 'single_card' and (query_filter_text in str(item.get('set_code', '')).lower() or query_filter_text in str(item.get('collector_number', '')).lower() or query_filter_text in str(item.get('rarity', '')).lower() or query_filter_text in str(item.get('language', '')).lower())) or
             (item.get('internal_type') == 'sealed_product' and (query_filter_text in str(item.get('set_name', '')).lower() or query_filter_text in str(item.get('product_type', '')).lower() or query_filter_text in str(item.get('language', '')).lower())) or
             (item.get('internal_type') == 'shipping_supply' and (query_filter_text in str(item.get('description', '')).lower() or query_filter_text in str(item.get('unit_of_measure', '')).lower())) or
@@ -290,8 +312,6 @@ def index():
 
     # 5. Apply set filter (This is the key filter for the user's current problem)
     if query_filter_set != 'all':
-        # ONLY include single_card or sealed_product that match the set filter
-        # Shipping supplies (and any other item without a set) will be EXCLUDED if a specific set is chosen.
         filtered_inventory_items = [
             item for item in filtered_inventory_items
             if (
@@ -301,8 +321,6 @@ def index():
                 item.get('internal_type') == 'sealed_product' and
                 str(item.get('set_name','')) == query_filter_set
             )
-            # IMPORTANT: Items with 'shipping_supply' internal_type will NOT satisfy
-            # these conditions, and thus will be excluded by this filter if query_filter_set != 'all'.
         ]
 
     # 6. Apply type-specific filters (foil, rarity, condition, collector, language)
@@ -318,8 +336,6 @@ def index():
             if query_filter_collector != 'all' and item_to_check.get('is_collectors_item') != (query_filter_collector == 'yes'): keep = False
             if query_filter_sealed_lang != 'all' and item_to_check.get('language') != query_filter_sealed_lang: keep = False
         elif item_to_check.get('internal_type') == 'shipping_supply':
-            # Shipping supplies should NOT match any card/sealed-specific filters.
-            # If any card/sealed product specific filter is active, it shouldn't show supplies.
             if query_filter_foil != 'all' or query_filter_rarity != 'all' or query_filter_card_lang != 'all' or \
                query_filter_condition != 'all' or query_filter_collector != 'all' or query_filter_sealed_lang != 'all':
                 keep = False
@@ -337,7 +353,7 @@ def index():
             if key == 'buy_price' or key == 'cost_per_unit': return item_to_sort.get('cost_per_unit', -float('inf'))
             if key == 'location': return str(item_to_sort.get('location', '')).lower()
             if key == 'purchase_date': return str(item_to_sort.get('purchase_date', ''))
-            return str(item_to_sort.get(key, '')).lower() # Fallback for other keys in supplies
+            return str(item_to_sort.get(key, '')).lower()
         else: # single_card or sealed_product
             val = item_to_sort.get(key)
             if key == 'set_name_sort':
@@ -348,11 +364,10 @@ def index():
             return str(val if val is not None else '').lower()
 
     try:
-        # Use 'display_name' or 'supply_name' as a secondary sort key if the primary is ambiguous or missing
-        filtered_inventory_items.sort(key=lambda i_sort: (get_sort_value(i_sort, query_sort_key), get_sort_value(i_sort, 'display_name' if i_sort.get('internal_type') != 'shipping_supply' else 'supply_name')), reverse=(query_sort_direction == 'desc'))
+        filtered_inventory_items.sort(key=lambda i_sort: (get_sort_value(i_sort, query_sort_key), get_sort_value(i_sort, 'display_name')), reverse=(query_sort_direction == 'desc'))
     except TypeError as e:
         print(f"Sorting TypeError for key '{query_sort_key}': {e}. Falling back.");
-        filtered_inventory_items.sort(key=lambda i_sort: get_sort_value(i_sort, 'display_name' if i_sort.get('internal_type') != 'shipping_supply' else 'supply_name'), reverse=(query_sort_direction == 'desc'))
+        filtered_inventory_items.sort(key=lambda i_sort: get_sort_value(i_sort, 'display_name'), reverse=(query_sort_direction == 'desc'))
 
     total_filtered_item_count = len(filtered_inventory_items)
     total_pages = (total_filtered_item_count + ITEMS_PER_PAGE - 1) // ITEMS_PER_PAGE if total_filtered_item_count > 0 else 1
@@ -379,15 +394,15 @@ def index():
     num_unique_card_inventory_entries = len(processed_inventory_cards)
 
     sale_inventory_options = []
-    temp_sorted_for_sale_options = sorted(all_combined_inventory_items_for_filtering, key=lambda x_sort: x_sort.get('display_name', x_sort.get('supply_name', '')).lower()) # Added fallback for supply_name
+    temp_sorted_for_sale_options = sorted(all_combined_inventory_items_for_filtering, key=lambda x_sort: x_sort.get('display_name', x_sort.get('supply_name', '')).lower())
     for item_s_opt in temp_sorted_for_sale_options:
-        display_text_val = f"{item_s_opt.get('display_name', item_s_opt.get('supply_name', 'N/A'))} " # Use display_name or supply_name
-        if item_s_opt.get('internal_type') == 'single_card': # Changed from 'type' to 'internal_type'
+        display_text_val = f"{item_s_opt.get('display_name', item_s_opt.get('supply_name', 'N/A'))} "
+        if item_s_opt.get('internal_type') == 'single_card':
             condition_str = f"C: {item_s_opt.get('condition','N/A')}, "
             display_text_val += f"({item_s_opt.get('set_code','N/A').upper()}-{item_s_opt.get('collector_number','N/A')}) {'(Foil)' if item_s_opt.get('is_foil') else ''} (R: {item_s_opt.get('rarity','N/A')}, L: {item_s_opt.get('language','N/A')}, {condition_str}BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
-        elif item_s_opt.get('internal_type') == 'sealed_product': # Changed from 'type' to 'internal_type'
+        elif item_s_opt.get('internal_type') == 'sealed_product':
             display_text_val += f"({item_s_opt.get('set_name','N/A')} / {item_s_opt.get('product_type','N/A')}){' (Collector)' if item_s_opt.get('is_collectors_item') else ''} (L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
-        elif item_s_opt.get('internal_type') == 'shipping_supply': # New condition for shipping supplies
+        elif item_s_opt.get('internal_type') == 'shipping_supply':
             display_text_val += f"({item_s_opt.get('description','N/A')}) (UOM: {item_s_opt.get('unit_of_measure','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('cost_per_unit'))}) - Qty: {item_s_opt['quantity_on_hand']} - Loc: {item_s_opt.get('location', 'N/A')}"
         sale_inventory_options.append({"id": f"{item_s_opt['internal_type']}-{item_s_opt['id'] if item_s_opt.get('id') else item_s_opt['original_id']}", "display": display_text_val, "type": item_s_opt['internal_type']})
 
@@ -438,8 +453,8 @@ def index():
                            filter_rarity=query_filter_rarity,
                            filter_card_lang=query_filter_card_lang,
                            filter_condition=query_filter_condition,
-                           filter_collector=query_filter_collector,
-                           filter_sealed_lang=query_filter_sealed_lang,
+                           filter_collector=query_filter_collector, # Corrected variable name
+                           filter_sealed_lang=query_filter_sealed_lang, # Corrected variable name
                            sort_key=query_sort_key,
                            sort_dir=query_sort_direction,
                            all_locations=all_locations,
@@ -823,7 +838,7 @@ def update_card_route(card_id):
         if request.form.get('asking_price') is not None:
             ask_price_str = request.form.get('asking_price').strip()
             ask_price = float(ask_price_str) if ask_price_str != '' else None
-            if ask_price is not None and ask_price < 0: asking_price = None
+            if ask_price is not None and ask_price < 0: flash('Asking price cannot be negative.'); return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page',1)))
             if ask_price != original_card['sell_price']: data_to_update['sell_price'] = ask_price
         if request.form.get('location') is not None:
             location = request.form.get('location').strip()
@@ -927,6 +942,143 @@ def refresh_card_route(card_id):
     else: flash(f"Could not fetch refresh data from Scryfall for {card['set_code']}-{card['collector_number']}.", 'error')
     return redirect(url_for('index', tab='inventoryTab', page=request.args.get('page', 1)))
 
+@app.route('/edit_sale_event/<int:sale_event_id>', methods=['GET'])
+def edit_sale_event_get_route(sale_event_id):
+    sale_event_data = database.get_sale_event_by_id_with_details(sale_event_id)
+    if not sale_event_data:
+        flash("Sale event not found.", 'error')
+        return redirect(url_for('index', tab='salesHistoryTab'))
+
+    # Convert date objects to string for HTML form input
+    if isinstance(sale_event_data.get('sale_date'), datetime.date):
+        sale_event_data['sale_date'] = sale_event_data['sale_date'].isoformat()
+
+    # Prepare current items for JS pre-population
+    current_sale_items = []
+    for item in sale_event_data['items']:
+        current_sale_items.append({
+            'inventory_item_id_with_prefix': f"{item['item_type']}-{item['inventory_item_id']}",
+            'quantity_sold': item['quantity_sold'],
+            'sell_price_per_item': item['sell_price_per_item'],
+            'display_name': item['original_item_name'],
+            'display_details': item['original_item_details']
+        })
+    current_sale_items_json = json.dumps(current_sale_items)
+
+    # Shipping supplies
+    current_shipping_supplies_used = {}
+    for supply in sale_event_data['shipping_supplies_used']:
+        current_shipping_supplies_used[supply['supply_id']] = supply['quantity_used']
+    current_shipping_supplies_used_json = json.dumps(current_shipping_supplies_used)
+
+
+    # Need to pass all options for item lookup as well (cards, sealed, supplies)
+    inventory_cards_data = database.get_all_cards()
+    sealed_products_data = database.get_all_sealed_products()
+    shipping_supplies_data = database.get_all_shipping_supplies()
+
+    all_combined_inventory_items_for_filtering = []
+    for item in inventory_cards_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'single_card'
+        item_copy['display_name'] = item_copy.get('name', 'N/A') # Set display_name for cards
+        all_combined_inventory_items_for_filtering.append(item_copy)
+    for item in sealed_products_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'sealed_product'
+        item_copy['display_name'] = item_copy.get('product_name', 'N/A') # Set display_name for sealed products
+        all_combined_inventory_items_for_filtering.append(item_copy)
+    for item in shipping_supplies_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'shipping_supply'
+        item_copy['display_name'] = item_copy.get('supply_name', 'N/A') # Ensure display_name for supplies here
+        all_combined_inventory_items_for_filtering.append(item_copy)
+
+    sale_inventory_options = []
+    temp_sorted_for_sale_options = sorted(all_combined_inventory_items_for_filtering, key=lambda x_sort: x_sort.get('display_name', x_sort.get('supply_name', '')).lower())
+    for item_s_opt in temp_sorted_for_sale_options:
+        display_text_val = f"{item_s_opt.get('display_name', item_s_opt.get('supply_name', 'N/A'))} "
+        if item_s_opt.get('internal_type') == 'single_card':
+            condition_str = f"C: {item_s_opt.get('condition','N/A')}, "
+            display_text_val += f"({item_s_opt.get('set_code','N/A').upper()}-{item_s_opt.get('collector_number','N/A')}) {'(Foil)' if item_s_opt.get('is_foil') else ''} (R: {item_s_opt.get('rarity','N/A')}, L: {item_s_opt.get('language','N/A')}, {condition_str}BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        elif item_s_opt.get('internal_type') == 'sealed_product':
+            display_text_val += f"({item_s_opt.get('set_name','N/A')} / {item_s_opt.get('product_type','N/A')}){' (Collector)' if item_s_opt.get('is_collectors_item') else ''} (L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        elif item_s_opt.get('internal_type') == 'shipping_supply':
+            display_text_val += f"({item_s_opt.get('description','N/A')}) (UOM: {item_s_opt.get('unit_of_measure','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('cost_per_unit'))}) - Qty: {item_s_opt['quantity_on_hand']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        sale_inventory_options.append({"id": f"{item_s_opt['internal_type']}-{item_s_opt['id'] if item_s_opt.get('id') else item_s_opt['original_id']}", "display": display_text_val, "type": item_s_opt['internal_type']})
+
+    sale_inventory_options_json = json.dumps(sale_inventory_options)
+
+    shipping_supply_options = []
+    temp_sorted_supplies = sorted(shipping_supplies_data, key=lambda x_sort: x_sort.get('supply_name', '').lower())
+    for supply_opt in temp_sorted_supplies:
+        display_text_val = f"{supply_opt['supply_name']} ({supply_opt.get('description', 'N/A')}) - Qty: {supply_opt['quantity_on_hand']} {supply_opt['unit_of_measure']} @ {format_currency_with_commas(supply_opt.get('cost_per_unit'))} each"
+        shipping_supply_options.append({
+            "id": supply_opt['id'],
+            "display": display_text_val,
+            "cost_per_unit": supply_opt['cost_per_unit'],
+            "quantity_on_hand": supply_opt['quantity_on_hand']
+        })
+    shipping_supply_options_json = json.dumps(shipping_supply_options)
+
+    # Need to also pass shipping_supply_presets to edit_sale.html for the presets dropdown
+    shipping_supply_presets = database.get_all_shipping_supply_presets()
+    shipping_supply_presets_json = json.dumps(shipping_supply_presets)
+
+
+    return render_template('edit_sale.html',
+                           sale_event=sale_event_data,
+                           current_sale_items_json=current_sale_items_json,
+                           current_shipping_supplies_used_json=current_shipping_supplies_used_json,
+                           sale_inventory_options_json=sale_inventory_options_json,
+                           shipping_supply_options_json=shipping_supply_options_json,
+                           shipping_supply_presets_json=shipping_supply_presets_json, # Pass presets here
+                           current_date=datetime.date.today().isoformat()
+                           )
+
+
+@app.route('/edit_sale_event/<int:sale_event_id>', methods=['POST'])
+def edit_sale_event_post_route(sale_event_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No data received."}), 400
+
+        sale_date_str = data.get('sale_date')
+        total_shipping_cost_str = data.get('total_shipping_cost', '0.0')
+        overall_notes = data.get('notes', '')
+        items_data = data.get('items')
+        shipping_supplies_data = data.get('shipping_supplies_used', [])
+
+        customer_shipping_charge_str = data.get('customer_shipping_charge', '0.0')
+        platform_fee_str = data.get('platform_fee', '0.0')
+
+        if not sale_date_str or not isinstance(items_data, list) or not items_data:
+            flash('Missing sale date or items data.', 'error')
+            return jsonify({"success": False, "message": "Missing sale date or items list is empty."}), 400
+
+        success, message = database.update_sale_event_details(
+            sale_event_id,
+            sale_date_str,
+            total_shipping_cost_str,
+            overall_notes,
+            customer_shipping_charge_str,
+            platform_fee_str,
+            items_data,
+            shipping_supplies_data
+        )
+
+        if success:
+            flash(f"Sale event (ID: {sale_event_id}) updated successfully. {message}", 'success')
+            return jsonify({"success": True, "message": f"Sale event (ID: {sale_event_id}) updated."})
+        else:
+            flash(f"Failed to update sale event. Reason: {message}", 'error')
+            return jsonify({"success": False, "message": f"Failed to update sale event. Reason: {message}"}), 400
+    except Exception as e:
+        print(f"Error in /edit_sale_event POST route: {e}")
+        flash(f"An error occurred: {str(e)}", 'error')
+        return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
+
 
 @app.route('/import_csv', methods=['POST'])
 def import_csv_route():
@@ -941,8 +1093,8 @@ def import_csv_route():
     default_buy_price_str = request.form.get('default_buy_price', '0.00')
     default_location = request.form.get('default_location', 'Imported Batch')
     default_asking_price_str = request.form.get('default_asking_price')
-    default_language_csv_form = request.form.get('default_language_csv', 'en').strip().lower() # From form
-    default_condition_csv_form = request.form.get('default_condition_csv', 'Near Mint').strip() # From form
+    default_language_csv_form = request.form.get('default_language_csv', 'en').strip().lower()
+    default_condition_csv_form = request.form.get('default_condition_csv', 'Near Mint').strip()
     assume_non_foil = 'assume_non_foil' in request.form
 
     try:
@@ -977,54 +1129,52 @@ def import_csv_route():
         flexible_headers = {
             'card_name': ['product name', 'name'],
             'quantity': ['total quantity', 'quantity'], # TCGplayer uses "Total Quantity"
-            'set_code': ['set code', 'set', 'set name'], # Prioritize code, then 'set', then 'set name' (TCGplayer)
-            'collector_number': ['card number', 'collector number', 'number'], # TCGplayer uses "Number"
+            'set_identifier': ['set code', 'set name', 'set'], # Order: prefer code, then name, then generic 'set'
+            'collector_number': ['number', 'card number', 'collector number'], # TCGplayer uses "Number"
             'rarity': ['rarity'],
             'language': ['language'],
             'condition': ['condition'],
-            'printing': ['printing'], # For old files that might have this
-            # Add other fields you might want to extract from CSVs, e.g., prices
+            'printing': ['printing'], # For old files that might have this explicit column
             'tcg_market_price': ['tcg market price', 'market price'] # TCGplayer specific
         }
 
-        # Normalize incoming CSV headers to lowercase and replace spaces with underscores
-        normalized_incoming_headers = [hdr.lower().replace(' ', '_') for hdr in csv_reader.fieldnames]
-        
-        # Create a mapping from our flexible internal name to the actual column name found in the CSV
-        actual_column_names = {}
+        # Create a mapping from our internal flexible name to the actual column name found in the CSV
+        actual_csv_header_map = {}
+        normalized_incoming_headers = [hdr.lower().replace(' ', '_') for hdr in csv_reader.fieldnames if hdr]
+
         for internal_name, possible_headers in flexible_headers.items():
             for possible_hdr in possible_headers:
                 if possible_hdr in normalized_incoming_headers:
-                    actual_column_names[internal_name] = possible_hdr
-                    break # Found the best match, move to next internal name
+                    actual_csv_header_map[internal_name] = possible_hdr
+                    break # Found the first best match for this internal_name
         
         # Check for essential columns based on *any* of their possible names
-        required_columns_found = True
-        if 'card_name' not in actual_column_names or 'quantity' not in actual_column_names:
-            required_columns_found = False
+        # 'card_name' or 'quantity' must be present under any of their flexible names
+        has_card_name_col = 'card_name' in actual_csv_header_map
+        has_quantity_col = 'quantity' in actual_csv_header_map
 
-        if not required_columns_found:
+        if not has_card_name_col or not has_quantity_col:
              flash(f"CSV missing one or more required columns ('Name'/'Product Name' and 'Quantity'/'Total Quantity'). Found headers: {', '.join(normalized_incoming_headers)}", 'error')
              return redirect(url_for('index', tab='addItemsTab'))
 
 
         for row_num, row_raw in enumerate(csv_reader, start=1):
-            # Convert row_raw keys to normalized lowercase keys
+            # Convert row_raw keys to normalized lowercase keys for easy access
             row = {k.lower().replace(' ', '_'): v.strip() if isinstance(v, str) else v for k, v in row_raw.items()}
 
-            # Extract data using the determined actual_column_names
-            card_name = row.get(actual_column_names.get('card_name'))
-            quantity_str = row.get(actual_column_names.get('quantity'))
+            # Extract data using the determined actual_csv_header_map
+            card_name = row.get(actual_csv_header_map.get('card_name'))
+            quantity_str = row.get(actual_csv_header_map.get('quantity'))
             
-            # Get Set and Collector Number, prioritizing more specific matches if available
-            set_code_csv = row.get(actual_column_names.get('set_code')) # Could be 'set_code', 'set', or 'set_name'
-            collector_number_csv = row.get(actual_column_names.get('collector_number'))
+            # Use the mapped header names to get values from the current row
+            set_identifier_from_csv = row.get(actual_csv_header_map.get('set_identifier'))
+            collector_number_from_csv = row.get(actual_csv_header_map.get('collector_number'))
+            rarity_from_csv = row.get(actual_csv_header_map.get('rarity'))
+            language_from_csv = row.get(actual_csv_header_map.get('language'))
+            condition_from_csv = row.get(actual_csv_header_map.get('condition'))
+            printing_from_csv = row.get(actual_csv_header_map.get('printing'))
+            tcg_market_price_from_csv = row.get(actual_csv_header_map.get('tcg_market_price'))
 
-            rarity_csv = row.get(actual_column_names.get('rarity'))
-            language_csv = row.get(actual_column_names.get('language'))
-            condition_csv = row.get(actual_column_names.get('condition'))
-            printing_csv = row.get(actual_column_names.get('printing'))
-            tcg_market_price_csv = row.get(actual_column_names.get('tcg_market_price'))
 
             # --- Validation of per-row required fields ---
             if not all([card_name, quantity_str]):
@@ -1043,46 +1193,50 @@ def import_csv_route():
                 skipped_count += 1
                 continue
             
-            # --- Determine foil status ---
+            # --- Determine foil status (more robust) ---
             is_foil = False
-            # 1. Check 'Printing' column from older CSVs if available
-            if printing_csv and 'foil' in printing_csv.lower():
+            # 1. Check 'Printing' column from older CSVs if available and says 'foil'
+            if printing_from_csv and 'foil' in str(printing_from_csv).lower():
                 is_foil = True
-            # 2. Assume non-foil if checkbox is checked (this is a mass setting)
+            # 2. If 'assume_non_foil' is checked in the form, it overrides other detections for mass import
             if assume_non_foil:
                 is_foil = False
-            # If a TCGplayer CSV implies foil, or you have another specific column, add it here.
-            # Example: if a column 'Foil' exists with 'Yes'/'No'
+            # You could add more advanced detection here for TCGplayer's specifics if needed.
 
-            # --- Aggregate cards based on unique characteristics for stacking ---
-            # The unique key needs to match the add_card unique constraint fields
-            # Values are cleaned/defaulted here for the unique key.
+            # --- Aggregate cards for stacking ---
+            # Use data from CSV, or form defaults if CSV fields are missing/empty
+            current_rarity_for_agg = rarity_from_csv.lower() if rarity_from_csv else 'unknown'
+            current_language_for_agg = language_from_csv.lower() if language_from_csv else default_language_csv_form
+            current_condition_for_agg = condition_from_csv.strip() if condition_from_csv else default_condition_csv_form
+
+
             unique_key = (
                 card_name.lower(),
-                (set_code_csv.lower() if set_code_csv else ''), # Use provided set code/name for uniqueness
-                (collector_number_csv.lower() if collector_number_csv else ''),
+                (set_identifier_from_csv.lower() if set_identifier_from_csv else ''), # Can be code or name
+                (collector_number_from_csv.lower() if collector_number_from_csv else ''),
                 is_foil,
-                default_location.lower(), # Using default location from form
-                default_buy_price,        # Using default buy price from form
-                (condition_csv.lower() if condition_csv else default_condition_csv_form.lower()), # Use row's condition, else form default
-                (rarity_csv.lower() if rarity_csv else 'unknown'), # Use row's rarity, else 'unknown'
-                (language_csv.lower() if language_csv else default_language_csv_form.lower()) # Use row's language, else form default
+                default_location.lower(), # From form
+                default_buy_price,        # From form
+                current_condition_for_agg.lower(),
+                current_rarity_for_agg.lower(),
+                current_language_for_agg.lower()
             )
+            
             # Store data for this stack (quantity and other details for Scryfall lookup/DB insert)
             card_aggregator[unique_key]['quantity'] += quantity
             if not card_aggregator[unique_key]['details']:
                  card_aggregator[unique_key]['details'] = {
                      'name': card_name,
-                     'set_identifier': set_code_csv, # This could be set code or set name from CSV
-                     'collector_number': collector_number_csv,
-                     'rarity': rarity_csv, # Raw rarity from CSV
-                     'language': language_csv, # Raw language from CSV
-                     'condition': condition_csv, # Raw condition from CSV
+                     'set_identifier': set_identifier_from_csv, # Raw identifier from CSV
+                     'collector_number': collector_number_from_csv,
+                     'rarity': current_rarity_for_agg, # Cleaned rarity
+                     'language': current_language_for_agg, # Cleaned language
+                     'condition': current_condition_for_agg, # Cleaned condition
                      'is_foil': is_foil, # Foil status determined above
-                     'buy_price': default_buy_price,
-                     'sell_price': default_asking_price,
-                     'location': default_location,
-                     'tcg_market_price_csv': float(tcg_market_price_csv) if tcg_market_price_csv else None # Store for optional use
+                     'buy_price': default_buy_price, # From form
+                     'sell_price': default_asking_price, # From form
+                     'location': default_location, # From form
+                     'tcg_market_price_csv': float(tcg_market_price_csv) if tcg_market_price_csv else None
                  }
 
     except Exception as e:
@@ -1098,16 +1252,15 @@ def import_csv_route():
         card_info = data['details']
         total_quantity = data['quantity']
 
-        # --- Scryfall Lookup for comprehensive data ---
+        # --- Scryfall Lookup for comprehensive data (using cleaned data) ---
         card_details = None
-        # Determine lookup parameters based on available data from CSV
         scryfall_card_name = card_info['name']
-        scryfall_set_id = card_info['set_identifier'] # Could be code or name
+        scryfall_set_id = card_info['set_identifier'] # Could be set code or set name
         scryfall_collector_number = card_info['collector_number']
-        scryfall_language = card_info['language'] if card_info['language'] else default_language_csv_form # Prioritize CSV, else form default
+        scryfall_language = card_info['language']
 
         # Scryfall lookup logic (prioritized for best match)
-        # Priority 1: Set Identifier (could be code or name) + Collector Number + Card Name
+        # Priority 1: Set Identifier + Collector Number + Card Name (most specific)
         if scryfall_set_id and scryfall_collector_number:
             card_details = scryfall.get_card_details(
                 card_name=scryfall_card_name,
@@ -1125,7 +1278,7 @@ def import_csv_route():
             )
         
         # Priority 3: Card Name + Collector Number (no specific set identifier)
-        if not card_details and scryfall_card_name and scryfall_collector_number and not scryfall_set_id:
+        if not card_details and scryfall_card_name and scryfall_collector_number:
             card_details = scryfall.get_card_details(
                 card_name=scryfall_card_name,
                 collector_number=scryfall_collector_number,
@@ -1139,17 +1292,17 @@ def import_csv_route():
                 lang=scryfall_language
             )
 
+
         if card_details and all(k in card_details for k in ['name', 'collector_number', 'set_code']):
             final_name = card_details['name']
             final_set_code = card_details['set_code'].upper() # Always store set code as uppercase
             final_collector_number = card_details['collector_number']
             final_scryfall_uuid = card_details.get('id')
 
-            # Use Scryfall's rarity/language if available, otherwise use CSV/default
-            final_rarity = card_details.get('rarity', card_info.get('rarity', 'unknown')).lower() # Use card_info.get('rarity') from CSV
-            final_language = card_details.get('language', card_info.get('language', default_language_csv_form)).lower() # Use card_info.get('language') from CSV
-            
-            final_condition = card_info.get('condition') if card_info.get('condition') else default_condition_csv_form # Use CSV's condition, else form default
+            # Use Scryfall's rarity/language if available, otherwise use mapped CSV data
+            final_rarity = card_details.get('rarity', card_info['rarity']).lower() # Use cleaned rarity from card_info
+            final_language = card_details.get('language', card_info['language']).lower() # Use cleaned language from card_info
+            final_condition = card_info['condition'] # Use cleaned condition from card_info
 
             # For image, prefer Scryfall's image_uri
             final_image_uri = card_details.get('image_uri')
@@ -1160,8 +1313,8 @@ def import_csv_route():
 
             # Re-evaluate is_foil based on Scryfall and previous logic
             is_foil_final = card_info['is_foil'] # Start with what was determined from CSV/form
-            if card_details.get('foil_market_price_usd') is not None and card_details.get('market_price_usd') is None:
-                is_foil_final = True # If Scryfall only has foil price, it's likely foil
+            if not is_foil_final and card_details.get('foil_market_price_usd') is not None and card_details.get('market_price_usd') is None:
+                is_foil_final = True # If Scryfall only has foil price, it's likely foil, override non-foil assumption
 
             card_id = database.add_card(
                 set_code=final_set_code,
@@ -1198,14 +1351,19 @@ def import_csv_route():
     flash(summary_message, flash_category)
 
     if errors_list:
-        [flash(f"Import Error: {err}", 'error') for err in errors_list[:5]]
-        if len(errors_list) > 5:
-            flash(f"...and {len(errors_list) - 5} more errors (see server console for full list).", 'error')
+        [flash(f"Import Error: {err}", 'error') for err in errors_list[:10]]
+        if len(errors_list) > 10:
+            flash(f"...and {len(errors_list) - 10} more errors (see server console for full list).", 'error')
         print("--- Detailed CSV Import Errors ---\n" + "\n".join(errors_list) + "\n---------------------------------")
 
     return redirect(url_for('index', tab='addItemsTab'))
 
-# ... (rest of the app.py file) ...
+
+# ... (rest of the app.py code) ...
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port)
 
 
 @app.route('/api/all_shipping_supply_presets', methods=['GET'])
