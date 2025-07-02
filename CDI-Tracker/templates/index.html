@@ -1352,10 +1352,21 @@
                     eventRow.insertCell().textContent = getStr(event, 'notes', '');
 
                     const actionsCell = eventRow.insertCell();
+                    const editButton = document.createElement('a'); // Use 'a' tag for navigation
+                    editButton.href = `{{ url_for('edit_sale_event_get_route', sale_event_id=0) }}`.replace('0', event.id); // Dynamic URL
+                    editButton.className = 'button'; // Reusing your general button style
+                    editButton.textContent = 'Edit';
+                    editButton.style.padding = '5px 8px';
+                    editButton.style.fontSize = '0.8em';
+                    editButton.style.marginRight = '5px'; // Space between buttons
+                    editButton.style.textDecoration = 'none'; // Remove underline for link
+                    actionsCell.appendChild(editButton);
+
+                    // Existing Delete Form and Button
                     const deleteForm = document.createElement('form');
                     deleteForm.action = `/delete_sale_event/${event.id}`;
                     deleteForm.method = 'post';
-                    deleteForm.style.display = 'inline';
+                    deleteForm.style.display = 'inline'; // Keep them on the same line if possible
 
                     const deleteButton = document.createElement('button');
                     deleteButton.type = 'submit';
@@ -1368,7 +1379,7 @@
                     };
 
                     deleteForm.appendChild(deleteButton);
-                    actionsCell.appendChild(deleteForm); // Keep the form as the parent for proper submission
+                    actionsCell.appendChild(deleteForm);
 
 
                     const detailsRow = tableBody.insertRow();

@@ -1214,7 +1214,138 @@ def record_multi_item_sale_route():
         flash(f"An error occurred: {str(e)}", 'error')
         return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
 
+@app.route('/edit_sale_event/<int:sale_event_id>', methods=['GET'])
+def edit_sale_event_get_route(sale_event_id):
+    sale_event_data = database.get_sale_event_by_id_with_details(sale_event_id)
+    if not sale_event_data:
+        flash("Sale event not found.", 'error')
+        return redirect(url_for('index', tab='salesHistoryTab'))
 
+    # Convert date objects to string for HTML form input
+    if isinstance(sale_event_data.get('sale_date'), datetime.date):
+        sale_event_data['sale_date'] = sale_event_data['sale_date'].isoformat()
+
+    # Prepare current items for JS pre-population
+    # Sale items
+    current_sale_items = []
+    for item in sale_event_data['items']:
+        current_sale_items.append({
+            'inventory_item_id_with_prefix': f"{item['item_type']}-{item['inventory_item_id']}",
+            'quantity_sold': item['quantity_sold'],
+            'sell_price_per_item': item['sell_price_per_item'],
+            'display_name': item['original_item_name'], # For display in frontend
+            'display_details': item['original_item_details'] # For display
+        })
+    current_sale_items_json = json.dumps(current_sale_items)
+
+    # Shipping supplies
+    current_shipping_supplies_used = {}
+    for supply in sale_event_data['shipping_supplies_used']:
+        current_shipping_supplies_used[supply['supply_id']] = supply['quantity_used']
+    current_shipping_supplies_used_json = json.dumps(current_shipping_supplies_used)
+
+
+    # Need to pass all options for item lookup as well (cards, sealed, supplies)
+    inventory_cards_data = database.get_all_cards()
+    sealed_products_data = database.get_all_sealed_products()
+    shipping_supplies_data = database.get_all_shipping_supplies() # This data contains datetime.date objects
+
+    all_combined_inventory_items_for_filtering = []
+    for item in inventory_cards_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'single_card' # Add a consistent type identifier for filtering
+        item_copy['display_name'] = item_copy.get('name', 'N/A')
+        all_combined_inventory_items_for_filtering.append(item_copy)
+    for item in sealed_products_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'sealed_product' # Add a consistent type identifier for filtering
+        item_copy['display_name'] = item_copy.get('product_name', 'N/A')
+        all_combined_inventory_items_for_filtering.append(item_copy)
+    for item in shipping_supplies_data:
+        item_copy = dict(item)
+        item_copy['internal_type'] = 'shipping_supply' # Add a consistent type identifier for filtering
+        item_copy['display_name'] = item_copy.get('supply_name', 'N/A')
+        all_combined_inventory_items_for_filtering.append(item_copy)
+
+    sale_inventory_options = []
+    temp_sorted_for_sale_options = sorted(all_combined_inventory_items_for_filtering, key=lambda x_sort: x_sort.get('display_name', x_sort.get('supply_name', '')).lower())
+    for item_s_opt in temp_sorted_for_sale_options:
+        display_text_val = f"{item_s_opt.get('display_name', item_s_opt.get('supply_name', 'N/A'))} "
+        if item_s_opt.get('internal_type') == 'single_card':
+            condition_str = f"C: {item_s_opt.get('condition','N/A')}, "
+            display_text_val += f"({item_s_opt.get('set_code','N/A').upper()}-{item_s_opt.get('collector_number','N/A')}) {'(Foil)' if item_s_opt.get('is_foil') else ''} (R: {item_s_opt.get('rarity','N/A')}, L: {item_s_opt.get('language','N/A')}, {condition_str}BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        elif item_s_opt.get('internal_type') == 'sealed_product':
+            display_text_val += f"({item_s_opt.get('set_name','N/A')} / {item_s_opt.get('product_type','N/A')}){' (Collector)' if item_s_opt.get('is_collectors_item') else ''} (L: {item_s_opt.get('language','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('buy_price'))}) - Qty: {item_s_opt['quantity']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        elif item_s_opt.get('internal_type') == 'shipping_supply':
+            display_text_val += f"({item_s_opt.get('description','N/A')}) (UOM: {item_s_opt.get('unit_of_measure','N/A')}, BP: {format_currency_with_commas(item_s_opt.get('cost_per_unit'))}) - Qty: {item_s_opt['quantity_on_hand']} - Loc: {item_s_opt.get('location', 'N/A')}"
+        sale_inventory_options.append({"id": f"{item_s_opt['internal_type']}-{item_s_opt['id'] if item_s_opt.get('id') else item_s_opt['original_id']}", "display": display_text_val, "type": item_s_opt['internal_type']})
+
+    sale_inventory_options_json = json.dumps(sale_inventory_options)
+
+    shipping_supply_options = []
+    temp_sorted_supplies = sorted(shipping_supplies_data, key=lambda x_sort: x_sort.get('supply_name', '').lower())
+    for supply_opt in temp_sorted_supplies:
+        display_text_val = f"{supply_opt['supply_name']} ({supply_opt.get('description', 'N/A')}) - Qty: {supply_opt['quantity_on_hand']} {supply_opt['unit_of_measure']} @ {format_currency_with_commas(supply_opt.get('cost_per_unit'))} each"
+        shipping_supply_options.append({
+            "id": supply_opt['id'],
+            "display": display_text_val,
+            "cost_per_unit": supply_opt['cost_per_unit'],
+            "quantity_on_hand": supply_opt['quantity_on_hand']
+        })
+    shipping_supply_options_json = json.dumps(shipping_supply_options)
+
+
+    return render_template('edit_sale.html',
+                           sale_event=sale_event_data,
+                           current_sale_items_json=current_sale_items_json,
+                           current_shipping_supplies_used_json=current_shipping_supplies_used_json,
+                           sale_inventory_options_json=sale_inventory_options_json, # For item search
+                           shipping_supply_options_json=shipping_supply_options_json, # For shipping supply search
+                           current_date=datetime.date.today().isoformat()
+                           )
+
+
+@app.route('/edit_sale_event/<int:sale_event_id>', methods=['POST'])
+def edit_sale_event_post_route(sale_event_id):
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "message": "No data received."}), 400
+
+        sale_date_str = data.get('sale_date')
+        total_shipping_cost_str = data.get('total_shipping_cost', '0.0')
+        overall_notes = data.get('notes', '')
+        items_data = data.get('items')
+        shipping_supplies_data = data.get('shipping_supplies_used', [])
+
+        customer_shipping_charge_str = data.get('customer_shipping_charge', '0.0')
+        platform_fee_str = data.get('platform_fee', '0.0')
+
+        if not sale_date_str or not isinstance(items_data, list) or not items_data:
+            flash('Missing sale date or items data.', 'error')
+            return jsonify({"success": False, "message": "Missing sale date or items list is empty."}), 400
+
+        success, message = database.update_sale_event_details(
+            sale_event_id,
+            sale_date_str,
+            total_shipping_cost_str,
+            overall_notes,
+            customer_shipping_charge_str,
+            platform_fee_str,
+            items_data, # These are the *new* items
+            shipping_supplies_data # These are the *new* supplies
+        )
+
+        if success:
+            flash(f"Sale event (ID: {sale_event_id}) updated successfully. {message}", 'success')
+            return jsonify({"success": True, "message": f"Sale event (ID: {sale_event_id}) updated."})
+        else:
+            flash(f"Failed to update sale event. Reason: {message}", 'error')
+            return jsonify({"success": False, "message": f"Failed to update sale event. Reason: {message}"}), 400
+    except Exception as e:
+        print(f"Error in /edit_sale_event POST route: {e}")
+        flash(f"An error occurred: {str(e)}", 'error')
+        return jsonify({"success": False, "message": f"An internal error occurred: {str(e)}"}), 500
 
 
 

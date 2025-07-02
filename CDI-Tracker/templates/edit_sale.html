@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Edit Sale Event - CDI Tracker</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Styles copied from index.html for consistency in forms/buttons */
+        .card-form, .update-form {
+            background-color: var(--bg-secondary);
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+
+            .form-grid > div {
+                display: flex;
+                flex-direction: column;
+            }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            color: var(--text-secondary);
+        }
+
+        input[type="text"],
+        input[type="number"],
+        input[type="date"],
+        select {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border-color);
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 1em;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+            input[type="text"]:focus,
+            input[type="number"]:focus,
+            input[type="date"]:focus,
+            select:focus {
+                border-color: var(--mtg-black-accent);
+                box-shadow: 0 0 0 2px var(--mtg-black-accent);
+                outline: none;
+            }
+
+        button, .button {
+            background-color: var(--mtg-black-accent);
+            color: var(--text-primary);
+            padding: 10px 18px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            font-weight: bold;
+            transition: background-color 0.3s, transform 0.1s;
+        }
+
+            button:hover {
+                filter: brightness(1.2);
+            }
+
+        .delete-button {
+            background-color: var(--mtg-red);
+        }
+
+            .delete-button:hover {
+                background-color: #B71C1C;
+            }
+
+        .sale-item-row {
+            border: 1px solid var(--bg-tertiary);
+            border-radius: 6px;
+            margin-bottom: 15px;
+            padding: 15px;
+            background-color: var(--bg-tertiary);
+        }
+
+            .sale-item-row h4 {
+                margin-top: 0;
+                color: var(--mtg-gold-accent);
+                border-bottom: 1px solid var(--border-color);
+                padding-bottom: 5px;
+            }
+
+        .search-input-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .search-results-dropdown {
+            border: 1px solid var(--border-color);
+            border-top: none;
+            max-height: 250px;
+            overflow-y: auto;
+            background-color: var(--bg-secondary);
+            position: absolute;
+            width: 100%;
+            box-sizing: border-box;
+            z-index: 1000;
+            display: none;
+            border-radius: 0 0 6px 6px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+
+        .search-result-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            color: var(--text-primary);
+            border-bottom: 1px solid var(--border-color);
+            font-size: 0.9em;
+        }
+
+            .search-result-item:last-child {
+                border-bottom: none;
+            }
+
+            .search-result-item:hover {
+                background-color: var(--bg-tertiary);
+                color: var(--mtg-gold-accent);
+            }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 20px;
+        }
+
+            .page-header h1 {
+                border-bottom: none;
+                margin: 0;
+                padding-bottom: 0;
+            }
+    </style>
+</head>
+<body>
+    <div style="max-width: 900px; margin: 20px auto; padding: 20px; background-color: var(--bg-primary); border-radius: 8px;">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <ul class="flashes">
+            {% for category, message in messages %}
+            <li class="{{ category }}">{{ message }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+        {% endwith %}
+
+        <div class="page-header">
+            <h1>Edit Sale Event #{{ sale_event.id }}</h1>
+            <a href="{{ url_for('index', tab='salesHistoryTab') }}" class="button" style="text-decoration:none;">Back to Sales History</a>
+        </div>
+
+        <form id="editSaleForm" class="card-form">
+            <input type="hidden" id="saleEventId" value="{{ sale_event.id }}">
+            <div class="form-grid">
+                <div>
+                    <label for="sale_event_date">Sale Date:</label>
+                    <input type="date" id="sale_event_date" name="sale_event_date" value="{{ sale_event.sale_date }}" required>
+                </div>
+                <div>
+                    <label for="sale_event_customer_shipping_charge">Customer Shipping Charge (Paid by Customer):</label>
+                    <input type="number" id="sale_event_customer_shipping_charge" name="customer_shipping_charge" step="0.01" min="0" value="{{ '%.2f'|format(sale_event.customer_shipping_charge) }}" placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="sale_event_platform_fee">Platform Fee (e.g., eBay, TCGPlayer):</label>
+                    <input type="number" id="sale_event_platform_fee" name="platform_fee" step="0.01" min="0" value="{{ '%.2f'|format(sale_event.platform_fee) }}" placeholder="$0.00">
+                </div>
+                <div>
+                    <label for="sale_event_shipping_cost">Your Actual Postage Cost:</label>
+                    <input type="number" id="sale_event_shipping_cost" name="total_shipping_cost" step="0.01" min="0" value="{{ '%.2f'|format(sale_event.total_shipping_cost - sale_event.total_supplies_cost_for_sale) }}" placeholder="$0.00">
+                </div>
+            </div>
+            <div style="margin-top:10px;">
+                <label for="sale_event_notes">Overall Sale Notes (Optional):</label>
+                <input type="text" id="sale_event_notes" name="sale_event_notes" value="{{ sale_event.notes or '' }}" placeholder="e.g., Sold on TCGPlayer, order #123" style="width:100%;">
+            </div>
+
+            <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Items in this Sale</h4>
+            <div id="saleItemsContainer">
+            </div>
+            <button type="button" id="addItemToSaleBtn" class="button" style="margin-top:10px; background-color: var(--mtg-blue);"><span style="font-size: 1.2em;">+</span> Add Item to Sale</button>
+
+            <h4 style="margin-top: 20px; margin-bottom: 10px; color: var(--text-primary); border-bottom: 1px solid var(--border-color); padding-bottom: 5px;">Shipping Supplies Used</h4>
+            <div style="margin-bottom: 15px;">
+                <label for="shippingPresetSelect" style="font-weight: bold; color: var(--text-secondary);">Load Shipping Preset:</label>
+                <select id="shippingPresetSelect" style="width: calc(100% - 2px); margin-top: 5px; padding: 10px 12px; border: 1px solid var(--border-color); background-color: var(--bg-tertiary); color: var(--text-primary); border-radius: 4px; box-sizing: border-box;">
+                    <option value="">-- Select a Preset --</option>
+                </select>
+                <button type="button" id="clearShippingSuppliesBtn" class="delete-button" style="margin-top: 10px; font-size: 0.9em; padding: 8px 12px;">Clear All Selected Supplies</button>
+            </div>
+            <div id="shippingSuppliesInventoryList" style="margin-top: 20px;">
+            </div>
+
+            <hr style="margin: 20px 0; border-color: var(--border-color);">
+            <button type="submit" style="margin-top:15px; font-size: 1.1em;">Save Edited Sale</button>
+        </form>
+    </div>
+
+    <script type="application/json" id="current_sale_items_json_data">{{ current_sale_items_json | safe }}</script>
+    <script type="application/json" id="current_shipping_supplies_used_json_data">{{ current_shipping_supplies_used_json | safe }}</script>
+    <script type="application/json" id="sale_inventory_options_json_data">{{ sale_inventory_options_json | safe }}</script>
+    <script type="application/json" id="shipping_supply_options_json_data">{{ shipping_supply_options_json | safe }}</script>
+    <script type="application/json" id="shipping_supply_presets_json_data">{{ shipping_supply_presets_json | safe }}</script>
+
+
+    <script>
+        // --- Utility Functions (Copied from index.html) ---
+        function getStr(obj, key, defaultVal = '') {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                return String(obj[key]);
+            }
+            return defaultVal;
+        }
+
+        function getNum(obj, key, defaultVal = null) {
+            if (obj && typeof obj === 'object' && obj !== null && obj[key] !== null && obj[key] !== undefined) {
+                const num = parseFloat(obj[key]);
+                if (!isNaN(num)) return num;
+            }
+            return defaultVal;
+        }
+
+        function formatCurrencyJS(value) {
+            const numValue = parseFloat(value);
+            if (value === null || value === undefined || isNaN(numValue)) return "$0.00";
+            try {
+                if (numValue < 0) return `-$${Math.abs(numValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                return `$${numValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+            } catch (e) {
+                return String(value);
+            }
+        }
+
+        // --- Global Data Variables ---
+        let currentSaleItemsData = []; // Data for items already in this sale
+        let initialShippingSuppliesUsedData = {}; // Data for supplies already in this sale
+        let saleInventoryOptionsData = []; // All possible inventory items for search
+        let shippingSupplyOptionsData = []; // All possible shipping supplies for selection
+        let shippingSupplyPresetsData = []; // All shipping presets
+
+        // Global Variable to track selected quantities for the sale form (for shipping supplies)
+        // Key: supply_id, Value: quantity
+        let selectedShippingSuppliesForSale = {};
+
+        // --- JSON Data Parsing ---
+        try {
+            const currentItemsEl = document.getElementById('current_sale_items_json_data');
+            currentSaleItemsData = JSON.parse(currentItemsEl ? currentItemsEl.textContent : '[]');
+            if (!Array.isArray(currentSaleItemsData)) currentSaleItemsData = [];
+        } catch (e) {
+            console.error("Error parsing current_sale_items_json_data:", e);
+            currentSaleItemsData = [];
+        }
+        try {
+            const currentShippingEl = document.getElementById('current_shipping_supplies_used_json_data');
+            initialShippingSuppliesUsedData = JSON.parse(currentShippingEl ? currentShippingEl.textContent : '{}');
+            if (typeof initialShippingSuppliesUsedData !== 'object' || initialShippingSuppliesUsedData === null) initialShippingSuppliesUsedData = {};
+        } catch (e) {
+            console.error("Error parsing current_shipping_supplies_used_json_data:", e);
+            initialShippingSuppliesUsedData = {};
+        }
+        try {
+            const saleOptsJsonEl = document.getElementById('sale_inventory_options_json_data');
+            saleInventoryOptionsData = JSON.parse(saleOptsJsonEl ? saleOptsJsonEl.textContent : '[]');
+            if (!Array.isArray(saleInventoryOptionsData)) saleInventoryOptionsData = [];
+        } catch (e) {
+            console.error("Error parsing sale_inventory_options_json:", e);
+            saleInventoryOptionsData = [];
+        }
+        try {
+            const shippingSupplyOptionsEl = document.getElementById('shipping_supply_options_json_data');
+            shippingSupplyOptionsData = JSON.parse(shippingSupplyOptionsEl ? shippingSupplyOptionsEl.textContent : '[]');
+            if (!Array.isArray(shippingSupplyOptionsData)) shippingSupplyOptionsData = [];
+        } catch (e) {
+            console.error("Error parsing shipping_supply_options_json_data:", e);
+            shippingSupplyOptionsData = [];
+        }
+        try {
+            const shippingPresetEl = document.getElementById('shipping_supply_presets_json_data');
+            shippingSupplyPresetsData = JSON.parse(shippingPresetEl ? shippingPresetEl.textContent : '[]');
+            if (!Array.isArray(shippingSupplyPresetsData)) shippingSupplyPresetsData = [];
+        } catch (e) {
+            console.error("Error parsing shipping_supply_presets_json_data:", e);
+            shippingSupplyPresetsData = [];
+        }
+
+        // Initialize selectedShippingSuppliesForSale with existing data
+        selectedShippingSuppliesForSale = { ...initialShippingSuppliesUsedData };
+
+        // --- Sale Item Management (non-shipping) ---
+        const saleItemsContainer = document.getElementById('saleItemsContainer');
+        const addItemToSaleBtn = document.getElementById('addItemToSaleBtn');
+        const editSaleForm = document.getElementById('editSaleForm'); // Target the specific form ID
+        let saleItemRowCounter = 0;
+
+        function createSaleItemRow(initialItem = null) {
+            saleItemRowCounter++;
+            const rowId = `sale-item-row-${saleItemRowCounter}`;
+            const itemRowDiv = document.createElement('div');
+            itemRowDiv.className = 'sale-item-row';
+            itemRowDiv.dataset.rowId = saleItemRowCounter;
+            itemRowDiv.innerHTML = `
+                <h4>Item ${saleItemRowCounter}</h4>
+                <div class="search-input-container">
+                    <label for="sale_item_search_${saleItemRowCounter}">Search Inventory Item:</label>
+                    <input type="text" id="sale_item_search_${saleItemRowCounter}" class="sale-item-search-input" placeholder="Type name, set, location..." autocomplete="off" required>
+                    <input type="hidden" name="inventory_item_id_with_prefix" class="selected-inventory-item-id" required>
+                    <div class="search-results-dropdown sale-item-search-results"></div>
+                </div>
+                <div class="form-grid" style="margin-top:10px;">
+                    <div><label for="sale_item_qty_${saleItemRowCounter}">Quantity Sold:</label><input type="number" id="sale_item_qty_${saleItemRowCounter}" name="quantity_sold" class="sale-item-qty" min="1" value="${initialItem ? initialItem.quantity_sold : '1'}" required></div>
+                    <div><label for="sale_item_price_${saleItemRowCounter}">Sell Price (per item):</label><input type="number" id="sale_item_price_${saleItemRowCounter}" name="sell_price_per_item" class="sale-item-price" step="0.01" min="0" value="${initialItem ? initialItem.sell_price_per_item : '0.00'}" required placeholder="$0.00"></div>
+                </div>
+                <button type="button" class="delete-button remove-sale-item-btn" style="margin-top:10px; font-size:0.9em;">Remove This Item</button>`;
+            if (saleItemsContainer) saleItemsContainer.appendChild(itemRowDiv);
+
+            const searchInput = itemRowDiv.querySelector('.sale-item-search-input');
+            const hiddenIdInput = itemRowDiv.querySelector('.selected-inventory-item-id');
+
+            if (searchInput) attachSearchListenerToInput(searchInput, hiddenIdInput); // Pass hiddenIdInput
+
+            const removeBtn = itemRowDiv.querySelector('.remove-sale-item-btn');
+            if (removeBtn) removeBtn.addEventListener('click', function () {
+                itemRowDiv.remove();
+            });
+
+            // Pre-populate if initialItem is provided (for editing existing sales)
+            if (initialItem) {
+                searchInput.value = `${initialItem.display_name} (${initialItem.display_details})`;
+                hiddenIdInput.value = initialItem.inventory_item_id_with_prefix;
+            }
+        }
+
+        // Updated attachSearchListenerToInput to use passed hiddenIdInput
+        function attachSearchListenerToInput(searchInput, hiddenIdInput) {
+            const resultsDropdown = searchInput.parentElement.querySelector('.search-results-dropdown');
+            // const hiddenIdInput = searchInput.parentElement.querySelector('.selected-inventory-item-id'); // Removed, now passed
+
+            searchInput.addEventListener('input', function () {
+                const searchTerm = this.value.toLowerCase().trim();
+                resultsDropdown.innerHTML = '';
+                if (hiddenIdInput) hiddenIdInput.value = '';
+                if (searchTerm.length < 1) {
+                    resultsDropdown.style.display = 'none';
+                    return;
+                }
+                const matchedItems = (saleInventoryOptionsData || []).filter(opt => opt && (opt.display || '').toLowerCase().includes(searchTerm));
+                if (matchedItems.length > 0) {
+                    resultsDropdown.style.display = 'block';
+                    matchedItems.slice(0, 10).forEach(opt => {
+                        const itemDiv = document.createElement('div');
+                        itemDiv.classList.add('search-result-item');
+                        itemDiv.textContent = opt.display;
+                        itemDiv.dataset.itemId = opt.id;
+                        itemDiv.addEventListener('click', function () {
+                            if (hiddenIdInput) hiddenIdInput.value = this.dataset.itemId;
+                            searchInput.value = this.textContent;
+                            resultsDropdown.innerHTML = '';
+                            resultsDropdown.style.display = 'none';
+                        });
+                        resultsDropdown.appendChild(itemDiv);
+                    });
+                } else {
+                    resultsDropdown.style.display = 'none';
+                }
+            });
+            document.addEventListener('click', function (event) {
+                if (!searchInput.contains(event.target) && !resultsDropdown.contains(event.target)) {
+                    resultsDropdown.style.display = 'none';
+                }
+            });
+        }
+
+        if (addItemToSaleBtn) {
+            addItemToSaleBtn.addEventListener('click', () => createSaleItemRow());
+        }
+
+        // --- Shipping Supply Selection and Preset Management (Copied from index.html) ---
+
+        const shippingSuppliesInventoryList = document.getElementById('shippingSuppliesInventoryList');
+        const shippingPresetSelect = document.getElementById('shippingPresetSelect');
+        const clearShippingSuppliesBtn = document.getElementById('clearShippingSuppliesBtn');
+
+        function renderAllShippingSuppliesForSale() {
+            if (!shippingSuppliesInventoryList) return;
+            shippingSuppliesInventoryList.innerHTML = ''; // Clear previous list
+
+            if (!shippingSupplyOptionsData || shippingSupplyOptionsData.length === 0) {
+                shippingSuppliesInventoryList.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No shipping supplies available in inventory.</p>';
+                return;
+            }
+
+            const sortedSupplies = [...shippingSupplyOptionsData].sort((a, b) => {
+                const nameA = (a.display || '').toLowerCase();
+                const nameB = (b.display || '').toLowerCase();
+                return nameA.localeCompare(nameB);
+            });
+
+            sortedSupplies.forEach(supply => {
+                const supplyId = supply.id;
+                const supplyName = supply.display.split(' (')[0];
+                const description = supply.display.match(/\((.*?)\)/)?.[1] || 'N/A';
+                const quantityOnHand = supply.quantity_on_hand;
+                const costPerUnit = supply.cost_per_unit;
+
+                const currentSelectedQty = selectedShippingSuppliesForSale[supplyId] || 0;
+
+                const supplyCardDiv = document.createElement('div');
+                supplyCardDiv.className = 'card-entry shipping-supply-selector-card';
+                supplyCardDiv.style.marginBottom = '10px';
+                supplyCardDiv.style.padding = '15px';
+                supplyCardDiv.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;">
+                        <h3 style="margin: 0; padding-bottom: 0; border-bottom: none; flex-basis: 100%; margin-bottom: 8px;">${supplyName}</h3>
+                        <p style="font-size: 0.9em; color: var(--text-secondary); margin: 0; flex-basis: 100%; margin-bottom: 10px;">
+                            ${description} &ndash; Qty on Hand: ${quantityOnHand} @ ${formatCurrencyJS(costPerUnit)} each
+                        </p>
+                        <div style="display: flex; align-items: center; gap: 10px; margin-top: 5px;">
+                            <button type="button" class="qty-minus-btn button" data-supply-id="${supplyId}" style="width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;">-</button>
+                            <input type="number" class="selected-supply-qty" data-supply-id="${supplyId}" value="${currentSelectedQty}" min="0" max="${quantityOnHand}" style="width: 60px; text-align: center; font-size: 1em; padding: 5px;">
+                            <button type="button" class="qty-plus-btn button" data-supply-id="${supplyId}" style="width: 30px; height: 30px; padding: 0; font-size: 1.2em; line-height: 1; text-align: center;">+</button>
+                        </div>
+                    </div>
+                `;
+                shippingSuppliesInventoryList.appendChild(supplyCardDiv);
+
+                const qtyInput = supplyCardDiv.querySelector(`.selected-supply-qty[data-supply-id="${supplyId}"]`);
+                const minusBtn = supplyCardDiv.querySelector(`.qty-minus-btn[data-supply-id="${supplyId}"]`);
+                const plusBtn = supplyCardDiv.querySelector(`.qty-plus-btn[data-supply-id="${supplyId}"]`);
+
+                minusBtn.addEventListener('click', () => {
+                    let currentVal = parseInt(qtyInput.value);
+                    if (currentVal > 0) {
+                        qtyInput.value = currentVal - 1;
+                        updateSelectedSupplyQuantity(supplyId, currentVal - 1);
+                    }
+                });
+
+                plusBtn.addEventListener('click', () => {
+                    let currentVal = parseInt(qtyInput.value);
+                    if (currentVal < quantityOnHand) {
+                        qtyInput.value = currentVal + 1;
+                        updateSelectedSupplyQuantity(supplyId, currentVal + 1);
+                    } else {
+                        alert(`Cannot select more than available quantity (${quantityOnHand}).`);
+                    }
+                });
+
+                qtyInput.addEventListener('change', () => {
+                    let enteredVal = parseInt(qtyInput.value);
+                    if (isNaN(enteredVal) || enteredVal < 0) {
+                        enteredVal = 0;
+                    }
+                    if (enteredVal > quantityOnHand) {
+                        alert(`Cannot select more than available quantity (${quantityOnHand}). Setting to max available.`);
+                        enteredVal = quantityOnHand;
+                    }
+                    qtyInput.value = enteredVal;
+                    updateSelectedSupplyQuantity(supplyId, enteredVal);
+                });
+            });
+        }
+
+        function updateSelectedSupplyQuantity(supplyId, quantity) {
+            if (quantity > 0) {
+                selectedShippingSuppliesForSale[supplyId] = quantity;
+            } else {
+                delete selectedShippingSuppliesForSale[supplyId];
+            }
+            console.log("Selected Supplies:", selectedShippingSuppliesForSale);
+        }
+
+        function populateShippingPresetSelect() {
+            if (!shippingPresetSelect) return;
+            shippingPresetSelect.innerHTML = '<option value="">-- Select a Preset --</option>';
+
+            if (shippingSupplyPresetsData && shippingSupplyPresetsData.length > 0) {
+                shippingSupplyPresetsData.forEach(preset => {
+                    const option = document.createElement('option');
+                    option.value = preset.id;
+                    option.textContent = preset.name + (preset.description ? ` (${preset.description})` : '');
+                    shippingPresetSelect.appendChild(option);
+                });
+            }
+        }
+
+        if (shippingPresetSelect) {
+            shippingPresetSelect.addEventListener('change', (event) => {
+                const selectedPresetId = parseInt(event.target.value);
+                if (selectedPresetId) {
+                    loadShippingPresetIntoSaleForm(selectedPresetId);
+                } else {
+                    clearAllSelectedShippingSupplies();
+                }
+            });
+        }
+
+        function loadShippingPresetIntoSaleForm(presetId) {
+            const selectedPreset = shippingSupplyPresetsData.find(p => p.id === presetId);
+            if (!selectedPreset) {
+                alert("Preset not found.");
+                return;
+            }
+
+            clearAllSelectedShippingSupplies();
+
+            if (selectedPreset.items && selectedPreset.items.length > 0) {
+                let lowStockWarning = '';
+                selectedPreset.items.forEach(item => {
+                    const supply = shippingSupplyOptionsData.find(s => s.id === item.supply_id);
+                    if (supply) {
+                        let qtyToLoad = item.quantity;
+                        if (qtyToLoad > supply.quantity_on_hand) {
+                            lowStockWarning += `\n- ${supply.display.split(' (')[0]} (Need: ${qtyToLoad}, Have: ${supply.quantity_on_hand})`;
+                            qtyToLoad = supply.quantity_on_hand;
+                        }
+                        updateSelectedSupplyQuantity(supply.id, qtyToLoad);
+                    } else {
+                        console.warn(`Supply ID ${item.supply_id} from preset not found in inventory options.`);
+                    }
+                });
+                renderAllShippingSuppliesForSale();
+                if (lowStockWarning) {
+                    alert(`Preset loaded, but some items had low stock and were adjusted to max available:${lowStockWarning}`);
+                }
+            } else {
+                alert("This preset contains no supplies.");
+            }
+            if (shippingPresetSelect) shippingPresetSelect.value = '';
+        }
+
+        if (clearShippingSuppliesBtn) {
+            clearShippingSuppliesBtn.addEventListener('click', clearAllSelectedShippingSupplies);
+        }
+
+        function clearAllSelectedShippingSupplies() {
+            selectedShippingSuppliesForSale = {};
+            renderAllShippingSuppliesForSale();
+            alert('All selected shipping supplies cleared.');
+            if (shippingPresetSelect) shippingPresetSelect.value = '';
+        }
+
+        // --- Sale Form Submission Logic (for edit_sale.html) ---
+        if (editSaleForm) {
+            editSaleForm.addEventListener('submit', async function (event) {
+                event.preventDefault();
+                const saleEventId = document.getElementById('saleEventId').value;
+
+                const saleData = {
+                    sale_date: document.getElementById('sale_event_date').value,
+                    total_shipping_cost: document.getElementById('sale_event_shipping_cost').value,
+                    notes: document.getElementById('sale_event_notes').value,
+                    customer_shipping_charge: document.getElementById('sale_event_customer_shipping_charge').value,
+                    platform_fee: document.getElementById('sale_event_platform_fee').value,
+                    items: [],
+                    shipping_supplies_used: []
+                };
+
+                const itemRows = saleItemsContainer ? saleItemsContainer.querySelectorAll('.sale-item-row') : [];
+                if (itemRows.length === 0) {
+                    alert("Please add at least one item to the sale.");
+                    return;
+                }
+                let formIsValid = true;
+                itemRows.forEach(row => {
+                    const itemIdWithPrefix = row.querySelector('.selected-inventory-item-id').value;
+                    const qty = row.querySelector('.sale-item-qty').value;
+                    const price = row.querySelector('.sale-item-price').value;
+                    if (!itemIdWithPrefix || !qty || parseInt(qty) < 1 || !price || parseFloat(price) < 0) {
+                        formIsValid = false;
+                    }
+                    saleData.items.push({
+                        inventory_item_id_with_prefix: itemIdWithPrefix,
+                        quantity_sold: qty,
+                        sell_price_per_item: price
+                    });
+                });
+
+                for (const supplyId in selectedShippingSuppliesForSale) {
+                    const quantityUsed = selectedShippingSuppliesForSale[supplyId];
+                    if (quantityUsed > 0) {
+                        saleData.shipping_supplies_used.push({
+                            supply_item_id: parseInt(supplyId),
+                            quantity_used: quantityUsed
+                        });
+                    }
+                }
+
+                if (!formIsValid) {
+                    alert("Please ensure all item details (selected item, valid quantity, valid price) are filled for each entry.");
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/edit_sale_event/${saleEventId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(saleData)
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.success) {
+                        // After successful edit, redirect back to sales history
+                        window.location.href = "{{ url_for('index', tab='salesHistoryTab') }}";
+                    } else {
+                        alert("Error saving sale changes: " + (result.message || "Unknown server error."));
+                    }
+                } catch (error) {
+                    console.error("Error submitting edited sale:", error);
+                    alert("An unexpected error occurred while saving changes.");
+                }
+            });
+        }
+
+        // --- Initialization for edit_sale.html specific elements ---
+        document.addEventListener('DOMContentLoaded', function () {
+            // Populate inventory items
+            if (currentSaleItemsData && currentSaleItemsData.length > 0) {
+                currentSaleItemsData.forEach(item => createSaleItemRow(item));
+            } else {
+                createSaleItemRow(); // Add an empty row if no items in sale
+            }
+
+            // Populate shipping supplies
+            renderAllShippingSuppliesForSale(); // This will use selectedShippingSuppliesForSale which was initialized with initialShippingSuppliesUsedData
+
+            // Populate shipping presets dropdown
+            populateShippingPresetSelect();
+        });
+
+    </script>
+</body>
+</html>

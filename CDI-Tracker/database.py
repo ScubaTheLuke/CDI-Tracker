@@ -978,6 +978,259 @@ def delete_sale_event(sale_event_id):
             conn.close()
 
 
+def get_sale_event_by_id_with_details(sale_event_id):
+    """
+    Retrieves a single sale event by ID, including its associated
+    inventory items and shipping supplies.
+    Returns a dictionary of the sale event details.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+    sale_event = None
+    try:
+        # Fetch main sale event details
+        cursor.execute('''SELECT id, sale_date, total_shipping_cost, notes, total_profit_loss, date_recorded,
+                                 customer_shipping_charge, platform_fee, total_supplies_cost_for_sale
+                         FROM sale_events WHERE id = %s''', (sale_event_id,))
+        sale_event = cursor.fetchone()
+
+        if sale_event:
+            sale_event = dict(sale_event) # Convert to dict
+
+            # Fetch associated inventory items
+            cursor.execute('''SELECT id, inventory_item_id, item_type, original_item_name, original_item_details,
+                                     quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss
+                              FROM sale_items WHERE sale_event_id = %s ORDER BY id ASC''', (sale_event_id,))
+            sale_event['items'] = [dict(item) for item in cursor.fetchall()]
+
+            # Fetch associated shipping supplies
+            cursor.execute('''SELECT id, supply_id, quantity_used, cost_per_unit_snapshot, supply_name_snapshot, supply_description_snapshot
+                              FROM sale_event_shipping_supplies WHERE sale_event_id = %s ORDER BY id ASC''', (sale_event_id,))
+            sale_event['shipping_supplies_used'] = [dict(supply) for supply in cursor.fetchall()]
+
+    except psycopg2.Error as e:
+        print(f"DB Error in get_sale_event_by_id_with_details for ID {sale_event_id}: {e}")
+        sale_event = None
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+    return sale_event
+
+def _reverse_and_reapply_inventory_impacts(cursor, sale_event_id, old_items, new_items, old_supplies, new_supplies):
+    """
+    Helper to reverse the inventory impact of old items/supplies and apply the impact of new ones.
+    This function operates within an existing transaction (using the passed cursor).
+    Returns (success_boolean, message, total_items_profit_loss, total_new_shipping_supplies_cost).
+    """
+    messages = []
+
+    # 1. Reverse old inventory item impacts (add back to stock)
+    for old_item in old_items:
+        success, msg = _update_inventory_item_quantity_with_cursor(
+            cursor, old_item['item_type'], old_item['inventory_item_id'], old_item['quantity_sold']
+        )
+        if not success:
+            return False, f"Failed to restock old item '{old_item['original_item_name']}': {msg}", 0.0, 0.0
+        messages.append(f"Restocked {old_item['quantity_sold']} of '{old_item['original_item_name']}'.")
+
+    # 2. Reverse old shipping supply impacts (add back to stock)
+    for old_supply in old_supplies:
+        cursor.execute("SELECT quantity_on_hand FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (old_supply['supply_id'],))
+        current_qty_row = cursor.fetchone()
+        if not current_qty_row:
+            # If an old supply batch was deleted from inventory, we can't restock it. Log and proceed.
+            messages.append(f"Warning: Old shipping supply ID {old_supply['supply_id']} ('{old_supply['supply_name_snapshot']}') not found for restock. Skipping.")
+            continue # Don't fail the entire transaction if an old supply is gone.
+
+        new_qty = current_qty_row['quantity_on_hand'] + old_supply['quantity_used']
+        cursor.execute(
+            "UPDATE shipping_supplies_inventory SET quantity_on_hand = %s, last_updated = %s WHERE id = %s",
+            (new_qty, datetime.datetime.now(), old_supply['supply_id'])
+        )
+        messages.append(f"Restocked {old_supply['quantity_used']} of '{old_supply['supply_name_snapshot']}'.")
+
+    # 3. Clear old sale_items and sale_event_shipping_supplies records for this event
+    cursor.execute("DELETE FROM sale_items WHERE sale_event_id = %s", (sale_event_id,))
+    cursor.execute("DELETE FROM sale_event_shipping_supplies WHERE sale_event_id = %s", (sale_event_id,))
+    messages.append("Cleared old sale item and supply records.")
+
+
+    # 4. Apply new inventory item impacts (deduct from stock) and record new sale_items
+    total_items_profit_loss = 0.0
+    for new_item_data in new_items:
+        inventory_id_with_prefix = new_item_data['inventory_item_id_with_prefix']
+        quantity_sold = int(new_item_data['quantity_sold'])
+        sell_price_per_item = float(new_item_data['sell_price_per_item'])
+
+        item_type = None
+        inventory_item_id_int = None
+        if inventory_id_with_prefix and '-' in inventory_id_with_prefix:
+            parts = inventory_id_with_prefix.split('-', 1)
+            item_type_prefix = parts[0]
+            try:
+                inventory_item_id_int = int(parts[1])
+                if item_type_prefix == 'single_card': item_type = 'single_card'
+                elif item_type_prefix == 'sealed_product': item_type = 'sealed_product'
+            except ValueError:
+                return False, f"Invalid new inv item ID format: {inventory_id_with_prefix}", 0.0, 0.0
+
+        if not all([item_type, inventory_item_id_int is not None]):
+            return False, f"Missing/invalid new item identifier: {inventory_id_with_prefix}", 0.0, 0.0
+
+        if quantity_sold <= 0 or sell_price_per_item < 0:
+            return False, "New item Qty/Sell Price invalid.", 0.0, 0.0
+
+        table_name_for_read = 'cards' if item_type == 'single_card' else 'sealed_products'
+        cursor.execute(f"SELECT * FROM {table_name_for_read} WHERE id = %s FOR UPDATE", (inventory_item_id_int,))
+        original_item_db_row = cursor.fetchone() # Fetch using current cursor for locking
+
+        if not original_item_db_row:
+            return False, f"New inventory item not found: {item_type} id {inventory_item_id_int}", 0.0, 0.0
+        if quantity_sold > original_item_db_row['quantity']:
+            name_key = 'name' if item_type == 'single_card' else 'product_name'
+            return False, f"Not enough stock for new item {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}. Need: {quantity_sold}", 0.0, 0.0
+
+        buy_price_per_item = float(original_item_db_row['buy_price'])
+        item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
+        total_items_profit_loss += item_profit_loss
+
+        original_item_name_snapshot = ""
+        original_item_details_snapshot = ""
+        if item_type == 'single_card':
+            original_item_name_snapshot = original_item_db_row['name']
+            rarity_str = (original_item_db_row.get('rarity') if original_item_db_row.get('rarity') is not None else 'N/A')
+            lang_str = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
+            condition_str = (original_item_db_row.get('condition') if original_item_db_row.get('condition') is not None else 'N/A')
+            original_item_details_snapshot = f"{original_item_db_row['set_code']}-{original_item_db_row['collector_number']} {'(Foil)' if original_item_db_row['is_foil'] else ''} (R: {rarity_str.capitalize()}, L: {lang_str.upper()}, C: {condition_str})"
+        elif item_type == 'sealed_product':
+            original_item_name_snapshot = original_item_db_row['product_name']
+            lang_str_sealed = (original_item_db_row.get('language') if original_item_db_row.get('language') is not None else 'N/A')
+            original_item_details_snapshot = f"{original_item_db_row['set_name']} - {original_item_db_row['product_type']} {'(Collector)' if original_item_db_row['is_collectors_item'] else ''} (L: {lang_str_sealed.upper()})"
+
+        cursor.execute('''INSERT INTO sale_items (sale_event_id, inventory_item_id, item_type, original_item_name, original_item_details, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss)
+                          VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                       (sale_event_id, inventory_item_id_int, item_type, original_item_name_snapshot, original_item_details_snapshot, quantity_sold, sell_price_per_item, buy_price_per_item, item_profit_loss))
+
+        success_deduct, msg_deduct = _update_inventory_item_quantity_with_cursor(cursor, item_type, inventory_item_id_int, -quantity_sold)
+        if not success_deduct:
+            return False, f"Failed to deduct new item '{original_item_name_snapshot}': {msg_deduct}", 0.0, 0.0
+        messages.append(f"Deducted {quantity_sold} of '{original_item_name_snapshot}'.")
+
+
+    # 5. Apply new shipping supply impacts (deduct from stock) and record new sale_event_shipping_supplies
+    total_new_shipping_supplies_cost = 0.0
+    for new_supply_data in new_supplies:
+        supply_id = new_supply_data['supply_item_id']
+        quantity_used = int(new_supply_data['quantity_used'])
+
+        if quantity_used <= 0:
+            continue # Only process positive quantities
+
+        cursor.execute("SELECT quantity_on_hand, cost_per_unit, supply_name, description FROM shipping_supplies_inventory WHERE id = %s FOR UPDATE", (supply_id,))
+        supply_batch = cursor.fetchone()
+
+        if not supply_batch:
+            return False, f"New shipping supply ID {supply_id} not found.", 0.0, 0.0
+        if quantity_used > supply_batch['quantity_on_hand']:
+            return False, f"Not enough stock for new supply '{supply_batch['supply_name']} ({supply_batch['description']})' (Have: {supply_batch['quantity_on_hand']}, Need: {quantity_used}).", 0.0, 0.0
+
+        cost_of_this_supply = supply_batch['cost_per_unit'] * quantity_used
+        total_new_shipping_supplies_cost += cost_of_this_supply
+
+        cursor.execute(
+            "UPDATE shipping_supplies_inventory SET quantity_on_hand = %s, last_updated = %s WHERE id = %s",
+            (supply_batch['quantity_on_hand'] - quantity_used, datetime.datetime.now(), supply_id)
+        )
+        messages.append(f"Deducted {quantity_used} of new supply '{supply_batch['supply_name']}'.")
+
+        cursor.execute('''
+            INSERT INTO sale_event_shipping_supplies (sale_event_id, supply_id, quantity_used, cost_per_unit_snapshot, supply_name_snapshot, supply_description_snapshot)
+            VALUES (%s, %s, %s, %s, %s, %s)
+        ''', (sale_event_id, supply_id, quantity_used, supply_batch['cost_per_unit'], supply_batch['supply_name'], supply_batch['description']))
+
+
+    return True, messages, total_items_profit_loss, total_new_shipping_supplies_cost
+
+
+def update_sale_event_details(sale_event_id, sale_date_str, total_shipping_cost_str, overall_notes,
+                                 customer_shipping_charge_str, platform_fee_str,
+                                 new_items_data, new_shipping_supplies_data):
+    """
+    Updates an existing sale event's details, reversing old inventory impacts
+    and applying new ones based on the updated items and supplies.
+    """
+    conn = get_db_connection()
+    # Use a plain cursor for DML and transaction management
+    cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor) # Keep DictCursor for fetching in helper
+
+    try:
+        # Get current (old) sale event details and its items/supplies
+        old_sale_event = get_sale_event_by_id_with_details(sale_event_id)
+        if not old_sale_event:
+            return False, "Original sale event not found."
+
+        # Parse new scalar values
+        sale_date_obj = datetime.datetime.strptime(sale_date_str, '%Y-%m-%d').date()
+        our_postage_cost = float(total_shipping_cost_str if total_shipping_cost_str and total_shipping_cost_str.strip() != '' else 0.0)
+        customer_shipping_charge = float(customer_shipping_charge_str if customer_shipping_charge_str and customer_shipping_charge_str.strip() != '' else 0.0)
+        platform_fee = float(platform_fee_str if platform_fee_str and platform_fee_str.strip() != '' else 0.0)
+
+        # Reverse old impacts and apply new ones within a single transaction
+        success_reapply, messages_list, total_items_profit_loss, total_new_shipping_supplies_cost = \
+            _reverse_and_reapply_inventory_impacts(
+                cursor, sale_event_id,
+                old_sale_event['items'], new_items_data,
+                old_sale_event['shipping_supplies_used'], new_shipping_supplies_data
+            )
+
+        if not success_reapply:
+            conn.rollback()
+            return False, f"Failed to update inventory impacts: {messages_list}"
+
+        # Calculate the new final P/L for the event
+        final_event_profit_loss = (
+            total_items_profit_loss +
+            customer_shipping_charge -
+            our_postage_cost -
+            total_new_shipping_supplies_cost - # Use the newly calculated total supplies cost
+            platform_fee
+        )
+
+        # Update the main sale_events record
+        cursor.execute('''
+            UPDATE sale_events
+            SET sale_date = %s,
+                total_shipping_cost = %s,
+                notes = %s,
+                customer_shipping_charge = %s,
+                platform_fee = %s,
+                total_profit_loss = %s,
+                total_supplies_cost_for_sale = %s,
+                date_recorded = %s -- Update last modified timestamp
+            WHERE id = %s
+        ''', (sale_date_obj, our_postage_cost, overall_notes,
+              customer_shipping_charge, platform_fee,
+              final_event_profit_loss, total_new_shipping_supplies_cost,
+              datetime.datetime.now(), sale_event_id))
+
+        conn.commit()
+        return True, "Sale event updated successfully. " + " ".join(messages_list)
+
+    except psycopg2.Error as e:
+        print(f"DB Error in update_sale_event_details for event ID {sale_event_id}: {e}")
+        if conn: conn.rollback()
+        return False, f"Database error: {e}"
+    except Exception as e:
+        print(f"Unexpected error in update_sale_event_details for event ID {sale_event_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        if conn: conn.rollback()
+        return False, f"An unexpected error occurred: {e}"
+    finally:
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+
 def get_all_cards():
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
@@ -1406,7 +1659,7 @@ def record_multi_item_sale(sale_date_str, total_shipping_cost_str, overall_notes
                     raise ValueError(f"Inv item not found: {item_type} id {inventory_item_id_int}")
                 if quantity_sold > original_item_db_row['quantity']:
                     name_key = 'name' if item_type == 'single_card' else 'product_name'
-                    raise ValueError(f"Not enough stock for {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}")
+                    raise ValueError(f"Not enough stock for {original_item_db_row[name_key]}. Have: {original_item_db_row['quantity']}. Need: {quantity_sold}")
 
                 buy_price_per_item = float(original_item_db_row['buy_price'])
                 item_profit_loss = (sell_price_per_item - buy_price_per_item) * quantity_sold
